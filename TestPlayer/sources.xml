@@ -1,0 +1,30 @@
+<sources>
+	<item>
+		<name>GPAC Main MBR</name>
+		<url>http://www.digitalprimates.net/dash/streams/gpac/mp4-main-multi-mpd-AV-NBS.mpd</url>
+	</item>
+	<item>
+		<name>GPAC Template MBR</name>
+		<url>http://www.digitalprimates.net/dash/streams/mp4-live-template/mp4-live-mpd-V-BS.mpd</url>
+	</item>
+	<item>
+		<name>USP A-Team MBR</name>
+		<url>http://demo.unified-streaming.com/video/ateam/ateam.ism/ateam.mpd</url>
+	</item>
+	<item>
+		<name>Bunny 720p</name>
+		<url>http://dash.edgesuite.net/adobe/bbb/bbb.mpd</url>
+	</item>
+	<item>
+		<name>Akamai Byte Ranges</name>
+		<url>http://dashdemo.edgesuite.net/digitalprimates/nexus/oops-20120802-manifest.mpd</url>
+	</item>
+	<item>
+		<name>Netflix BaseURL</name>
+		<url>http://dash.edgesuite.net/dash264/TestCases/1a/netflix/exMPD_BIP_TC1.mpd</url>
+	</item>
+	<item>
+		<name>Fraunhofer BaseURL</name>
+		<url>http://dashdemo.edgesuite.net/dash264/TestCases/3b/fraunhofer/elephants_dream_heaac2_0.mpd</url>
+	</item>
+</sources>

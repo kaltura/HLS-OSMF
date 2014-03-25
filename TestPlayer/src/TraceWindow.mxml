@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:TitleWindow
+	xmlns:fx="http://ns.adobe.com/mxml/2009" 
+	xmlns:s="library://ns.adobe.com/flex/spark" 
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	creationComplete="init()"
+	title="Debug Messages"
+	width="400" height="450">
+	
+	<fx:Script>
+		<![CDATA[
+			import net.digitalprimates.dash.DashBus;
+			
+			private function init():void {
+				DashBus.getInstance().addEventListener(DashBus.DEBUG_MESSAGE, onDebugMessage);
+			}
+			
+			private function onDebugMessage(event:DataEvent):void {
+				if (output.text == null)
+					output.text = "";
+				
+				output.text += "\n";
+				output.text += event.data;
+				output.scrollToRange(output.text.length);
+			}
+		]]>
+	</fx:Script>
+	
+	<s:TextArea
+		id="output"
+		width="100%" height="100%"
+		editable="false"/>
+	
+</s:TitleWindow>

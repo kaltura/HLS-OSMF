@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flexLibProperties includeAllClasses="true" useMultiPlatformConfig="false" version="3">
+  <includeClasses>
+    <classEntry path="com.kaltura.hls.HLSPluginInfo"/>
+    <classEntry path="com.kaltura.hls.HLSLoader"/>
+    <classEntry path="com.kaltura.hls.HLSElement"/>
+    <classEntry path="com.kaltura.hls.manifest.HLSManifestParser"/>
+    <classEntry path="com.kaltura.hls.manifest.HLSManifestStream"/>
+    <classEntry path="com.kaltura.hls.manifest.HLSManifestSegment"/>
+    <classEntry path="com.kaltura.hls.HLSIndexHandler"/>
+    <classEntry path="com.kaltura.hls.m2ts.M2TSStreamingFactory"/>
+    <classEntry path="com.kaltura.hls.m2ts.M2TSNetLoader"/>
+    <classEntry path="com.kaltura.hls.HLSMetadataNamespaces"/>
+    <classEntry path="com.kaltura.hls.HLSStreamingResource"/>
+    <classEntry path="com.kaltura.hls.m2ts.M2TSFileHandler"/>
+    <classEntry path="com.kaltura.hls.m2ts.FLVTags"/>
+    <classEntry path="com.kaltura.hls.m2ts.MediaClass"/>
+    <classEntry path="com.kaltura.hls.manifest.BaseHLSManifestItem"/>
+    <classEntry path="com.kaltura.hls.HLSHTTPNetStream"/>
+    <classEntry path="com.kaltura.hls.subtitles.SubTitleParser"/>
+    <classEntry path="com.kaltura.hls.subtitles.WebVTTRegion"/>
+    <classEntry path="com.kaltura.hls.subtitles.TextTrackCue"/>
+    <classEntry path="com.kaltura.hls.SubtitleTrait"/>
+  </includeClasses>
+  <includeResources/>
+  <namespaceManifests/>
+</flexLibProperties>

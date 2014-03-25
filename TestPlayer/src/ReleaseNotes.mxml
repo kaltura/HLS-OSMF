@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group
+	xmlns:fx="http://ns.adobe.com/mxml/2009" 
+	xmlns:s="library://ns.adobe.com/flex/spark" 
+	xmlns:mx="library://ns.adobe.com/flex/mx">
+	
+	<s:Scroller top="0" bottom="0" left="0" right="0">
+		
+		<s:VGroup width="100%" height="100%" paddingTop="10" paddingBottom="10" paddingRight="10">
+			
+			<s:Label text="Known issues" fontWeight="bold"/>
+			<s:Label text="Seeking doesn't work at higher bitrates."/>
+			<s:Label text="SegmentTimeline handling probably has bugs."/>
+			
+			<s:Spacer height="10"/>
+			
+			<s:Label text="v0.0.6" fontWeight="bold"/>
+			<s:Label text="Add support for BaseURL with no SegmentBase."/>
+			<s:Label text="Add support for SegmentBase with no ranges defined."/>
+			
+			<s:Spacer height="10"/>
+			
+			<s:Label text="v0.0.5" fontWeight="bold"/>
+			<s:Label text="Refactored parsing logic."/>
+			<s:Label text="Added initial live support."/>
+			
+			<s:Spacer height="10"/>
+			
+			<s:Label text="v0.0.4" fontWeight="bold"/>
+			<s:Label text="Add support for byte range requests."/>
+			<s:Label text="*Byte range requests use Akamai url format, NOT headers!"/>
+			<s:Label text="Add support for SegmentBase node."/>
+			<s:Label text="Add sidx handling."/>
+			<s:Label text="Fix some SegmentTimeline bugs."/>
+			
+			<s:Spacer height="10"/>
+			
+			<s:Label text="v0.0.3" fontWeight="bold"/>
+			<s:Label text="Fix various playback issues."/>
+			<s:Label text="Playback up to 1080p should work at ~24 fps."/>
+			<s:Label text="Faster box parsing."/>
+			
+			<s:Spacer height="10"/>
+			
+			<s:Label text="v0.0.2" fontWeight="bold"/>
+			<s:Label text="Auto MBR switching works properly."/>
+			<s:Label text="Support for streams that specify two tracks in a single segment set."/>
+			<s:Label text="Better support for BaseURL."/>
+			<s:Label text="More reliable MP4 box parsing."/>
+			<s:Label text="Fixed play/pause button."/>
+			
+			<s:Spacer height="10"/>
+			
+			<s:Label text="v0.0.1" fontWeight="bold"/>
+			<s:Label text="Initial release."/>
+			<s:Label text="SegmentList and SegmentTemplate support."/>
+			<s:Label text="MP4 support."/>
+			<s:Label text="Support seperate audio and video streams."/>
+			
+		</s:VGroup>
+		
+	</s:Scroller>
+	
+</s:Group>

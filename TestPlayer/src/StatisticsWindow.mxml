@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:TitleWindow
+	xmlns:fx="http://ns.adobe.com/mxml/2009" 
+	xmlns:s="library://ns.adobe.com/flex/spark" 
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:local="*"
+	creationComplete="init()"
+	title="Digital Primates Video Player v0.0.7"
+	width="400" height="450">
+	
+	<fx:Script>
+		<![CDATA[
+			import org.osmf.events.DynamicStreamEvent;
+			import org.osmf.events.MediaElementEvent;
+			import org.osmf.events.MediaErrorEvent;
+			import org.osmf.events.PlayEvent;
+			import org.osmf.media.MediaElement;
+			import org.osmf.media.MediaPlayer;
+			import org.osmf.net.NetStreamLoadTrait;
+			import org.osmf.traits.DynamicStreamTrait;
+			import org.osmf.traits.MediaTraitType;
+			
+			// PROPERTIES
+			
+			[Bindable]
+			public var playState:String = "press play...";
+			[Bindable]
+			public var hasMBR:Boolean = false;
+			[Bindable]
+			public var numBitrates:Number;
+			[Bindable]
+			public var currentBitrateIndex:Number;
+			[Bindable]
+			public var currentBitrateValue:Number;
+			[Bindable]
+			public var bufferLength:Number;
+			[Bindable]
+			public var fps:Number;
+			[Bindable]
+			public var avgfps:Number;
+			[Bindable]
+			public var droppedFrames:Number;
+			
+			private var pollNetStream:Boolean = false;
+			private var frameTotal:Number = 0;
+			private var frameCount:int = 0;
+			
+			// OSMF
+			
+			private var _player:MediaPlayer;
+			
+			public function get player():MediaPlayer {
+				return _player;
+			}
+			
+			public function set player(value:MediaPlayer):void {
+				clearPlayer();
+				
+				_player = value;
+				
+				initPlayer();
+			}
+			
+			private var _element:MediaElement;
+
+			public function get element():MediaElement {
+				return _element;
+			}
+
+			public function set element(value:MediaElement):void {
+				clearElement();
+				
+				_element = value;
+				
+				initElement();
+			}
+			
+			// INTERNAL METHODS
+			
+			private function init():void {
+				addEventListener(Event.ENTER_FRAME, onEnterFrame);
+			}
+			
+			private function onEnterFrame(event:Event):void {
+				if (pollNetStream) {
+					netStreamPoll();
+				}
+			}
+			
+			protected function clearPlayer():void {
+				if (!_player)
+					return;
+				
+				_player.removeEventListener(MediaErrorEvent.MEDIA_ERROR, onMediaError);
+				_player.removeEventListener(PlayEvent.PLAY_STATE_CHANGE, onPlayStateChange);
+			}
+			
+			protected function initPlayer():void {
+				if (!_player)
+					return;
+				
+				_player.addEventListener(MediaErrorEvent.MEDIA_ERROR, onMediaError);
+				_player.addEventListener(PlayEvent.PLAY_STATE_CHANGE, onPlayStateChange);
+				
+				player.autoDynamicStreamSwitch = autoMBRCheckBox.selected;
+			}
+			
+			protected function clearElement():void {
+				if (!_element)
+					return;
+				
+				clearDynamicStreamTrait(element.getTrait(MediaTraitType.DYNAMIC_STREAM) as DynamicStreamTrait);
+				clearLoadTrait(element.getTrait(MediaTraitType.LOAD) as NetStreamLoadTrait);
+			}
+			
+			protected function initElement():void {
+				if (!_element)
+					return;
+				
+				element.addEventListener(MediaElementEvent.TRAIT_ADD, onTraitAdd);
+				
+				setupDynamicStreamTrait(element.getTrait(MediaTraitType.DYNAMIC_STREAM) as DynamicStreamTrait);
+				setupLoadTrait(element.getTrait(MediaTraitType.LOAD) as NetStreamLoadTrait);
+			}
+			
+			private function setupDynamicStreamTrait(trait:DynamicStreamTrait):void {
+				if (!trait)
+					return;
+				
+				hasMBR = trait.numDynamicStreams > 1;
+				
+				numBitrates = trait.numDynamicStreams;
+				currentBitrateIndex = trait.currentIndex + 1;
+				currentBitrateValue = trait.getBitrateForIndex(trait.currentIndex);
+				
+				if (!hasMBR)
+					return;
+				
+				trait.addEventListener(DynamicStreamEvent.NUM_DYNAMIC_STREAMS_CHANGE, onNumDynamicStreamsChange);
+				trait.addEventListener(DynamicStreamEvent.SWITCHING_CHANGE, onSwitchingChange);
+			}
+			
+			private function clearDynamicStreamTrait(trait:DynamicStreamTrait):void {
+				if (!trait)
+					return;
+				
+				trait.removeEventListener(DynamicStreamEvent.NUM_DYNAMIC_STREAMS_CHANGE, onNumDynamicStreamsChange);
+				trait.removeEventListener(DynamicStreamEvent.SWITCHING_CHANGE, onSwitchingChange);
+			}
+			
+			private function setupLoadTrait(trait:NetStreamLoadTrait):void {
+				if (!trait)
+					return;
+				
+				pollNetStream = true;
+			}
+			
+			private function clearLoadTrait(trait:NetStreamLoadTrait):void {
+				if (!trait)
+					return;
+				
+				pollNetStream = false;
+			}
+			
+			private function netStreamPoll():void {
+				var trait:NetStreamLoadTrait = element.getTrait(MediaTraitType.LOAD) as NetStreamLoadTrait;
+				if (!trait)
+					return;
+				
+				bufferLength = trait.netStream.bufferLength | 0;
+				fps = trait.netStream.currentFPS | 0;
+				
+				if (fps > 0) {
+					frameCount++;
+					frameTotal += fps;
+					avgfps = (frameTotal / frameCount) | 0;
+				}
+				
+				droppedFrames = trait.netStream.info.droppedFrames;
+			}
+			
+			// OSMF HANDLERS
+			
+			private function onMediaError(event:MediaErrorEvent):void {
+				trace("Media Error:", event.error.detail);
+				playState = "Error: " + event.error.detail;
+			}
+			
+			private function onPlayStateChange(event:PlayEvent):void {
+				playState = event.playState;
+			}
+			
+			private function onTraitAdd(event:MediaElementEvent):void {
+				switch (event.traitType) {
+					case MediaTraitType.DYNAMIC_STREAM:
+						setupDynamicStreamTrait(element.getTrait(MediaTraitType.DYNAMIC_STREAM) as DynamicStreamTrait);
+						break;
+					case MediaTraitType.LOAD:
+						setupLoadTrait(element.getTrait(MediaTraitType.LOAD) as NetStreamLoadTrait);
+						break;
+				}
+			}
+			
+			private function onNumDynamicStreamsChange(event:DynamicStreamEvent):void {
+				var trait:DynamicStreamTrait = element.getTrait(MediaTraitType.DYNAMIC_STREAM) as DynamicStreamTrait;
+				numBitrates = trait.numDynamicStreams;	
+			}
+			
+			private function onSwitchingChange(event:DynamicStreamEvent):void {
+				var trait:DynamicStreamTrait = element.getTrait(MediaTraitType.DYNAMIC_STREAM) as DynamicStreamTrait;
+				currentBitrateIndex = trait.currentIndex + 1;
+				currentBitrateValue = trait.getBitrateForIndex(trait.currentIndex);
+				
+				bitrateDownBtn.enabled = !trait.switching;
+				bitrateUpBtn.enabled = !trait.switching;
+				switchingLbl.text = trait.switching ? "(switch in progress...)" : "";
+			}
+			
+			// UI HANDLERS
+			
+			private function onAutoMBRChange(event:Event):void {
+				if (player)
+					player.autoDynamicStreamSwitch = autoMBRCheckBox.selected;
+			}
+			
+			private function onBitrateDownClick(event:Event):void {
+				if (player.currentDynamicStreamIndex > 0) {
+					player.switchDynamicStreamIndex(player.currentDynamicStreamIndex - 1);
+				}
+			}
+			
+			private function onBitrateUpClick(event:Event):void {
+				if (player.currentDynamicStreamIndex < player.maxAllowedDynamicStreamIndex) {
+					player.switchDynamicStreamIndex(player.currentDynamicStreamIndex + 1);
+				}
+			}
+		]]>
+	</fx:Script>
+	
+	<s:layout>
+		<s:VerticalLayout
+			paddingTop="10" paddingBottom="10"
+			paddingLeft="10" paddingRight="10"/>
+	</s:layout>
+	
+	<s:Label
+		width="100%"
+		text="Play State: {playState}"
+		maxDisplayedLines="3"/>
+	
+	<mx:HRule width="100%"/>
+	
+	<s:Label text="Buffer Length: {bufferLength}"/>
+	<s:Label text="FPS: {fps}"/>
+	<s:Label text="Average: {avgfps}"/>
+	<s:Label text="Dropped Frames: {droppedFrames}"/>
+	
+	<mx:HRule width="100%"/>
+	
+	<s:Group width="100%">
+		
+		<s:HGroup verticalAlign="baseline" top="0" left="0">
+			
+			<s:CheckBox
+				id="autoMBRCheckBox"
+				label="Auto MBR"
+				selected="true"
+				change="onAutoMBRChange(event)"/>
+			
+			<s:Label id="switchingLbl"/>
+			
+		</s:HGroup>
+
+		<s:Label
+			top="25" left="0"
+			text="Number of bitrates: {numBitrates}"
+			enabled="{hasMBR}"/>
+		
+		<s:Label
+			top="40" left="0"
+			text="Current bitrate: {currentBitrateIndex} | {currentBitrateValue}"
+			enabled="{hasMBR}"/>
+			
+		<s:HGroup id="mbrGroup" enabled="{hasMBR &amp;&amp; !autoMBRCheckBox.selected}" verticalAlign="middle" top="0" right="0">
+			
+			<s:Button
+				id="bitrateDownBtn"
+				label="Down"
+				click="onBitrateDownClick(event)"/>
+			<s:Button
+				id="bitrateUpBtn"
+				label="Up"
+				click="onBitrateUpClick(event)"/>
+			
+		</s:HGroup>
+		
+	</s:Group>
+	
+	<mx:HRule width="100%"/>
+	
+	<local:ReleaseNotes width="100%" height="100%"/>
+	
+</s:TitleWindow>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<local:TestPlayer 
+	backgroundAlpha="0"
+	backgroundColor="black"
+	xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:local="*">
+
+	<fx:Script>
+		<![CDATA[
+			import com.kaltura.hls.HLSPluginInfo;
+			//import net.digitalprimates.dash.DashPluginInfo;
+			//import net.digitalprimates.dash.elements.DashResource;
+			
+			import org.osmf.media.MediaResourceBase;
+			import org.osmf.media.PluginInfoResource;
+			import net.digitalprimates.osmf.utils.DashResource;
+			
+			override protected function get developmentStream():String {
+				
+				return "http://www.djing.com/tv/live.m3u8";
+				//return "http://abclive.abcnews.com/i/abc_live4@136330/master.m3u8";
+				//return "http://playertest.longtailvideo.com/adaptive/captions/playlist.m3u8";
+				
+				//return "http://dash.edgesuite.net/digitalprimates/sony/DISC1651343080050699_TEST_US_12_28_56_DASH/DASH_vod.mpd";
+				//return "http://origintest.cloudapp.net/media/SintelTrailer_Smooth_from_WAME/sintel_trailer-1080p.ism/manifest(format=mpd-time-csf)";
+				//return "http://origintest.cloudapp.net/media/SintelTrailer_Smooth_from_WAME_720p_Main_Profile/sintel_trailer-720p.ism/manifest(format=mpd-time-csf)";
+				//return null;
+			}
+			
+			override protected function get videoSourceURL():String {
+				return "http://www.digitalprimates.net/dash/streams/sources.xml";
+			}
+
+			private var _plugins:Vector.<PluginInfoResource>;
+
+			override protected function get plugins():Vector.<PluginInfoResource> {
+				if ( !_plugins ) {
+					_plugins = new Vector.<PluginInfoResource>();
+					//_plugins.push( new PluginInfoResource( new DashPluginInfo() ) );
+					_plugins.push( new PluginInfoResource( new HLSPluginInfo() ) );
+				}
+
+				return _plugins;
+			}
+			
+			override protected function buildResource(url:String, live:Boolean):MediaResourceBase {
+				return new DashResource(url, live);
+			}
+		]]>
+	</fx:Script>
+
+</local:TestPlayer>
