@@ -63,6 +63,7 @@ package com.kaltura.hls.manifest
 			
 			// Process each line.
 			var lastHint:* = null;
+			var nextByteRangeStart:int = 0;
 			
 			var i:int = 0;
 			for(i=0; i<lines.length; i++)
@@ -76,8 +77,22 @@ package com.kaltura.hls.manifest
 				if(curPrefix != "#" && curLine.length > 0)
 				{
 					// Specifying a media file, note it.
-					if ( type != SUBTITLES ) lastHint['uri'] = getNormalizedUrl( baseUrl, curLine );
-					else lastHint.load( getNormalizedUrl( baseUrl, curLine ) );
+					if ( type != SUBTITLES )
+					{
+						var targetUrl:String = getNormalizedUrl( baseUrl, curLine );
+						var segment:HLSManifestSegment = lastHint as HLSManifestSegment;
+						if ( segment && segment.byteRangeStart != -1 )
+						{
+							// Append akamai ByteRange properties to URL
+							var urlPostFix:String = targetUrl.indexOf( "?" ) == -1 ? "?" : "&";
+							targetUrl += urlPostFix + "range=" + segment.byteRangeStart + "-" + segment.byteRangeEnd;
+						}
+						lastHint['uri'] = targetUrl;
+					}
+					else
+					{
+						lastHint.load( getNormalizedUrl( baseUrl, curLine ) );
+					}
 					continue;
 				}
 				
@@ -160,6 +175,15 @@ package com.kaltura.hls.manifest
 							if(valueSplit.length > 1)
 								lastHint.title = valueSplit[1];
 						}
+						break;
+					
+					case "EXT-X-BYTERANGE":
+						var hintAsSegment:HLSManifestSegment = lastHint as HLSManifestSegment;
+						if ( hintAsSegment == null ) break;
+						var byteRangeValues:Array = tagParams.split("@");
+						hintAsSegment.byteRangeStart = byteRangeValues.length > 1 ? int( byteRangeValues[ 1 ] ) : nextByteRangeStart;
+						hintAsSegment.byteRangeEnd = hintAsSegment.byteRangeStart + int( byteRangeValues[ 0 ] );
+						nextByteRangeStart = hintAsSegment.byteRangeEnd + 1;
 						break;
 					
 					case "EXT-X-DISCONTINUITY":
