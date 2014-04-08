@@ -38,3 +38,4 @@ Build them all to get the KalturaHLSPlugin.swf from the
 KalturaHLSPlugin/bin-debug folder. This may then be loaded in the Kaltura Player (or any OSMF-based player).
 
 **Note:** You have to make sure that you set the project references correctly or OSMF won't be bundled with the SWF, and errors will occur due to incompatible versions.
+
