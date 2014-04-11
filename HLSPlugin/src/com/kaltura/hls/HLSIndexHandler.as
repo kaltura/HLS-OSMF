@@ -459,7 +459,11 @@ package com.kaltura.hls
 		
 		public function getKeyForIndex( index:uint ):HLSManifestEncryptionKey
 		{
-			var keys:Vector.<HLSManifestEncryptionKey> = getManifestForQuality( lastQuality ).keys;
+			var keys:Vector.<HLSManifestEncryptionKey>;
+			
+			// Make sure we accessing returning the correct key list for the manifest type
+			if ( manifest.type == HLSManifestParser.AUDIO ) keys = manifest.keys;
+			else keys = getManifestForQuality( lastQuality ).keys;
 			
 			for ( var i:int = 0; i < keys.length; i++ )
 			{

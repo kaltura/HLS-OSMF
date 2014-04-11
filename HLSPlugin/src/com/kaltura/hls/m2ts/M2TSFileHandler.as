@@ -1,5 +1,6 @@
 package com.kaltura.hls.m2ts
 {
+	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.SubtitleTrait;
 	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.muxing.AACParser;
@@ -24,10 +25,12 @@ package com.kaltura.hls.m2ts
 		public var subtitleTrait:SubtitleTrait;
 		public var key:HLSManifestEncryptionKey;
 		public var segmentId:uint = 0;
+		public var resource:HLSStreamingResource;
 		
 		private var _converter:M2TSToFLVConverter;
 		private var _curTimeOffset:uint;
 		private var _buffer:ByteArray;
+		private var _fragReadBuffer:ByteArray;
 		private var _encryptedDataBuffer:ByteArray;
 		private var _timeOrigin:uint;
 		private var _timeOriginNeeded:Boolean;
@@ -130,8 +133,6 @@ package com.kaltura.hls.m2ts
 			// We can always survive no bytes.
 			return 0;
 		}
-
-		public var _fragReadBuffer:ByteArray;
 
 		private function basicProcessFileSegment(input:IDataInput, limit:uint, flush:Boolean):ByteArray
 		{
