@@ -56,8 +56,8 @@ package com.kaltura.hls.manifest
 				switch ( name )
 				{
 					case "URI" :
-						//result.url = value;
-						result.url = "http://localhost:5000/VideoDecrypt/video.key";
+						result.url = value;
+						//result.url = "http://localhost:5000/VideoDecrypt/video.key";
 						break;
 					
 					case "IV" :
