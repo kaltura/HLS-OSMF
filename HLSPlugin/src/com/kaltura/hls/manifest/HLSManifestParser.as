@@ -28,13 +28,13 @@ package com.kaltura.hls.manifest
 		public var mediaSequence:int;
 		public var allowCache:Boolean;
 		public var targetDuration:Number;
-		public var key:String;
 		public var streamEnds:Boolean = false;
 		public var playLists:Vector.<HLSManifestPlaylist> = new Vector.<HLSManifestPlaylist>();
 		public var streams:Vector.<HLSManifestStream> = new Vector.<HLSManifestStream>();
 		public var segments:Vector.<HLSManifestSegment> = new Vector.<HLSManifestSegment>();
 		public var subtitlePlayLists:Vector.<HLSManifestPlaylist> = new Vector.<HLSManifestPlaylist>();
 		public var subtitles:Vector.<SubTitleParser> = new Vector.<SubTitleParser>();
+		public var keys:Vector.<HLSManifestEncryptionKey> = new Vector.<HLSManifestEncryptionKey>();
 		
 		public var manifestLoaders:Vector.<URLLoader> = new Vector.<URLLoader>();
 		public var manifestParsers:Vector.<HLSManifestParser> = new Vector.<HLSManifestParser>();
@@ -120,7 +120,10 @@ package com.kaltura.hls.manifest
 						break;
 
 					case "EXT-X-KEY":
-						key = tagParams;
+						if ( keys.length > 0 ) keys[ keys.length - 1 ].endSegmentId = segments.length - 1;
+						var key:HLSManifestEncryptionKey = HLSManifestEncryptionKey.fromParams( tagParams );
+						key.startSegmentId = segments.length;
+						keys.push( key );
 						break;
 					
 					case "EXT-X-VERSION":
