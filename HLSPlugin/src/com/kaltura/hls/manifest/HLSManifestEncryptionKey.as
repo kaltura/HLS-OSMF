@@ -1,11 +1,8 @@
 package com.kaltura.hls.manifest
 {
-	import com.hurlant.crypto.Crypto;
-	import com.hurlant.crypto.symmetric.CBCMode;
-	import com.hurlant.crypto.symmetric.IPad;
-	import com.hurlant.crypto.symmetric.NullPad;
-	import com.hurlant.crypto.symmetric.PKCS5;
 	import com.hurlant.util.Hex;
+	import com.kaltura.crypto.DecryptUtil.CModule;
+	import com.kaltura.crypto.DecryptUtil.decryptAES;
 	
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
@@ -19,8 +16,6 @@ package com.kaltura.hls.manifest
 	public class HLSManifestEncryptionKey extends EventDispatcher
 	{
 		private static const LOADER_CACHE:Dictionary = new Dictionary();
-		private static const NULL_PAD:IPad = new NullPad();
-		private static const PAD:IPad = new PKCS5( 16 );
 		private static const IV_DATA_CACHE:ByteArray = new ByteArray();
 		
 		public var usePadding:Boolean = false;
@@ -31,15 +26,21 @@ package com.kaltura.hls.manifest
 		public var startSegmentId:uint = 0;
 		public var endSegmentId:uint = uint.MAX_VALUE;
 		
-		private var _segmentIdIVData:ByteArray;
-		private var _mode:CBCMode;
-		private var _paddingMode:CBCMode;
+		private var _keyData:ByteArray;
+		private var _explicitIVData:ByteArray;
+		
+		private static var _decryptInitialized:Boolean = false;
 		
 		public function HLSManifestEncryptionKey()
 		{
+			if ( !_decryptInitialized )
+			{
+				CModule.startAsync();
+				_decryptInitialized = true;
+			}
 		}
 		
-		public function get isLoaded():Boolean { return _mode != null; }
+		public function get isLoaded():Boolean { return _keyData != null; }
 		
 		public static function fromParams( params:String ):HLSManifestEncryptionKey
 		{
@@ -57,7 +58,7 @@ package com.kaltura.hls.manifest
 				{
 					case "URI" :
 						result.url = value;
-						//result.url = "http://localhost:5000/VideoDecrypt/video.key";
+						//result.url = "http://localhost:5000/video.key";
 						break;
 					
 					case "IV" :
@@ -77,21 +78,17 @@ package com.kaltura.hls.manifest
 		
 		public function decrypt( data:ByteArray, segmentId:uint = 0 ):void
 		{
+			var startTime:uint = getTimer();
+			
 			if ( iv == "" )
 			{
 				// No IV exists, set it to segment id
 				setIVDataCacheTo( segmentId );
-				_mode.IV = IV_DATA_CACHE;
-				_paddingMode.IV = IV_DATA_CACHE;
+				decryptAES( data, _keyData, IV_DATA_CACHE, usePadding );
 			}
+			else decryptAES( data, _keyData, _explicitIVData, usePadding );
 			
-			if ( usePadding ) _paddingMode.decrypt( data );		
-			else
-			{
-				var startTime:uint = getTimer();
-				_mode.decrypt( data );
-				trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
-			}
+			trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
 		}
 		
 		private static function getLoader( url:String ):URLLoader
@@ -115,16 +112,13 @@ package com.kaltura.hls.manifest
 		private function onLoad( e:Event = null ):void
 		{
 			var loader:URLLoader = getLoader( url );
-			var keyData:ByteArray = loader.data as ByteArray;
 			
-			_mode = Crypto.getCipher( "aes-cbc", keyData, NULL_PAD ) as CBCMode;
-			_paddingMode = Crypto.getCipher( "aes-cbc", keyData, PAD ) as CBCMode;
+			_keyData = loader.data as ByteArray;
 			
 			if ( iv )
 			{
 				var ivData:ByteArray = Hex.toArray( iv ); 
-				_mode.IV = ivData;
-				_paddingMode.IV = ivData;
+				_explicitIVData = ivData;
 			}
 			
 			loader.removeEventListener( Event.COMPLETE, onLoad );
