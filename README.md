@@ -39,3 +39,23 @@ KalturaHLSPlugin/bin-debug folder. This may then be loaded in the Kaltura Player
 
 **Note:** You have to make sure that you set the project references correctly or OSMF won't be bundled with the SWF, and errors will occur due to incompatible versions.
 
+**Alternate Audio Stream Support**
+
+Alternate Audio is currently disabled due to an OSMF version conflict. To enable, OSMF needs to be modified, and lines 21-40 in HLSHTTPNetStream in the plugin project must be uncommented.
+
+To update OSMF to accomodate the changes, line 491 in HTTPNetStream needs to be changed from
+
+    var audioResource:MediaResourceBase = HTTPStreamingUtils.createHTTPStreamingResource(_resource, _desiredAudioStreamName);
+
+to
+
+    var audioResource:MediaResourceBase = createAudioResource(_resource, _desiredAudioStreamName);
+
+Then the following method needs to be added to HTTPNetStream:
+
+    protected function createAudioResource(resource:MediaResourceBase, streamName:String):MediaResourceBase
+    {
+        return HTTPStreamingUtils.createHTTPStreamingResource(resource, streamName);
+    }
+
+These changes will not change the logic of the base class at all, but will allow an opening for the HLSPlugin to override later.
