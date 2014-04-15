@@ -13,6 +13,14 @@ package com.kaltura.hls.manifest
 	import flash.utils.Dictionary;
 	import flash.utils.getTimer;
 
+	/**
+	 * HLSManifestEncryptionKey is used to parse AES decryption key data from a m3u8
+	 * manifest, load the specified key file into memory, and use the key data to decrypt
+	 * audio and video streams. It supports AES-128 encryption with #PKCS7 padding, as well
+	 * as explicitly set Initialization Vectors. If an Initialization Vector is not provided,
+	 * the segment id of the stream to be decrypted will be used.
+	 */
+	
 	public class HLSManifestEncryptionKey extends EventDispatcher
 	{
 		private static const LOADER_CACHE:Dictionary = new Dictionary();
@@ -58,7 +66,9 @@ package com.kaltura.hls.manifest
 				{
 					case "URI" :
 						result.url = value;
-						//result.url = "http://localhost:5000/video.key";
+						// Uncomment the line below to use a local key for debugging instead,
+						// requires file to exist
+						// result.url = "http://localhost:5000/video.key";
 						break;
 					
 					case "IV" :
@@ -75,6 +85,14 @@ package com.kaltura.hls.manifest
 		{
 			for ( var key:String in LOADER_CACHE ) delete LOADER_CACHE[ key ];
 		}
+		
+		/**
+		 * Decrypts a video or audio stream using AES-128. If an Initialization Vector was not provided
+		 * during key creation, the passed in segment id of the video will be converted to
+		 * a 32 Byte ByteArray and used as the IV.
+		 * 
+		 * Note: Segment IDs passed in cannot exceed 2^32
+		 */
 		
 		public function decrypt( data:ByteArray, segmentId:uint = 0 ):void
 		{
