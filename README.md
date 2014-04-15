@@ -37,5 +37,6 @@ Project References for each of the projects:
 Build them all to get the KalturaHLSPlugin.swf from the 
 KalturaHLSPlugin/bin-debug folder. This may then be loaded in the Kaltura Player (or any OSMF-based player).
 
-**Note:** You have to make sure that you set the project references correctly or OSMF won't be bundled with the SWF, and errors will occur due to incompatible versions.
-
+**Note:** 
+    * You have to make sure that you set the project references correctly or OSMF won't be bundled with the SWF, and errors will occur due to incompatible versions.
+    * Alternate Audio stream support is currently disabled due to an OSMF version conflict. To enable, the OSMF version provided with this repo must be used, and lines 21-40 in HLSHTTPNetStream in the plugin project must be uncommented.
