@@ -1,12 +1,15 @@
 package com.kaltura.hls.m2ts
 {
+	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.SubtitleTrait;
+	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.muxing.AACParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	import com.kaltura.hls.subtitles.TextTrackCue;
 	
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
+	import flash.utils.getTimer;
 	
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
@@ -19,11 +22,16 @@ package com.kaltura.hls.m2ts
 	{
 		private static const MAX_PROCESS_SEGMENT_BYTES:uint = 8192;
 		
-		public var subtitleTrait:SubtitleTrait
+		public var subtitleTrait:SubtitleTrait;
+		public var key:HLSManifestEncryptionKey;
+		public var segmentId:uint = 0;
+		public var resource:HLSStreamingResource;
 		
 		private var _converter:M2TSToFLVConverter;
 		private var _curTimeOffset:uint;
 		private var _buffer:ByteArray;
+		private var _fragReadBuffer:ByteArray;
+		private var _encryptedDataBuffer:ByteArray;
 		private var _timeOrigin:uint;
 		private var _timeOriginNeeded:Boolean;
 		private var _segmentBeginSeconds:Number;
@@ -38,6 +46,8 @@ package com.kaltura.hls.m2ts
 		public function M2TSFileHandler()
 		{
 			super();
+			
+			_encryptedDataBuffer = new ByteArray();
 
 			_converter = new M2TSToFLVConverter(handleFLVMessage);
 			
@@ -124,14 +134,42 @@ package com.kaltura.hls.m2ts
 			return 0;
 		}
 
-		public var _fragReadBuffer:ByteArray;
-
 		private function basicProcessFileSegment(input:IDataInput, limit:uint, flush:Boolean):ByteArray
 		{
-			// If it's AAC, process it.
-			var tmp:ByteArray = new ByteArray();
-			input.readBytes(tmp);
+			if ( key && !key.isLoaded )
+			{
+				input.readBytes( _encryptedDataBuffer, _encryptedDataBuffer.length );
+				return null;
+			}
 			
+			var tmp:ByteArray = new ByteArray();
+			
+			if ( _encryptedDataBuffer.length > 0 )
+			{
+				_encryptedDataBuffer.position = 0;
+				_encryptedDataBuffer.readBytes( tmp );
+				_encryptedDataBuffer.clear();
+			}
+			
+			input.readBytes( tmp, tmp.length );
+			
+			if ( key )
+			{
+				var bytesToRead:uint = tmp.length;
+				var leftoverBytes:uint = bytesToRead % 16;
+				bytesToRead -= leftoverBytes;
+				
+				if ( leftoverBytes > 0 )
+				{
+					tmp.position = bytesToRead;
+					tmp.readBytes( _encryptedDataBuffer );
+					tmp.length = bytesToRead;
+				}
+				
+				key.decrypt( tmp, segmentId + 1 );
+			}
+			
+			// If it's AAC, process it.
 			if(AACParser.probe(tmp))
 			{
 				trace("GOT AAC " + tmp.bytesAvailable);
@@ -174,11 +212,14 @@ package com.kaltura.hls.m2ts
 
 		public override function processFileSegment(input:IDataInput):ByteArray
 		{
+			if ( key ) key.usePadding = false;
 			return basicProcessFileSegment(input, MAX_PROCESS_SEGMENT_BYTES, false);
 		}
 		
 		public override function endProcessFile(input:IDataInput):ByteArray
 		{
+			if ( key ) key.usePadding = true;
+			
 			var rv:ByteArray = basicProcessFileSegment(input, uint.MAX_VALUE, false);
 			
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
