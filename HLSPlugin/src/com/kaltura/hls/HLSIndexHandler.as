@@ -257,6 +257,7 @@ package com.kaltura.hls
 			// perhaps by comparing timestamps.
 			
 			if (newManifest == null || newManifest.segments.length == 0) return;
+			
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
 			var curManifest:HLSManifestParser = getManifestForQuality(quality);
 			var segId:int= segments[segments.length - 1].id;
@@ -544,17 +545,20 @@ package com.kaltura.hls
 			var curManifest:HLSManifestParser = getManifestForQuality(lastQuality);
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
 			if (segments.length == 0) return; // No point, I think, in continuing
+			
+			
+			var firstSegment:HLSManifestSegment = segments[ 0 ];
 			var segment:HLSManifestSegment = segments[segments.length - 1];
 			
 			var dvrInfo:DVRInfo = new DVRInfo();
-			dvrInfo.offline = false
-			dvrInfo.isRecording = curManifest.streamEnds;  // TODO: verify that this is what we REALLY want to be doing
-			
-			dvrInfo.startTime = 0;			
-			dvrInfo.beginOffset = lastKnownPlaylistStartTime;
-			dvrInfo.endOffset = segment.startTime + segment.duration;
+			dvrInfo.offline = false;
+			dvrInfo.isRecording = !curManifest.streamEnds;  // TODO: verify that this is what we REALLY want to be doing
+			dvrInfo.startTime = firstSegment.startTime;			
+			dvrInfo.beginOffset = firstSegment.startTime;
+			dvrInfo.endOffset = segment.startTime; // + segment.duration;
 			dvrInfo.curLength = dvrInfo.endOffset - dvrInfo.beginOffset;
 			dvrInfo.windowDuration = dvrInfo.curLength; // TODO: verify that this is what we want to be putting here
+			
 			dispatchEvent(new DVRStreamInfoEvent(DVRStreamInfoEvent.DVRSTREAMINFO, false, false, dvrInfo));
 		}
 		
