@@ -103,7 +103,7 @@ package com.kaltura.hls
 				var curStream:HLSManifestStream = parser.streams[i];
 				item = new DynamicStreamingItem(curStream.uri, curStream.bandwidth, curStream.width, curStream.height);
 				items.push(item);
-				if ( !isDVR && curStream.manifest.isDVR ) isDVR = true;
+				if ( !curStream.manifest.streamEnds ) isDVR = true;
 			}
 			
 			// Deal with single rate M3Us by stuffing a single stream in.
