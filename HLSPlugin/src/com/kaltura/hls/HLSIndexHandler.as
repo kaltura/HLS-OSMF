@@ -395,7 +395,7 @@ package com.kaltura.hls
 			{
 				var curSegment:HLSManifestSegment = segments[i];
 				
-				if(curSegment.duration >= time - accum)
+				if(curSegment.duration > time - accum)
 				{
 					lastSegmentIndex = i;
 					fileHandler.segmentId = lastSegmentIndex;
