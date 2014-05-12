@@ -89,7 +89,8 @@ package org.osmf.net.httpstreaming
 		 * because the original is completely closed and private, and unable
 		 * to be properly extended to override the desired functionality.
 		 * By duplicating it, we can modify the alternate audio stream
-		 * data instantiation to suit our needs.
+		 * data instantiation to suit our needs; specifically, the
+		 * changeAudioStreamTo() method.
 		 * 
 		 * The org.osmf.net.httpstreaming namespace is required due to
 		 * internal namespace usage.
