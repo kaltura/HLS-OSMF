@@ -88,6 +88,8 @@ package org.osmf.net.httpstreaming
 		 * We use a duplicate of the class instead of extending the original
 		 * because the original is completely closed and private, and unable
 		 * to be properly extended to override the desired functionality.
+		 * By duplicating it, we can modify the alternate audio stream
+		 * data instantiation to suit our needs.
 		 * 
 		 * The org.osmf.net.httpstreaming namespace is required due to
 		 * internal namespace usage.
