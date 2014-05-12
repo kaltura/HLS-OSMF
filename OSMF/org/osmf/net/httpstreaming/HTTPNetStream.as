@@ -488,7 +488,7 @@ package org.osmf.net.httpstreaming
 					logger.debug("Initiating change of audio stream to [" + _desiredAudioStreamName + "]");
 				}
 				
-				var audioResource:MediaResourceBase = createAudioResource(_resource, _desiredAudioStreamName);
+				var audioResource:MediaResourceBase = HTTPStreamingUtils.createHTTPStreamingResource(_resource, _desiredAudioStreamName);
 				if (audioResource != null)
 				{
 					// audio handler is not dispatching events on the NetStream
@@ -505,11 +505,6 @@ package org.osmf.net.httpstreaming
 			}
 			
 			_notifyPlayUnpublishPending = false;
-		}
-		
-		protected function createAudioResource(resource:MediaResourceBase, streamName:String):MediaResourceBase
-		{
-			return HTTPStreamingUtils.createHTTPStreamingResource(resource, streamName);
 		}
 		
 		/**
