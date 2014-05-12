@@ -1,6 +1,5 @@
 package com.kaltura.hls.m2ts
 {
-	import com.kaltura.hls.HLSHTTPNetStream;
 	import com.kaltura.hls.HLSMetadataNamespaces;
 	
 	import flash.net.NetConnection;
@@ -11,6 +10,7 @@ package com.kaltura.hls.m2ts
 	import org.osmf.net.httpstreaming.HTTPNetStream;
 	import org.osmf.net.httpstreaming.HTTPStreamingFactory;
 	import org.osmf.net.httpstreaming.HTTPStreamingNetLoader;
+	import org.osmf.net.httpstreaming.HLSHTTPNetStream;
 	
 	/**
 	 * Factory to identify and process MPEG2 TS via OSMF.
@@ -30,7 +30,7 @@ package com.kaltura.hls.m2ts
 		override protected function createNetStream(connection:NetConnection, resource:URLResource):NetStream
 		{
 			var factory:HTTPStreamingFactory = new M2TSStreamingFactory();
-			var httpNetStream:HTTPNetStream = new HLSHTTPNetStream(connection, factory, resource);
+			var httpNetStream:HLSHTTPNetStream = new HLSHTTPNetStream(connection, factory, resource);
 			return httpNetStream;
 		}
 	}
