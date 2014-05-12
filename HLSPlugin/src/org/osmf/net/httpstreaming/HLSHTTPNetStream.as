@@ -80,21 +80,17 @@ package org.osmf.net.httpstreaming
 		[Event(name="qosUpdate", type="org.osmf.events.QoSInfoEvent")]
 		
 		/**
+		 * HLSHTTPNetStream is a duplicate of the OSMF HTTPNetStream class,  
+		 * which can accept input via the appendBytes method.  In general, 
+		 * the assumption is that a large media file is broken up into a 
+		 * number of smaller fragments.
 		 * 
-		 * @private
+		 * We use a duplicate of the class instead of extending the original
+		 * because the original is completely closed and private, and unable
+		 * to be properly extended to override the desired functionality.
 		 * 
-		 * HTTPNetStream is a NetStream subclass which can accept input via the
-		 * appendBytes method.  In general, the assumption is that a large media
-		 * file is broken up into a number of smaller fragments.
-		 * 
-		 * There are two important aspects of working with an HTTPNetStream:
-		 * 1) How to map a specific playback time to the media file fragment
-		 * which holds the media for that time.
-		 * 2) How to unmarshal the data from a media file fragment so that it can
-		 * be fed to the NetStream as TCMessages. 
-		 * 
-		 * The former is the responsibility of HTTPStreamingIndexHandlerBase,
-		 * the latter the responsibility of HTTPStreamingFileHandlerBase.
+		 * The org.osmf.net.httpstreaming namespace is required due to
+		 * internal namespace usage.
 		 */	
 		public class HLSHTTPNetStream extends NetStream
 		{
