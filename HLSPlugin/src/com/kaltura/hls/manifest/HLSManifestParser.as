@@ -44,6 +44,16 @@ package com.kaltura.hls.manifest
 		
 		private var _subtitlesLoading:int = 0;
 		
+		public function get estimatedWindowDuration():Number
+		{
+			return segments.length * targetDuration;
+		}
+		
+		public function get isDVR():Boolean
+		{
+			return allowCache && !streamEnds;
+		}
+		
 		public static function getNormalizedUrl( baseUrl:String, uri:String ):String
 		{
 			return ( uri.substr(0, 5) == "http:" || uri.substr(0, 6) == "https:" || uri.substr(0, 5) == "file:" ) ? uri : baseUrl + uri;
@@ -349,7 +359,7 @@ package com.kaltura.hls.manifest
 			var manifestLoader:URLLoader = e.target as URLLoader;
 			//trace("HLSManifestParser.onManifestReloadComplete");
 			var resourceData:String = String(manifestLoader.data);
-			trace("onManifestReloadComlete - resourceData.length = " + resourceData.length);
+			trace("onManifestReloadComplete - resourceData.length = " + resourceData.length);
 			// Start parsing the manifest.
 			parse(resourceData, fullUrl);	
 		}
