@@ -26,6 +26,9 @@ package com.kaltura.hls
 	
 	public class HLSIndexHandler extends HTTPStreamingIndexHandlerBase implements IExtraIndexHandlerState
 	{
+		// Time in seconds to wait before retrying a LIVE_STALL
+		public static const RETRY_INTERVAL:uint = 3;
+		
 		public var lastSegmentIndex:int = 0;
 		public var lastKnownPlaylistStartTime:Number = 0.0;
 		public var lastQuality:int = 0;
@@ -133,6 +136,7 @@ package com.kaltura.hls
 				}
 
 			}
+			
 			dispatchDVRStreamInfo();
 			reloadingManifest = null; // don't want to hang on to it
 			if (reloadTimer) reloadTimer.start();
@@ -333,8 +337,6 @@ package com.kaltura.hls
 				rates.push(curStream.bitrate);
 			}
 			
-			// If no video streams found, but segments are, we're probably an audio playlist
-			// HACK THE PLANET!!!
 			if( resource.manifest.type == HLSManifestParser.AUDIO )
 			{
 				streams.push( resource.name );
@@ -455,7 +457,15 @@ package com.kaltura.hls
 				
 				return createHTTPStreamRequest( segments[ lastSegmentIndex ] );
 			}
-			else return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
+			
+			if ( reloadingManifest || !manifest.streamEnds )
+			{
+				trace("Stalling -- requested segment past the end and we're in a live stream");
+				lastSegmentIndex--;
+				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, RETRY_INTERVAL);
+			}
+			
+			return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 		}
 		
 		public function getKeyForIndex( index:uint ):HLSManifestEncryptionKey
