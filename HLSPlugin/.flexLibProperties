@@ -16,7 +16,6 @@
     <classEntry path="com.kaltura.hls.m2ts.FLVTags"/>
     <classEntry path="com.kaltura.hls.m2ts.MediaClass"/>
     <classEntry path="com.kaltura.hls.manifest.BaseHLSManifestItem"/>
-    <classEntry path="com.kaltura.hls.HLSHTTPNetStream"/>
     <classEntry path="com.kaltura.hls.subtitles.SubTitleParser"/>
     <classEntry path="com.kaltura.hls.subtitles.WebVTTRegion"/>
     <classEntry path="com.kaltura.hls.subtitles.TextTrackCue"/>
