@@ -28,13 +28,13 @@ package com.kaltura.hls.manifest
 		public var mediaSequence:int;
 		public var allowCache:Boolean;
 		public var targetDuration:Number;
-		public var key:String;
 		public var streamEnds:Boolean = false;
 		public var playLists:Vector.<HLSManifestPlaylist> = new Vector.<HLSManifestPlaylist>();
 		public var streams:Vector.<HLSManifestStream> = new Vector.<HLSManifestStream>();
 		public var segments:Vector.<HLSManifestSegment> = new Vector.<HLSManifestSegment>();
 		public var subtitlePlayLists:Vector.<HLSManifestPlaylist> = new Vector.<HLSManifestPlaylist>();
 		public var subtitles:Vector.<SubTitleParser> = new Vector.<SubTitleParser>();
+		public var keys:Vector.<HLSManifestEncryptionKey> = new Vector.<HLSManifestEncryptionKey>();
 		
 		public var manifestLoaders:Vector.<URLLoader> = new Vector.<URLLoader>();
 		public var manifestParsers:Vector.<HLSManifestParser> = new Vector.<HLSManifestParser>();
@@ -43,6 +43,16 @@ package com.kaltura.hls.manifest
 		public var continuityEra:int = 0;
 		
 		private var _subtitlesLoading:int = 0;
+		
+		public function get estimatedWindowDuration():Number
+		{
+			return segments.length * targetDuration;
+		}
+		
+		public function get isDVR():Boolean
+		{
+			return allowCache && !streamEnds;
+		}
 		
 		public static function getNormalizedUrl( baseUrl:String, uri:String ):String
 		{
@@ -63,6 +73,7 @@ package com.kaltura.hls.manifest
 			
 			// Process each line.
 			var lastHint:* = null;
+			var nextByteRangeStart:int = 0;
 			
 			var i:int = 0;
 			for(i=0; i<lines.length; i++)
@@ -76,8 +87,22 @@ package com.kaltura.hls.manifest
 				if(curPrefix != "#" && curLine.length > 0)
 				{
 					// Specifying a media file, note it.
-					if ( type != SUBTITLES ) lastHint['uri'] = getNormalizedUrl( baseUrl, curLine );
-					else lastHint.load( getNormalizedUrl( baseUrl, curLine ) );
+					if ( type != SUBTITLES )
+					{
+						var targetUrl:String = getNormalizedUrl( baseUrl, curLine );
+						var segment:HLSManifestSegment = lastHint as HLSManifestSegment;
+						if ( segment && segment.byteRangeStart != -1 )
+						{
+							// Append akamai ByteRange properties to URL
+							var urlPostFix:String = targetUrl.indexOf( "?" ) == -1 ? "?" : "&";
+							targetUrl += urlPostFix + "range=" + segment.byteRangeStart + "-" + segment.byteRangeEnd;
+						}
+						lastHint['uri'] = targetUrl;
+					}
+					else
+					{
+						lastHint.load( getNormalizedUrl( baseUrl, curLine ) );
+					}
 					continue;
 				}
 				
@@ -105,7 +130,10 @@ package com.kaltura.hls.manifest
 						break;
 
 					case "EXT-X-KEY":
-						key = tagParams;
+						if ( keys.length > 0 ) keys[ keys.length - 1 ].endSegmentId = segments.length - 1;
+						var key:HLSManifestEncryptionKey = HLSManifestEncryptionKey.fromParams( tagParams );
+						key.startSegmentId = segments.length;
+						keys.push( key );
 						break;
 					
 					case "EXT-X-VERSION":
@@ -160,6 +188,15 @@ package com.kaltura.hls.manifest
 							if(valueSplit.length > 1)
 								lastHint.title = valueSplit[1];
 						}
+						break;
+					
+					case "EXT-X-BYTERANGE":
+						var hintAsSegment:HLSManifestSegment = lastHint as HLSManifestSegment;
+						if ( hintAsSegment == null ) break;
+						var byteRangeValues:Array = tagParams.split("@");
+						hintAsSegment.byteRangeStart = byteRangeValues.length > 1 ? int( byteRangeValues[ 1 ] ) : nextByteRangeStart;
+						hintAsSegment.byteRangeEnd = hintAsSegment.byteRangeStart + int( byteRangeValues[ 0 ] );
+						nextByteRangeStart = hintAsSegment.byteRangeEnd + 1;
 						break;
 					
 					case "EXT-X-DISCONTINUITY":
@@ -322,7 +359,7 @@ package com.kaltura.hls.manifest
 			var manifestLoader:URLLoader = e.target as URLLoader;
 			//trace("HLSManifestParser.onManifestReloadComplete");
 			var resourceData:String = String(manifestLoader.data);
-			trace("onManifestReloadComlete - resourceData.length = " + resourceData.length);
+			trace("onManifestReloadComplete - resourceData.length = " + resourceData.length);
 			// Start parsing the manifest.
 			parse(resourceData, fullUrl);	
 		}

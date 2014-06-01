@@ -16,8 +16,10 @@ package com.kaltura.hls.m2ts
 	{
 		public override function createFileHandler(resource:MediaResourceBase):HTTPStreamingFileHandlerBase
 		{
+			var hlsResource:HLSStreamingResource = resource as HLSStreamingResource;
 			var result:M2TSFileHandler = new M2TSFileHandler();
-			result.subtitleTrait = HLSStreamingResource( resource ).subtitleTrait;
+			result.subtitleTrait = hlsResource.subtitleTrait;
+			result.resource = hlsResource;
 			return result;
 		}
 		

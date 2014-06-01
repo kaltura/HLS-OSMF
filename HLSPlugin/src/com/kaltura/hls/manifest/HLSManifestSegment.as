@@ -8,5 +8,9 @@ package com.kaltura.hls.manifest
 		public var title:String;
 		public var startTime:Number;
 		public var continuityEra:int;
+		
+		// Byte Range support. -1 means no byte range.
+		public var byteRangeStart:int = -1;
+		public var byteRangeEnd:int = -1;
 	}
 }

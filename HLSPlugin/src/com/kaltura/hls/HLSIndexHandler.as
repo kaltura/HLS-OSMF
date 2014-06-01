@@ -2,6 +2,7 @@ package com.kaltura.hls
 {
 	import com.kaltura.hls.m2ts.IExtraIndexHandlerState;
 	import com.kaltura.hls.m2ts.M2TSFileHandler;
+	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.manifest.HLSManifestSegment;
 	
@@ -38,14 +39,16 @@ package com.kaltura.hls
 		private var reloadTimer:Timer = null;
 		private var sequenceSkips:int = 0;
 		private var stalled:Boolean = false;
+		private var fileHandler:M2TSFileHandler;
 
 		
-		public function HLSIndexHandler(_resource:MediaResourceBase, fileHandler:HTTPStreamingFileHandlerBase)
+		public function HLSIndexHandler(_resource:MediaResourceBase, _fileHandler:HTTPStreamingFileHandlerBase)
 		{
 			resource = _resource as HLSStreamingResource;
 			manifest = resource.manifest;
 			baseUrl = manifest.baseUrl;
-			(fileHandler as M2TSFileHandler).extendedIndexHandler = this;
+			fileHandler = _fileHandler as M2TSFileHandler;
+			fileHandler.extendedIndexHandler = this;
 		}
 		
 		public override function initialize(indexInfo:Object):void
@@ -254,6 +257,7 @@ package com.kaltura.hls
 			// perhaps by comparing timestamps.
 			
 			if (newManifest == null || newManifest.segments.length == 0) return;
+			
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
 			var curManifest:HLSManifestParser = getManifestForQuality(quality);
 			var segId:int= segments[segments.length - 1].id;
@@ -391,9 +395,11 @@ package com.kaltura.hls
 			{
 				var curSegment:HLSManifestSegment = segments[i];
 				
-				if(curSegment.duration >= time - accum)
+				if(curSegment.duration > time - accum)
 				{
 					lastSegmentIndex = i;
+					fileHandler.segmentId = lastSegmentIndex;
+					fileHandler.key = getKeyForIndex( i );
 					trace("Getting Segment[" + lastSegmentIndex + "] StartTime: " + segments[i].startTime + " Continuity: " + segments[i].continuityEra + " URI: " + segments[i].uri); 
 					return createHTTPStreamRequest( segments[ lastSegmentIndex ] ); 
 				}
@@ -403,6 +409,10 @@ package com.kaltura.hls
 			
 			// TODO: Handle live streaming lists by returning a stall.
 			lastSegmentIndex = i;
+			
+			fileHandler.segmentId = lastSegmentIndex;
+			fileHandler.key = getKeyForIndex( i );
+			
 			return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 		}
 		
@@ -428,6 +438,10 @@ package com.kaltura.hls
 			
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
 			lastSegmentIndex++;
+			
+			fileHandler.segmentId = lastSegmentIndex;
+			fileHandler.key = getKeyForIndex( lastSegmentIndex );
+			
 
 			if ( lastSegmentIndex < segments.length) 
 			{
@@ -444,6 +458,26 @@ package com.kaltura.hls
 			else return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 		}
 		
+		public function getKeyForIndex( index:uint ):HLSManifestEncryptionKey
+		{
+			var keys:Vector.<HLSManifestEncryptionKey>;
+			
+			// Make sure we accessing returning the correct key list for the manifest type
+			if ( manifest.type == HLSManifestParser.AUDIO ) keys = manifest.keys;
+			else keys = getManifestForQuality( lastQuality ).keys;
+			
+			for ( var i:int = 0; i < keys.length; i++ )
+			{
+				var key:HLSManifestEncryptionKey = keys[ i ];
+				if ( key.startSegmentId <= index && key.endSegmentId > index )
+				{
+					if ( !key.isLoaded ) key.load();
+					return key;
+				}
+			}
+			
+			return null;
+		}
 		
 		private function updateTotalDuration():void
 		{
@@ -511,17 +545,20 @@ package com.kaltura.hls
 			var curManifest:HLSManifestParser = getManifestForQuality(lastQuality);
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
 			if (segments.length == 0) return; // No point, I think, in continuing
+			
+			
+			var firstSegment:HLSManifestSegment = segments[ 0 ];
 			var segment:HLSManifestSegment = segments[segments.length - 1];
 			
 			var dvrInfo:DVRInfo = new DVRInfo();
-			dvrInfo.offline = false
-			dvrInfo.isRecording = curManifest.streamEnds;  // TODO: verify that this is what we REALLY want to be doing
-			
-			dvrInfo.startTime = 0;			
-			dvrInfo.beginOffset = lastKnownPlaylistStartTime;
-			dvrInfo.endOffset = segment.startTime + segment.duration;
+			dvrInfo.offline = false;
+			dvrInfo.isRecording = !curManifest.streamEnds;  // TODO: verify that this is what we REALLY want to be doing
+			dvrInfo.startTime = firstSegment.startTime;			
+			dvrInfo.beginOffset = firstSegment.startTime;
+			dvrInfo.endOffset = segment.startTime; // + segment.duration;
 			dvrInfo.curLength = dvrInfo.endOffset - dvrInfo.beginOffset;
 			dvrInfo.windowDuration = dvrInfo.curLength; // TODO: verify that this is what we want to be putting here
+			
 			dispatchEvent(new DVRStreamInfoEvent(DVRStreamInfoEvent.DVRSTREAMINFO, false, false, dvrInfo));
 		}
 		

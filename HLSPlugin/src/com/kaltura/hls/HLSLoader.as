@@ -22,6 +22,7 @@ package com.kaltura.hls
 	import org.osmf.media.MediaTypeUtil;
 	import org.osmf.media.URLResource;
 	import org.osmf.metadata.Metadata;
+	import org.osmf.metadata.MetadataNamespaces;
 	import org.osmf.net.DynamicStreamingItem;
 	import org.osmf.net.StreamType;
 	import org.osmf.net.StreamingItem;
@@ -89,6 +90,8 @@ package com.kaltura.hls
 		{
 			trace("Manifest is loaded.");
 			
+			var isDVR:Boolean = false;
+			
 			// Construct the streaming resource and set it as our resource.
 			var stream:HLSStreamingResource = new HLSStreamingResource(URLResource(loadTrait.resource).url, "", StreamType.DVR);
 			stream.manifest = parser;
@@ -100,6 +103,7 @@ package com.kaltura.hls
 				var curStream:HLSManifestStream = parser.streams[i];
 				item = new DynamicStreamingItem(curStream.uri, curStream.bandwidth, curStream.width, curStream.height);
 				items.push(item);
+				if ( !curStream.manifest.streamEnds ) isDVR = true;
 			}
 			
 			// Deal with single rate M3Us by stuffing a single stream in.
@@ -133,6 +137,12 @@ package com.kaltura.hls
 				var subtitleTrait:SubtitleTrait = new SubtitleTrait();
 				subtitleTrait.playLists = parser.subtitlePlayLists;
 				stream.subtitleTrait = subtitleTrait;
+			}
+			
+			if ( isDVR )
+			{
+				var dvrMetadata:Metadata = new Metadata();
+				stream.addMetadataValue(MetadataNamespaces.DVR_METADATA, dvrMetadata);
 			}
 			
 			updateLoadTrait( loadTrait, LoadState.READY );
