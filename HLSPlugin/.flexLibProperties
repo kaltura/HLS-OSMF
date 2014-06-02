@@ -20,6 +20,7 @@
     <classEntry path="com.kaltura.hls.subtitles.WebVTTRegion"/>
     <classEntry path="com.kaltura.hls.subtitles.TextTrackCue"/>
     <classEntry path="com.kaltura.hls.SubtitleTrait"/>
+    <classEntry path="com.kaltura.hls.HLSDVRTrait"/>
   </includeClasses>
   <includeResources/>
   <namespaceManifests/>
