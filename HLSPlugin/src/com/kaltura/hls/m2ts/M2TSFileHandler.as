@@ -20,8 +20,6 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSFileHandler extends HTTPStreamingFileHandlerBase
 	{
-		private static const MAX_PROCESS_SEGMENT_BYTES:uint = 8192;
-		
 		public var subtitleTrait:SubtitleTrait;
 		public var key:HLSManifestEncryptionKey;
 		public var segmentId:uint = 0;
@@ -42,6 +40,8 @@ package com.kaltura.hls.m2ts
 		private var _lastFLVMessageTime:Number;
 		private var _injectingSubtitles:Boolean = false;
 		private var _lastInjectedSubtitleTime:Number = 0;
+		
+		private var _decryptionIV:ByteArray;
 		
 		public function M2TSFileHandler()
 		{
@@ -76,6 +76,13 @@ package com.kaltura.hls.m2ts
 		
 		public override function beginProcessFile(seek:Boolean, seekTime:Number):void
 		{
+			// Decryption reset
+			if ( key )
+			{
+				if ( key.iv ) _decryptionIV = key.retrieveStoredIV();
+				else _decryptionIV = HLSManifestEncryptionKey.createIVFromID( segmentId );
+			}
+			
 			var discontinuity:Boolean = false;
 			
 			if(_extendedIndexHandler)
@@ -134,7 +141,7 @@ package com.kaltura.hls.m2ts
 			return 0;
 		}
 
-		private function basicProcessFileSegment(input:IDataInput, limit:uint, flush:Boolean):ByteArray
+		private function basicProcessFileSegment(input:IDataInput, flush:Boolean):ByteArray
 		{
 			if ( key && !key.isLoaded )
 			{
@@ -159,14 +166,33 @@ package com.kaltura.hls.m2ts
 				var leftoverBytes:uint = bytesToRead % 16;
 				bytesToRead -= leftoverBytes;
 				
+				key.usePadding = false;
+				
 				if ( leftoverBytes > 0 )
 				{
+					// Place any bytes left over (not divisible by 16) into our encrypted buffer
+					// to decrypt later, when we have more bytes
 					tmp.position = bytesToRead;
 					tmp.readBytes( _encryptedDataBuffer );
 					tmp.length = bytesToRead;
 				}
+				else
+				{
+					// Attempt to unpad if our buffer is equally divisible by 16.
+					// It could mean that we've reached the end of the file segment.
+					 key.usePadding = true;
+				}
 				
-				key.decrypt( tmp, segmentId + 1 );
+				// Store our current IV so we can use it do decrypt
+				var currentIV:ByteArray = _decryptionIV;
+				
+				// Set up the IV for our next set of bytes
+				_decryptionIV = new ByteArray();
+				tmp.position = bytesToRead - 16;
+				tmp.readBytes( _decryptionIV );
+				
+				// Aaaaand...decrypt!
+				key.decrypt( tmp, currentIV );
 			}
 			
 			// If it's AAC, process it.
@@ -180,18 +206,11 @@ package com.kaltura.hls.m2ts
 				return _fragReadBuffer;
 			}
 			
-			var bytesAvailable:uint = input.bytesAvailable;
-			
-			if(bytesAvailable > limit)
-				bytesAvailable = limit;
-						
 			var buffer:ByteArray = new ByteArray();
 			_buffer = buffer;
 			_converter.appendBytes(tmp);
-			if(flush)
-				_converter.flush();
+			if ( flush ) _converter.flush();
 			_buffer = null;
-			
 			buffer.position = 0;
 			
 			return buffer;
@@ -212,15 +231,14 @@ package com.kaltura.hls.m2ts
 
 		public override function processFileSegment(input:IDataInput):ByteArray
 		{
-			if ( key ) key.usePadding = false;
-			return basicProcessFileSegment(input, MAX_PROCESS_SEGMENT_BYTES, false);
+			return basicProcessFileSegment(input, false);
 		}
 		
 		public override function endProcessFile(input:IDataInput):ByteArray
 		{
 			if ( key ) key.usePadding = true;
 			
-			var rv:ByteArray = basicProcessFileSegment(input, uint.MAX_VALUE, false);
+			var rv:ByteArray = basicProcessFileSegment(input, false);
 			
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			
@@ -234,7 +252,7 @@ package com.kaltura.hls.m2ts
 		
 		public override function flushFileSegment(input:IDataInput):ByteArray
 		{
-			return basicProcessFileSegment(input || new ByteArray(), uint.MAX_VALUE, true);
+			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
 				
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void

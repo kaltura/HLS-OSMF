@@ -443,7 +443,6 @@ package com.kaltura.hls
 			
 			fileHandler.segmentId = lastSegmentIndex;
 			fileHandler.key = getKeyForIndex( lastSegmentIndex );
-			
 
 			if ( lastSegmentIndex < segments.length) 
 			{
@@ -473,13 +472,14 @@ package com.kaltura.hls
 			var keys:Vector.<HLSManifestEncryptionKey>;
 			
 			// Make sure we accessing returning the correct key list for the manifest type
+			
 			if ( manifest.type == HLSManifestParser.AUDIO ) keys = manifest.keys;
 			else keys = getManifestForQuality( lastQuality ).keys;
 			
 			for ( var i:int = 0; i < keys.length; i++ )
 			{
 				var key:HLSManifestEncryptionKey = keys[ i ];
-				if ( key.startSegmentId <= index && key.endSegmentId > index )
+				if ( key.startSegmentId <= index && key.endSegmentId >= index )
 				{
 					if ( !key.isLoaded ) key.load();
 					return key;
