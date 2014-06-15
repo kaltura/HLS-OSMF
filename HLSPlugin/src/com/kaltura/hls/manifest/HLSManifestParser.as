@@ -220,12 +220,8 @@ package com.kaltura.hls.manifest
 			
 			for( var k:int = 0; k < manifestItems.length; k++ )
 			{
-				var curItem:BaseHLSManifestItem = manifestItems[k];
-				if( curItem.uri.lastIndexOf("m3u8") != -1 )
-				{
-					// Request and parse the manifest.
-					addItemToManifestLoader( curItem );
-				}
+				// Request and parse the manifest.
+				addItemToManifestLoader( manifestItems[k] );
 			}
 			
 			var timeAccum:Number = 0.0;
