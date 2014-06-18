@@ -682,7 +682,7 @@ package com.kaltura.hls.m2ts
 					{
 						_avcVCL = false;
 						_avcAccessUnitStarted = false;
-						sendCompleteAVCFLVTag(pts, dts);
+						sendCompleteAVCFLVTag(_avcPTS, _avcDTS);
 					}
 
 					if(!_avcAccessUnitStarted)
