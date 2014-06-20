@@ -52,18 +52,18 @@ package com.kaltura.hls.manifest
 		{
 			var result:HLSManifestEncryptionKey = new HLSManifestEncryptionKey();
 			
-			var tokens:Array = params.split( ',' );
+			var tokens:Array = KeyParamParser.parseParams( params );
 			var tokenCount:int = tokens.length;
-			for ( var i:int = 0; i < tokenCount; i++ )
+			
+			for ( var i:int = 0; i < tokenCount; i += 2 )
 			{
-				var tokenSplit:Array = tokens[ i ].split( '=' );
-				var name:String = tokenSplit[ 0 ];
-				var value:String = tokenSplit[ 1 ];
+				var name:String = tokens[ i ];
+				var value:String = tokens[ i + 1 ];
 				
 				switch ( name )
 				{
 					case "URI" :
-						result.url = value.substring( 1, value.length - 1 );
+						result.url = value;
 						break;
 					
 					case "IV" :
@@ -137,5 +137,71 @@ package com.kaltura.hls.manifest
 			loader.removeEventListener( Event.COMPLETE, onLoad );
 			dispatchEvent( new Event( Event.COMPLETE ) );
 		}
+	}
+}
+
+class KeyParamParser
+{
+	private static const STATE_PARSE_NAME:String = "ParseName";
+	private static const STATE_BEGIN_PARSE_VALUE:String = "BeginParseValue";
+	private static const STATE_PARSE_VALUE:String = "ParseValue";
+	
+	public static function parseParams( paramString:String ):Array
+	{
+		var result:Array = [];
+		var cursor:int = 0;
+		var state:String = STATE_PARSE_NAME;
+		var accum:String = "";
+		var usingQuotes:Boolean = false;
+		
+		while ( cursor < paramString.length )
+		{
+			var char:String = paramString.charAt( cursor );
+			switch ( state )
+			{
+				case STATE_PARSE_NAME:
+					
+					if ( char == '=' )
+					{
+						result.push( accum );
+						accum = "";
+						state = STATE_BEGIN_PARSE_VALUE;
+					}
+					else accum += char;
+					break;
+				
+				case STATE_BEGIN_PARSE_VALUE:
+					
+					if ( char == '"' ) usingQuotes = true;
+					else accum += char;
+					state = STATE_PARSE_VALUE;
+					break;
+				
+				case STATE_PARSE_VALUE:
+					
+					if ( !usingQuotes && char == ',' )
+					{
+						result.push( accum );
+						accum = "";
+						state = STATE_PARSE_NAME;
+						break;
+					}
+					
+					if ( usingQuotes && char == '"' )
+					{
+						usingQuotes = false;
+						break;
+					}
+					
+					accum += char;
+					break;
+			}
+			
+			cursor++;
+			
+			if ( cursor == paramString.length ) result.push( accum );
+		}
+		
+		return result;
 	}
 }
