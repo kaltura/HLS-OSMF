@@ -9,8 +9,6 @@ package com.kaltura.hls.manifest
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
 	
-	import mx.core.EventPriority;
-
 	/**
 	 *  Fires Event.COMPLETE when the manifest is fully loaded. 
 	 */

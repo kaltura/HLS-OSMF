@@ -3,6 +3,7 @@ package com.kaltura.hls.manifest
 	import com.hurlant.util.Hex;
 	import com.kaltura.crypto.DecryptUtil.CModule;
 	import com.kaltura.crypto.DecryptUtil.decryptAES;
+	import com.kaltura.crypto.DecryptUtil.unpad;
 	
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
@@ -16,15 +17,13 @@ package com.kaltura.hls.manifest
 	/**
 	 * HLSManifestEncryptionKey is used to parse AES decryption key data from a m3u8
 	 * manifest, load the specified key file into memory, and use the key data to decrypt
-	 * audio and video streams. It supports AES-128 encryption with #PKCS7 padding, as well
-	 * as explicitly set Initialization Vectors. If an Initialization Vector is not provided,
-	 * the segment id of the stream to be decrypted will be used.
+	 * audio and video streams. It supports AES-128 encryption with #PKCS7 padding, and uses
+	 * explicitly passed in Initialization Vectors.
 	 */
 	
 	public class HLSManifestEncryptionKey extends EventDispatcher
 	{
 		private static const LOADER_CACHE:Dictionary = new Dictionary();
-		private static const IV_DATA_CACHE:ByteArray = new ByteArray();
 		
 		public var usePadding:Boolean = false;
 		public var iv:String = "";
@@ -35,7 +34,6 @@ package com.kaltura.hls.manifest
 		public var endSegmentId:uint = uint.MAX_VALUE;
 		
 		private var _keyData:ByteArray;
-		private var _explicitIVData:ByteArray;
 		
 		private static var _decryptInitialized:Boolean = false;
 		
@@ -54,21 +52,18 @@ package com.kaltura.hls.manifest
 		{
 			var result:HLSManifestEncryptionKey = new HLSManifestEncryptionKey();
 			
-			var tokens:Array = params.split( ',' );
+			var tokens:Array = KeyParamParser.parseParams( params );
 			var tokenCount:int = tokens.length;
-			for ( var i:int = 0; i < tokenCount; i++ )
+			
+			for ( var i:int = 0; i < tokenCount; i += 2 )
 			{
-				var tokenSplit:Array = tokens[ i ].split( '=' );
-				var name:String = tokenSplit[ 0 ];
-				var value:String = tokenSplit[ 1 ];
+				var name:String = tokens[ i ];
+				var value:String = tokens[ i + 1 ];
 				
 				switch ( name )
 				{
 					case "URI" :
 						result.url = value;
-						// Uncomment the line below to use a local key for debugging instead,
-						// requires file to exist
-						// result.url = "http://localhost:5000/video.key";
 						break;
 					
 					case "IV" :
@@ -81,32 +76,40 @@ package com.kaltura.hls.manifest
 			return result;
 		}
 		
+		/**
+		 * Creates an initialization vector from the passed in uint ID, usually
+		 * a segment ID.
+		 */
+		public static function createIVFromID( id:uint ):ByteArray
+		{
+			var result:ByteArray = new ByteArray();
+			result.writeUnsignedInt( 0 );
+			result.writeUnsignedInt( 0 );
+			result.writeUnsignedInt( 0 );
+			result.writeUnsignedInt( id );
+			return result;
+		}
+		
 		public static function clearLoaderCache():void
 		{
 			for ( var key:String in LOADER_CACHE ) delete LOADER_CACHE[ key ];
 		}
 		
 		/**
-		 * Decrypts a video or audio stream using AES-128. If an Initialization Vector was not provided
-		 * during key creation, the passed in segment id of the video will be converted to
-		 * a 32 Byte ByteArray and used as the IV.
-		 * 
-		 * Note: Segment IDs passed in cannot exceed 2^32
+		 * Decrypts a video or audio stream using AES-128 with the provided initialization vector.
 		 */
 		
-		public function decrypt( data:ByteArray, segmentId:uint = 0 ):void
+		public function decrypt( data:ByteArray, iv:ByteArray ):void
 		{
-			var startTime:uint = getTimer();
-			
-			if ( iv == "" )
-			{
-				// No IV exists, set it to segment id
-				setIVDataCacheTo( segmentId );
-				decryptAES( data, _keyData, IV_DATA_CACHE, usePadding );
-			}
-			else decryptAES( data, _keyData, _explicitIVData, usePadding );
-			
-			trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
+			//var startTime:uint = getTimer();
+			decryptAES( data, _keyData, iv );
+			if ( usePadding ) unpad( data );
+			//trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
+		}
+		
+		public function retrieveStoredIV():ByteArray
+		{
+			return Hex.toArray( iv );
 		}
 		
 		private static function getLoader( url:String ):URLLoader
@@ -130,26 +133,75 @@ package com.kaltura.hls.manifest
 		private function onLoad( e:Event = null ):void
 		{
 			var loader:URLLoader = getLoader( url );
-			
 			_keyData = loader.data as ByteArray;
-			
-			if ( iv )
-			{
-				var ivData:ByteArray = Hex.toArray( iv ); 
-				_explicitIVData = ivData;
-			}
-			
 			loader.removeEventListener( Event.COMPLETE, onLoad );
 			dispatchEvent( new Event( Event.COMPLETE ) );
 		}
+	}
+}
+
+class KeyParamParser
+{
+	private static const STATE_PARSE_NAME:String = "ParseName";
+	private static const STATE_BEGIN_PARSE_VALUE:String = "BeginParseValue";
+	private static const STATE_PARSE_VALUE:String = "ParseValue";
+	
+	public static function parseParams( paramString:String ):Array
+	{
+		var result:Array = [];
+		var cursor:int = 0;
+		var state:String = STATE_PARSE_NAME;
+		var accum:String = "";
+		var usingQuotes:Boolean = false;
 		
-		private static function setIVDataCacheTo( value:uint ):void
+		while ( cursor < paramString.length )
 		{
-			IV_DATA_CACHE.position = 0;
-			IV_DATA_CACHE.writeUnsignedInt( 0 );
-			IV_DATA_CACHE.writeUnsignedInt( 0 );
-			IV_DATA_CACHE.writeUnsignedInt( 0 );
-			IV_DATA_CACHE.writeUnsignedInt( value );
+			var char:String = paramString.charAt( cursor );
+			switch ( state )
+			{
+				case STATE_PARSE_NAME:
+					
+					if ( char == '=' )
+					{
+						result.push( accum );
+						accum = "";
+						state = STATE_BEGIN_PARSE_VALUE;
+					}
+					else accum += char;
+					break;
+				
+				case STATE_BEGIN_PARSE_VALUE:
+					
+					if ( char == '"' ) usingQuotes = true;
+					else accum += char;
+					state = STATE_PARSE_VALUE;
+					break;
+				
+				case STATE_PARSE_VALUE:
+					
+					if ( !usingQuotes && char == ',' )
+					{
+						result.push( accum );
+						accum = "";
+						state = STATE_PARSE_NAME;
+						break;
+					}
+					
+					if ( usingQuotes && char == '"' )
+					{
+						usingQuotes = false;
+						break;
+					}
+					
+					accum += char;
+					break;
+			}
+			
+			cursor++;
+			
+			if ( cursor == paramString.length ) result.push( accum );
 		}
+		
+		return result;
 	}
 }
