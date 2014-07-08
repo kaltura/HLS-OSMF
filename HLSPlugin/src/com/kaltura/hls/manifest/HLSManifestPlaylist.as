@@ -39,6 +39,14 @@ package com.kaltura.hls.manifest
 			var endIndex:int = firstCommaIndex > -1 ? firstCommaIndex : input.length + 1;
 			
 			var key:String = input.substring( 0, firstEqualSignIndex );
+			
+			// We need to check and see if there are any spaces or tabs after the comma
+			while(key.charAt(0) == " " || key.charAt(0) == "\t")
+			{
+				// If we find an invalid character, move the string up one index
+				key = key.substring(1);
+			}
+			
 			var value:String;
 			
 			if ( firstEqualSignIndex == -1 )

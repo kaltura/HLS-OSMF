@@ -219,6 +219,13 @@ package org.osmf.net.httpstreaming
 			 */
 			override public function play2(param:NetStreamPlayOptions):void
 			{
+				// See if any of our alternative audio sources (if we have any) are marked as DEFAULT if this is our initial play
+				if (!hasStarted)
+				{
+					checkDefaultAudio();
+					hasStarted = true;
+				}
+				
 				switch(param.transition)
 				{
 					case NetStreamPlayTransitions.RESET:
@@ -453,6 +460,51 @@ package org.osmf.net.httpstreaming
 				}
 				
 				_notifyPlayUnpublishPending = false;
+			}
+			
+			/**
+			 * @private
+			 * 
+			 * Checks if we have an alternate audio stream marked as default, and changes to that audio stream. If for some reason
+			 * there are multiple audio streams marked as default a log will be made and only the first default stream will be chosen.
+			 * If there are audio streams defined, but none are tagged as default, the first stream will be used.
+			 */
+			private function checkDefaultAudio():void
+			{
+				var currentResource:HLSStreamingResource = _resource as HLSStreamingResource;// Make sure our resource is the right type
+				var foundDefault:Boolean = false;// If we have found a default audio source yet
+				
+				var i:int;
+				for (i=0; i < currentResource.alternativeAudioStreamItems.length; i++)
+				{
+					// Get our the info for our current audio stream item and make sure it is the right type
+					var currentInfo:HLSManifestPlaylist = currentResource.alternativeAudioStreamItems[i].info as HLSManifestPlaylist;
+					
+					// We loop through our audio stream items until we find one with the default tag checked
+					if (!currentInfo.isDefault)
+						continue;// If this isn't default, try the next item
+					
+					if (!foundDefault)
+					{
+						// If we haven't already found a default, change the audio stream
+						changeAudioStreamTo(currentInfo.name);
+						foundDefault = true;
+					}
+					else
+					{
+						// If more than one item is tagged as default, ignore it and make a note in the log
+						CONFIG::LOGGING
+							{
+								logger.debug("More than one audio stream marked as default. Ignoring \"" + currentInfo.name + "\"");
+							}
+					}
+				}
+				// If we didn't find a default, and we have alternate audio sources available, just use the first one
+				if (!foundDefault && currentResource.alternativeAudioStreamItems.length > 0)
+				{
+					var firstInfo:HLSManifestPlaylist = currentResource.alternativeAudioStreamItems[0].info as HLSManifestPlaylist;
+					changeAudioStreamTo(firstInfo.name);
+				}
 			}
 			
 			/**
@@ -1782,6 +1834,8 @@ package org.osmf.net.httpstreaming
 			private var _isPaused:Boolean = false; // true if we're currently paused. see checkIfExtraKickNeeded
 			private var _liveStallStartTime:Date;
 			
+			private var hasStarted:Boolean = false;// true after we have played once, checked before automatically switching to a default stream
+
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			
 			CONFIG::LOGGING
