@@ -40,10 +40,10 @@ package com.kaltura.hls.manifest
 			
 			var key:String = input.substring( 0, firstEqualSignIndex );
 			
-			//We need to check and see if there are any spaces or tabs after the comma
+			// We need to check and see if there are any spaces or tabs after the comma
 			while(key.charAt(0) == " " || key.charAt(0) == "\t")
 			{
-				//If we find an invalid character, move the string up one index
+				// If we find an invalid character, move the string up one index
 				key = key.substring(1);
 			}
 			
