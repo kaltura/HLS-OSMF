@@ -496,8 +496,8 @@ package org.osmf.net.httpstreaming
 							{
 								logger.debug("More than one audio stream marked as default. Ignoring \"" + currentInfo.name + "\"");
 							}
-					}//end if else
-				}//end for
+					}
+				}
 				
 				//If we didn't find a default, and we have alternate audio sources available, just use the first one
 				if (!foundDefault && currentResource.alternativeAudioStreamItems.length > 0)
@@ -505,7 +505,7 @@ package org.osmf.net.httpstreaming
 					var firstInfo:HLSManifestPlaylist = currentResource.alternativeAudioStreamItems[0].info as HLSManifestPlaylist;
 					changeAudioStreamTo(firstInfo.name);
 				}
-			}//end function
+			}
 			
 			/**
 			 * @private
