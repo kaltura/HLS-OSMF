@@ -43,7 +43,8 @@ package com.kaltura.hls.manifest
 			//We need to check and see if there are any spaces or tabs after the comma
 			while(key.charAt(0) == " " || key.charAt(0) == "\t")
 			{
-				key = key.substring(1);//If we find an invalid character, move the string up one index
+				//If we find an invalid character, move the string up one index
+				key = key.substring(1);
 			}
 			
 			var value:String;

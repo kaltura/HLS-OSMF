@@ -223,7 +223,7 @@ package org.osmf.net.httpstreaming
 				if (!hasStarted)
 				{
 					checkDefaultAudio();
-					hasStarted = true;//We have started
+					hasStarted = true;
 				}
 				
 				switch(param.transition)
@@ -471,6 +471,7 @@ package org.osmf.net.httpstreaming
 			private function checkDefaultAudio():void
 			{
 				var currentResource:HLSStreamingResource = _resource as HLSStreamingResource;//Make sure our resource is the right type
+				var foundDefault:Boolean = false;//If we have found a default audio source yet
 				
 				var i:int;
 				for (i=0; i < currentResource.alternativeAudioStreamItems.length; i++)
@@ -479,14 +480,32 @@ package org.osmf.net.httpstreaming
 					var currentInfo:HLSManifestPlaylist = currentResource.alternativeAudioStreamItems[i].info as HLSManifestPlaylist;
 					
 					//We loop through our audio stream items until we find one with the default tag checked
-					if (currentInfo.isDefault)
+					if (!currentInfo.isDefault)
+						continue;//If this isn't default, try the next item
+					
+					if (!foundDefault)
 					{
-						//If we find one that is marked as default, change the audio source and break
+						//If we haven't already found a default, change the audio stream
 						changeAudioStreamTo(currentInfo.name);
-						break;
+						foundDefault = true;
 					}
+					else
+					{
+						//If more than one item is tagged as default, ignore it and make a note in the log
+						CONFIG::LOGGING
+							{
+								logger.debug("More than one audio stream marked as default. Ignoring \"" + currentInfo.name + "\"");
+							}
+					}//end if else
+				}//end for
+				
+				//If we didn't find a default, and we have alternate audio sources available, just use the first one
+				if (!foundDefault && currentResource.alternativeAudioStreamItems.length > 0)
+				{
+					var firstInfo:HLSManifestPlaylist = currentResource.alternativeAudioStreamItems[0].info as HLSManifestPlaylist;
+					changeAudioStreamTo(firstInfo.name);
 				}
-			}
+			}//end function
 			
 			/**
 			 * @private
@@ -1815,7 +1834,7 @@ package org.osmf.net.httpstreaming
 			private var _isPaused:Boolean = false; // true if we're currently paused. see checkIfExtraKickNeeded
 			private var _liveStallStartTime:Date;
 			
-			private var hasStarted:Boolean = false;//Set to true after the first time play2 is called
+			private var hasStarted:Boolean = false;//Will be used to ensure we only trigger the selection of default audio once
 
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			
