@@ -742,10 +742,38 @@ package org.osmf.net.httpstreaming
 							break;
 						
 						case HTTPStreamingState.WAIT:
+							// if we are waiting for data due to a URL
+							// error, only wait for a few secconds
+							if (isWaitingForData)
+							{
+								// the amount of time in seconds that we have been waiting to get data
+								timeSinceWait += _mainTimer.delay / 1000;
+								
+								// we can safely declare this stream is not good if we have been trying to recover for too long
+								if (recognizeBadStreamTime <= timeSinceWait)
+									streamIsGood = false;
+									
+								// make sure we wait for the desired amount of time before attempting to get data again
+								if (retryAttemptWaitTime <= timeSinceWait - (retryAttemptCount * retryAttemptWaitTime))
+								{
+									if (retryAttemptMaxTime >= timeSinceWait)
+									{
+										// we reset the stream by seeking to our curent play position
+										seekToRetrySegment(time);
+									}
+									else
+									{
+										// if we are finished waiting for the same segment we seek forward to trigger new segments
+										seekToRetrySegment(time + bufferTime * (retryAttemptWaitTime + 1));// *NOTE* temporarily uses the buffer time
+									}
+									retryAttemptCount++;
+								}
+								break;
+							}
+							
 							// if we are getting dry then go back into
 							// active play mode and get more bytes 
-							// from the stream provider
-							
+							// from the stream provider						
 							if (!_waitForDRM && (this.bufferLength < _desiredBufferTime_Min || checkIfExtraBufferingNeeded()))
 							{
 								setState(HTTPStreamingState.PLAY);
@@ -858,6 +886,14 @@ package org.osmf.net.httpstreaming
 									CONFIG::LOGGING
 										{
 											logger.debug("Processed " + processed + " bytes ( buffer = " + this.bufferLength + ", bufferTime = " + this.bufferTime+", wasBufferEmptied = "+_wasBufferEmptied+" )" ); 
+										}
+										
+										// if are able to process some bytes, this is a good stream
+										if (!streamIsGood)
+										{
+											streamIsGood = true;
+											timeSinceWait = 0;
+											retryAttemptCount = 0;
 										}
 										
 										if (_waitForDRM)
@@ -1227,6 +1263,15 @@ package org.osmf.net.httpstreaming
 				private function onDownloadError(event:HTTPStreamingEvent):void
 				{
 					// We map all URL errors to Play.StreamNotFound.
+					// if this was a good stream we want to wait to see if the URL error was a fluke
+					if (streamIsGood)
+					{
+						setState(HTTPStreamingState.WAIT);
+						isWaitingForData = true;
+						retryAttemptStartCount = _mainTimer.currentCount;
+						return;
+					}
+					
 					dispatchEvent
 					( new NetStatusEvent
 						( NetStatusEvent.NET_STATUS
@@ -1761,6 +1806,23 @@ package org.osmf.net.httpstreaming
 					}
 				}
 				
+				/**
+				 * @private
+				 * 
+				 * Seeks the video to a specific time and marks us as no longer waiting for an
+				 * attempt to grab data. Only used when a previously good stream encounters a
+				 * URL error. Will allow the player to pick up again if the URL error was
+				 * a fluke.
+				 * 
+				 * @param requestedTime The time that the function will seek to
+				 */
+				private function seekToRetrySegment(requestedTime:Number)
+				{
+					_seekTarget = requestedTime;
+					isWaitingForData = false;
+					setState(HTTPStreamingState.SEEK);
+				}
+				
 			private var _desiredBufferTime_Min:Number = 0;
 			private var _desiredBufferTime_Max:Number = 0;
 			
@@ -1835,6 +1897,15 @@ package org.osmf.net.httpstreaming
 			private var _liveStallStartTime:Date;
 			
 			private var hasStarted:Boolean = false;// true after we have played once, checked before automatically switching to a default stream
+			
+			private var streamIsGood:Boolean = false;// true if we have gotten some data from the stream
+			private var isWaitingForData:Boolean = false;// true if we can't find our data but have already started a valid stream
+			private var retryAttemptStartCount:Number;// this is timer's count at the moment we start the timer
+			private var retryAttemptWaitTime:Number = 2.0;// this is how long we will wait after a URL error in seconds before trying to get the segment again
+			private var retryAttemptMaxTime:Number = 10;// this is how long in seconds we will try to reset after a URL error before we start moving forward in the stream
+			private var recognizeBadStreamTime:Number = 20;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
+			private var timeSinceWait:Number = 0;// this is how long we have currently been waiting for a retry attempt. Used to determine when we should retry again
+			private var retryAttemptCount:Number = 0;// this is how many times we have tried to recover from a URL error in a row. Used to assist in retry timing
 
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			
