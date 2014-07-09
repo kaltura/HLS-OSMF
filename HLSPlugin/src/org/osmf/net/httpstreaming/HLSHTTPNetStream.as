@@ -1268,7 +1268,6 @@ package org.osmf.net.httpstreaming
 					{
 						setState(HTTPStreamingState.WAIT);
 						isWaitingForData = true;
-						retryAttemptStartCount = _mainTimer.currentCount;
 						return;
 					}
 					
@@ -1900,12 +1899,11 @@ package org.osmf.net.httpstreaming
 			
 			private var streamIsGood:Boolean = false;// true if we have gotten some data from the stream
 			private var isWaitingForData:Boolean = false;// true if we can't find our data but have already started a valid stream
-			private var retryAttemptStartCount:Number;// this is timer's count at the moment we start the timer
 			private var retryAttemptWaitTime:Number = 2.0;// this is how long we will wait after a URL error in seconds before trying to get the segment again
 			private var retryAttemptMaxTime:Number = 10;// this is how long in seconds we will try to reset after a URL error before we start moving forward in the stream
 			private var recognizeBadStreamTime:Number = 20;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
 			private var timeSinceWait:Number = 0;// this is how long we have currently been waiting for a retry attempt. Used to determine when we should retry again
-			private var retryAttemptCount:Number = 0;// this is how many times we have tried to recover from a URL error in a row. Used to assist in retry timing
+			private var retryAttemptCount:Number = 0;// this is how many times we have tried to recover from a URL error in a row. Used to assist in retry timing and scrubbing
 
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			
