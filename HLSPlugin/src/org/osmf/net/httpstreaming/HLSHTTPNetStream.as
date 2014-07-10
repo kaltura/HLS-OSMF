@@ -1863,7 +1863,7 @@ package org.osmf.net.httpstreaming
 					var index:int = 0;
 					var seekForwardTime:Number = currentManifest.segments[currentIndex].duration -
 												 (time - currentManifest.segments[currentIndex].startTime) + seekForwardBuffer;
-					for (index = 0; index < seekForwardCount; index++)
+					for (index = 1; index <= seekForwardCount; index++)
 					{
 						// don't try to seek past the last segment
 						if (currentIndex + index >= manifestLength -1)
