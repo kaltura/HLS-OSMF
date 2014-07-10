@@ -240,7 +240,12 @@ package com.kaltura.hls.manifest
 			for (var i:int = streams.length - 1; i >= 0; --i)
 			{
 				if (streams[i].manifest == null)
+				{
 					streams.splice(i, 1);
+					continue;
+				}
+				// make our main manifest streamEnds value match our sub manifests'
+				streamEnds = streams[i].manifest.streamEnds;
 			}
 			
 			for (var k:int = playLists.length - 1; k >= 0; --k)
