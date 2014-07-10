@@ -22,6 +22,7 @@
 package org.osmf.net.httpstreaming
 {
 	import com.kaltura.hls.HLSStreamingResource;
+	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
 	
 	import flash.events.NetStatusEvent;
@@ -742,10 +743,43 @@ package org.osmf.net.httpstreaming
 							break;
 						
 						case HTTPStreamingState.WAIT:
+							// if we are waiting for data due to a URL
+							// error, only wait for a few seconds
+							if (isWaitingForData)
+							{
+								// the amount of time in seconds that we have been waiting to get data
+								timeSinceWait += _mainTimer.delay / 1000;
+								
+								// we can safely declare this stream is not good if we have been trying to recover for too long
+								if (recognizeBadStreamTime <= timeSinceWait)
+									streamIsGood = false;
+								
+								// make sure we wait for the desired amount of time before attempting to get data again
+								if (retryAttemptWaitTime <= timeSinceWait - (retryAttemptCount * retryAttemptWaitTime))
+								{
+									// if we hit an error while playing a segment that is downloading properly we want to skip immedietly to seeking forward 
+									if (errorFixSegmentIndex == determineSegmentIndex() && timeSinceWait < retryAttemptMaxTime)
+										timeSinceWait = retryAttemptMaxTime;
+									
+									if (retryAttemptMaxTime > timeSinceWait)
+									{
+										// we reset the stream by seeking to our curent play position
+										seekToRetrySegment(time);
+									}
+									else
+									{
+										// if we are finished waiting for the same segment we seek forward to trigger new segments
+										seekToRetrySegment(time + calculateSeekTime());
+										seekForwardCount++;
+									}
+									retryAttemptCount++;
+								}
+								break;
+							}
+							
 							// if we are getting dry then go back into
 							// active play mode and get more bytes 
-							// from the stream provider
-							
+							// from the stream provider						
 							if (!_waitForDRM && (this.bufferLength < _desiredBufferTime_Min || checkIfExtraBufferingNeeded()))
 							{
 								setState(HTTPStreamingState.PLAY);
@@ -860,22 +894,38 @@ package org.osmf.net.httpstreaming
 											logger.debug("Processed " + processed + " bytes ( buffer = " + this.bufferLength + ", bufferTime = " + this.bufferTime+", wasBufferEmptied = "+_wasBufferEmptied+" )" ); 
 										}
 										
-										if (_waitForDRM)
-										{
-											setState(HTTPStreamingState.WAIT);
-										}
-										else if (checkIfExtraBufferingNeeded())
-										{
-											// special case to keep buffering.
-											// see checkIfExtraBufferingNeeded.
-										}
-										else if (this.bufferLength > _desiredBufferTime_Max)
-										{
-											// if our buffer has grown big enough then go into wait
-											// mode where we let the NetStream consume the buffered 
-											// data
-											setState(HTTPStreamingState.WAIT);
-										}
+									// if we get processed some bytes and are just coming out of an error, track the segment we are on. This will be used to check if we have a bad segment
+									if (retryAttemptCount > 0)
+									{
+										errorFixSegmentIndex = determineSegmentIndex();
+									}
+										
+									// if we are able to process some bytes and the time has changed since the last error, this is a good stream
+									if (time != lastErrorTime)
+									{
+										streamIsGood = true;
+										timeSinceWait = 0;
+										retryAttemptCount = 0;
+										seekForwardCount = 0;
+										errorFixSegmentIndex = -1;
+									}
+									
+									if (_waitForDRM)
+									{
+										setState(HTTPStreamingState.WAIT);
+									}
+									else if (checkIfExtraBufferingNeeded())
+									{
+										// special case to keep buffering.
+										// see checkIfExtraBufferingNeeded.
+									}
+									else if (this.bufferLength > _desiredBufferTime_Max)
+									{
+										// if our buffer has grown big enough then go into wait
+										// mode where we let the NetStream consume the buffered 
+										// data
+										setState(HTTPStreamingState.WAIT);
+									}
 								}
 								else
 								{
@@ -1227,6 +1277,15 @@ package org.osmf.net.httpstreaming
 				private function onDownloadError(event:HTTPStreamingEvent):void
 				{
 					// We map all URL errors to Play.StreamNotFound.
+					// if this was a good stream we want to wait to see if the URL error was a fluke
+					if (streamIsGood)
+					{
+						setState(HTTPStreamingState.WAIT);
+						isWaitingForData = true;
+						lastErrorTime = time;
+						return;
+					}
+					
 					dispatchEvent
 					( new NetStatusEvent
 						( NetStatusEvent.NET_STATUS
@@ -1761,6 +1820,84 @@ package org.osmf.net.httpstreaming
 					}
 				}
 				
+				/**
+				 * @private
+				 * 
+				 * Seeks the video to a specific time and marks us as no longer waiting for an
+				 * attempt to grab data. Only used when a previously good stream encounters a
+				 * URL error. Will allow the player to pick up again if the URL error was
+				 * a fluke.
+				 * 
+				 * @param requestedTime The time that the function will seek to
+				 */
+				private function seekToRetrySegment(requestedTime:Number):void
+				{
+					_seekTarget = requestedTime;
+					isWaitingForData = false;
+					setState(HTTPStreamingState.SEEK);
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Calculate how far we need to seek forward in case of a URL error that doesn't resolve
+				 * in time.
+				 * 
+				 * @return The amount of time the player needs to seek forward
+				 */
+				private function calculateSeekTime():Number
+				{
+					// first check and make sure that we actually have a manifest
+					if (currentManifest == null)
+						return 0;
+					
+					// find the segment we are currently playing
+					var currentIndex:int = determineSegmentIndex();// the index of the segment we are currently playing
+					var manifestLength:int = currentManifest.segments.length;// we will use this more than once
+						
+					// if we are currently at the last segment in the manifest or our time does not match any segments, do not seek forward
+					if (currentIndex == manifestLength - 1 || currentIndex == -1)
+						return 0;
+						
+					// find the amount of time we need to seek forward
+					var index:int = 0;
+					var seekForwardTime:Number = currentManifest.segments[currentIndex].duration -
+												 (time - currentManifest.segments[currentIndex].startTime) + seekForwardBuffer;
+					for (index = 1; index <= seekForwardCount; index++)
+					{
+						// don't try to seek past the last segment
+						if (currentIndex + index >= manifestLength -1)
+							return seekForwardTime;
+						
+						// add the duration of segments in order to get to the segment we are trying to seek to
+						seekForwardTime += currentManifest.segments[currentIndex + index].duration;
+					}
+					return seekForwardTime;
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Determines the index of the segment we are currently playing
+				 * 
+				 * @return The index of the segment we are currently playing
+				 */
+				private function determineSegmentIndex():Number
+				{
+					var index:int = 0;
+					for (index = 0; index < currentManifest.segments.length; index++)
+					{
+						// if the current time in in between a segment's start time, and the segment's end time, we found the current segment
+						if (currentManifest.segments[index].startTime <= time &&
+							time < currentManifest.segments[index].startTime + currentManifest.segments[index].duration)
+						{
+							return index;
+						}
+					}
+					// if our time does not match any available segments for some reason, return -1
+					return -1;
+				}
+				
 			private var _desiredBufferTime_Min:Number = 0;
 			private var _desiredBufferTime_Max:Number = 0;
 			
@@ -1835,7 +1972,21 @@ package org.osmf.net.httpstreaming
 			private var _liveStallStartTime:Date;
 			
 			private var hasStarted:Boolean = false;// true after we have played once, checked before automatically switching to a default stream
-
+			
+			private var streamIsGood:Boolean = false;// true if we have gotten some data from the stream
+			private var isWaitingForData:Boolean = false;// true if we can't find our data but have already started a valid stream
+			private var retryAttemptWaitTime:Number = 1;// this is how long we will wait after a URL error in seconds before trying to get the segment again
+			private var retryAttemptMaxTime:Number = 11;// this is how long in seconds we will try to reset after a URL error before we start moving forward in the stream
+			private var recognizeBadStreamTime:Number = 21;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
+			private var timeSinceWait:Number = 0;// this is how long we have currently been waiting for a retry attempt. Used to determine when we should retry again
+			private var retryAttemptCount:Number = 0;// this is how many times we have tried to recover from a URL error in a row. Used to assist in retry timing and scrubbing
+			private var seekForwardCount:Number = 0;// this is how many time we have tried to scrub forward after a URL error. Used to determine the amount to scrub
+			private var seekForwardBuffer:Number = 0.5;// this is how far ahead of the next segment we should seek to in order to ensure we load that segment
+			private var lastErrorTime:Number = 0;// this is the last time there was an error. Used when determining if an error has been resolved
+			private var errorFixSegmentIndex:int = -1;// this is the index of the segment we were at immedietly after a URL error. Used to expediate the retry process if we hit a bad segment URL
+			
+			public static var currentManifest:HLSManifestParser;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
+			
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			
 			CONFIG::LOGGING

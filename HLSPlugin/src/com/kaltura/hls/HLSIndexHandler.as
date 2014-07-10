@@ -16,6 +16,7 @@ package com.kaltura.hls
 	import org.osmf.events.HTTPStreamingIndexHandlerEvent;
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.net.DynamicStreamingItem;
+	import org.osmf.net.httpstreaming.HLSHTTPNetStream;
 	import org.osmf.net.httpstreaming.HTTPStreamRequest;
 	import org.osmf.net.httpstreaming.HTTPStreamRequestKind;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
@@ -600,7 +601,10 @@ package com.kaltura.hls
 			if (!manifest) return new HLSManifestParser();
 			if (manifest.streams.length < 1 || manifest.streams[0].manifest == null) return manifest;
 			else if ( quality >= manifest.streams.length ) return manifest.streams[0].manifest;
-			else return manifest.streams[quality].manifest;
+
+			// we give the HLSHTTPNetStream the manifest for the quality we are currently using to help it recover after a URL error
+			HLSHTTPNetStream.currentManifest = manifest.streams[quality].manifest;
+			return manifest.streams[quality].manifest;
 		}
 		
 		private function createHTTPStreamRequest( segment:HLSManifestSegment ):HTTPStreamRequest
@@ -610,6 +614,7 @@ package com.kaltura.hls
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.FRAGMENT_DURATION, false, false, segment.duration));
 			return new HTTPStreamRequest(HTTPStreamRequestKind.DOWNLOAD, segment.uri);
 		}
+		
 		
 		//-----------------------------------------------------------
 		// IExtraIndexHandlerState implementation
