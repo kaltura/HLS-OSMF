@@ -22,7 +22,6 @@
 package org.osmf.net.httpstreaming
 {
 	import com.kaltura.hls.HLSStreamingResource;
-	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
 	import com.kaltura.hls.manifest.HLSManifestStream;
 	
@@ -40,7 +39,6 @@ package org.osmf.net.httpstreaming
 	import org.osmf.events.QoSInfoEvent;
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.media.URLResource;
-	import org.osmf.net.DynamicStreamingItem;
 	import org.osmf.net.DynamicStreamingResource;
 	import org.osmf.net.NetClient;
 	import org.osmf.net.NetStreamCodes;
@@ -149,7 +147,6 @@ package org.osmf.net.httpstreaming
 				
 				_mainTimer = new Timer(OSMFSettings.hdsMainTimerInterval); 
 				_mainTimer.addEventListener(TimerEvent.TIMER, onMainTimer);	
-				
 			}
 			
 			///////////////////////////////////////////////////////////////////////
@@ -766,15 +763,6 @@ package org.osmf.net.httpstreaming
 										var res:HLSStreamingResource = _resource as HLSStreamingResource;
 										res.manifest.streams[res.manifest.streams.indexOf(currentStream)] = currentStream.backupStream;
 										currentStream = currentStream.backupStream;
-										
-										// we have to create a new dynamic streaming item to replace the item of the current index
-										
-										//var item:DynamicStreamingItem = new DynamicStreamingItem(currentStream.uri, currentStream.bandwidth,
-										//														 currentStream.width, currentStream.height);
-										
-										//res.streamItems[res.manifest.streams.indexOf(currentStream)] = item;
-										
-										//changeSourceTo(currentStream.uri, time);
 									}
 									
 									// if we hit an error while playing a segment that is downloading properly we have encountered a bad segment

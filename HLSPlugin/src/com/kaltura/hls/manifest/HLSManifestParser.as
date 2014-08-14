@@ -72,8 +72,6 @@ package com.kaltura.hls.manifest
 			// Process each line.
 			var lastHint:* = null;
 			var nextByteRangeStart:int = 0;
-			var lastTagParams:String = null;// Used to determine if we are dealing with a backup stream
-			var numberOfBackups:int = 0;// How many backups each particular stream has
 			
 			var i:int = 0;
 			for(i=0; i<lines.length; i++)
@@ -167,7 +165,6 @@ package com.kaltura.hls.manifest
 					case "EXT-X-STREAM-INF":
 						streams.push(HLSManifestStream.fromString(tagParams));
 						lastHint = streams[streams.length-1];
-						
 						break;
 					
 					case "EXTINF":
