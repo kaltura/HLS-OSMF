@@ -53,7 +53,7 @@ package com.kaltura.hls.manifest
 							newNote.programId = parseInt(accum);
 							break;
 						case "BANDWIDTH":
-							// We devide this value by 1000 to convert into Kilobits
+							// We divide this value by 1000 to convert into Kilobits
 							newNote.bandwidth = parseInt(accum) / 1000;
 							break;
 						case "CODECS":
