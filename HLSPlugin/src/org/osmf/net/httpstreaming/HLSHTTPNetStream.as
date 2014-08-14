@@ -24,6 +24,7 @@ package org.osmf.net.httpstreaming
 	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
+	import com.kaltura.hls.manifest.HLSManifestStream;
 	
 	import flash.events.NetStatusEvent;
 	import flash.events.TimerEvent;
@@ -39,6 +40,7 @@ package org.osmf.net.httpstreaming
 	import org.osmf.events.QoSInfoEvent;
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.media.URLResource;
+	import org.osmf.net.DynamicStreamingItem;
 	import org.osmf.net.DynamicStreamingResource;
 	import org.osmf.net.NetClient;
 	import org.osmf.net.NetStreamCodes;
@@ -147,6 +149,7 @@ package org.osmf.net.httpstreaming
 				
 				_mainTimer = new Timer(OSMFSettings.hdsMainTimerInterval); 
 				_mainTimer.addEventListener(TimerEvent.TIMER, onMainTimer);	
+				
 			}
 			
 			///////////////////////////////////////////////////////////////////////
@@ -750,19 +753,40 @@ package org.osmf.net.httpstreaming
 								// the amount of time in seconds that we have been waiting to get data
 								timeSinceWait += _mainTimer.delay / 1000;
 								
-								// we can safely declare this stream is not good if we have been trying to recover for too long
-								if (recognizeBadStreamTime <= timeSinceWait)
+								// we can safely declare this stream is not good if we have been trying to recover for too long and we ran out of backups to try
+								if (recognizeBadStreamTime <= timeSinceWait && currentStream.numBackups < retryAttemptCount)
 									streamIsGood = false;
 								
 								// make sure we wait for the desired amount of time before attempting to get data again
 								if (retryAttemptWaitTime <= timeSinceWait - (retryAttemptCount * retryAttemptWaitTime))
 								{
-									// if we hit an error while playing a segment that is downloading properly we want to skip immedietly to seeking forward 
-									if (errorFixSegmentIndex == determineSegmentIndex() && timeSinceWait < retryAttemptMaxTime)
-										timeSinceWait = retryAttemptMaxTime;
-									
-									if (retryAttemptMaxTime > timeSinceWait)
+									// if we have a backup stream available, switch to it
+									if (currentStream.backupStream)
 									{
+										var res:HLSStreamingResource = _resource as HLSStreamingResource;
+										res.manifest.streams[res.manifest.streams.indexOf(currentStream)] = currentStream.backupStream;
+										currentStream = currentStream.backupStream;
+										
+										// we have to create a new dynamic streaming item to replace the item of the current index
+										
+										//var item:DynamicStreamingItem = new DynamicStreamingItem(currentStream.uri, currentStream.bandwidth,
+										//														 currentStream.width, currentStream.height);
+										
+										//res.streamItems[res.manifest.streams.indexOf(currentStream)] = item;
+										
+										//changeSourceTo(currentStream.uri, time);
+									}
+									
+									// if we hit an error while playing a segment that is downloading properly we have encountered a bad segment
+									// we will first try any available backup streams, then move to seeking forward as soon as they are all tried
+									if (errorFixSegmentIndex == determineSegmentIndex() && timeSinceWait < retryAttemptMaxTime &&
+										currentStream.numBackups <= retryAttemptCount)
+									{
+										timeSinceWait = retryAttemptMaxTime;
+									}
+									
+									if (retryAttemptMaxTime > timeSinceWait && currentStream.numBackups >= retryAttemptCount)
+									{										
 										// we reset the stream by seeking to our curent play position
 										seekToRetrySegment(time);
 									}
@@ -1848,12 +1872,12 @@ package org.osmf.net.httpstreaming
 				private function calculateSeekTime():Number
 				{
 					// first check and make sure that we actually have a manifest
-					if (currentManifest == null)
+					if (currentStream.manifest == null)
 						return 0;
 					
 					// find the segment we are currently playing
 					var currentIndex:int = determineSegmentIndex();// the index of the segment we are currently playing
-					var manifestLength:int = currentManifest.segments.length;// we will use this more than once
+					var manifestLength:int = currentStream.manifest.segments.length;// we will use this more than once
 						
 					// if we are currently at the last segment in the manifest or our time does not match any segments, do not seek forward
 					if (currentIndex == manifestLength - 1 || currentIndex == -1)
@@ -1861,8 +1885,8 @@ package org.osmf.net.httpstreaming
 						
 					// find the amount of time we need to seek forward
 					var index:int = 0;
-					var seekForwardTime:Number = currentManifest.segments[currentIndex].duration -
-												 (time - currentManifest.segments[currentIndex].startTime) + seekForwardBuffer;
+					var seekForwardTime:Number = currentStream.manifest.segments[currentIndex].duration -
+												 (time - currentStream.manifest.segments[currentIndex].startTime) + seekForwardBuffer;
 					for (index = 1; index <= seekForwardCount; index++)
 					{
 						// don't try to seek past the last segment
@@ -1870,7 +1894,7 @@ package org.osmf.net.httpstreaming
 							return seekForwardTime;
 						
 						// add the duration of segments in order to get to the segment we are trying to seek to
-						seekForwardTime += currentManifest.segments[currentIndex + index].duration;
+						seekForwardTime += currentStream.manifest.segments[currentIndex + index].duration;
 					}
 					return seekForwardTime;
 				}
@@ -1885,11 +1909,11 @@ package org.osmf.net.httpstreaming
 				private function determineSegmentIndex():Number
 				{
 					var index:int = 0;
-					for (index = 0; index < currentManifest.segments.length; index++)
+					for (index = 0; index < currentStream.manifest.segments.length; index++)
 					{
 						// if the current time in in between a segment's start time, and the segment's end time, we found the current segment
-						if (currentManifest.segments[index].startTime <= time &&
-							time < currentManifest.segments[index].startTime + currentManifest.segments[index].duration)
+						if (currentStream.manifest.segments[index].startTime <= time &&
+							time < currentStream.manifest.segments[index].startTime + currentStream.manifest.segments[index].duration)
 						{
 							return index;
 						}
@@ -1985,7 +2009,7 @@ package org.osmf.net.httpstreaming
 			private var lastErrorTime:Number = 0;// this is the last time there was an error. Used when determining if an error has been resolved
 			private var errorFixSegmentIndex:int = -1;// this is the index of the segment we were at immedietly after a URL error. Used to expediate the retry process if we hit a bad segment URL
 			
-			public static var currentManifest:HLSManifestParser;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
+			public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
 			
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			

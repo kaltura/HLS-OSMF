@@ -602,8 +602,8 @@ package com.kaltura.hls
 			if (manifest.streams.length < 1 || manifest.streams[0].manifest == null) return manifest;
 			else if ( quality >= manifest.streams.length ) return manifest.streams[0].manifest;
 
-			// we give the HLSHTTPNetStream the manifest for the quality we are currently using to help it recover after a URL error
-			HLSHTTPNetStream.currentManifest = manifest.streams[quality].manifest;
+			// We give the HLSHTTPNetStream the stream for the quality we are currently using to help it recover after a URL error
+			HLSHTTPNetStream.currentStream = manifest.streams[quality];
 			return manifest.streams[quality].manifest;
 		}
 		

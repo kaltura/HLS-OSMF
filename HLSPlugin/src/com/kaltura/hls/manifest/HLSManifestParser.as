@@ -72,6 +72,8 @@ package com.kaltura.hls.manifest
 			// Process each line.
 			var lastHint:* = null;
 			var nextByteRangeStart:int = 0;
+			var lastTagParams:String = null;// Used to determine if we are dealing with a backup stream
+			var numberOfBackups:int = 0;// How many backups each particular stream has
 			
 			var i:int = 0;
 			for(i=0; i<lines.length; i++)
@@ -165,6 +167,7 @@ package com.kaltura.hls.manifest
 					case "EXT-X-STREAM-INF":
 						streams.push(HLSManifestStream.fromString(tagParams));
 						lastHint = streams[streams.length-1];
+						
 						break;
 					
 					case "EXTINF":
@@ -236,7 +239,9 @@ package com.kaltura.hls.manifest
 		
 		private function verifyManifestItemIntegrity():void
 		{
-			// work through the streams and remove any broken ones.
+			var backupNum:int = 0;// the number of backup streams for each unique stream set
+			
+			// work through the streams and remove any broken ones and set up backup streams
 			for (var i:int = streams.length - 1; i >= 0; --i)
 			{
 				if (streams[i].manifest == null)
@@ -244,8 +249,32 @@ package com.kaltura.hls.manifest
 					streams.splice(i, 1);
 					continue;
 				}
+				
+				// only start the backup stream logic if we are not on our first checked (non-broken) stream
+				if (i == streams.length - 1)
+					continue;
+				
+				if (streams[i].bandwidth == streams[i+1].bandwidth)
+				{
+					backupNum++;
+				}
+				else if (backupNum > 0)
+				{
+					// link the main stream with it's backup stream(s)
+					linkBackupStreams(i+1, backupNum, streams.splice(i+2, backupNum));
+					
+					backupNum = 0;
+				}
+			}
+			
+			// if we ended the loop with a backupNum greater than 0, we still have backup streams to add
+			if (backupNum > 0)
+				linkBackupStreams(0, backupNum, streams.splice(1, backupNum));
+			
+			if (streams.length >= 1)
+			{
 				// make our main manifest streamEnds value match our sub manifests'
-				streamEnds = streams[i].manifest.streamEnds;
+				streamEnds = streams[0].manifest.streamEnds;
 			}
 			
 			for (var k:int = playLists.length - 1; k >= 0; --k)
@@ -255,6 +284,23 @@ package com.kaltura.hls.manifest
 			}
 			
 			// TODO: Do we need to worry about subtitle playlists?
+		}
+		
+		/**
+		 * Links together the main stream and its backup streams into a circular linked list
+		 */
+		private function linkBackupStreams(mainStreamIndex:int, backupNum:int, backupStreams:Vector.<HLSManifestStream>):void
+		{
+			streams[mainStreamIndex].backupStream = backupStreams[0];
+			streams[mainStreamIndex].numBackups = backupStreams[0].numBackups = backupNum;
+			
+			for (var i:int = 1; i < backupStreams.length; i++)
+			{
+				backupStreams[i-1].backupStream = backupStreams[i];
+				backupStreams[i].numBackups = backupNum;
+			}
+			
+			backupStreams[backupStreams.length - 1].backupStream = streams[mainStreamIndex];
 		}
 
 		/**

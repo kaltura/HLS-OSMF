@@ -6,6 +6,8 @@ package com.kaltura.hls.manifest
 		public var bandwidth:int;
 		public var codecs:String;
 		public var width:int, height:int;
+		public var backupStream:HLSManifestStream;
+		public var numBackups:int = 0;
 		
 		public static function fromString(input:String):HLSManifestStream
 		{
