@@ -761,8 +761,12 @@ package org.osmf.net.httpstreaming
 									if (currentStream.backupStream)
 									{
 										var res:HLSStreamingResource = _resource as HLSStreamingResource;
-										res.manifest.streams[res.manifest.streams.indexOf(currentStream)] = currentStream.backupStream;
+										var curIndex:int = res.manifest.streams.indexOf(currentStream);
+										res.manifest.streams[curIndex] = currentStream.backupStream;
 										currentStream = currentStream.backupStream;
+										
+										// also switch the dynamic streaming item
+										res.streamItems[curIndex] = currentStream.dynamicStream;
 									}
 									
 									// if we hit an error while playing a segment that is downloading properly we have encountered a bad segment
@@ -950,7 +954,7 @@ package org.osmf.net.httpstreaming
 											{
 												logger.debug("End of stream reached. Stopping."); 
 											}
-											setState(HTTPStreamingState.STOP);
+										setState(HTTPStreamingState.STOP);
 									}
 								}
 							}

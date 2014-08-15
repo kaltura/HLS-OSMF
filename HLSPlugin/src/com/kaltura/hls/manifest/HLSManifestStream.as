@@ -1,5 +1,7 @@
 package com.kaltura.hls.manifest
 {
+	import org.osmf.net.DynamicStreamingItem;
+	
 	public class HLSManifestStream extends BaseHLSManifestItem
 	{
 		public var programId:int;
@@ -7,6 +9,7 @@ package com.kaltura.hls.manifest
 		public var codecs:String;
 		public var width:int, height:int;
 		public var backupStream:HLSManifestStream;
+		public var dynamicStream:DynamicStreamingItem;
 		public var numBackups:int = 0;
 		
 		public static function fromString(input:String):HLSManifestStream
