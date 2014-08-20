@@ -5,6 +5,7 @@ package com.kaltura.hls
 	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.manifest.HLSManifestSegment;
+	import com.kaltura.hls.manifest.HLSManifestStream;
 	
 	import flash.events.Event;
 	import flash.events.IOErrorEvent;
@@ -44,6 +45,8 @@ package com.kaltura.hls
 		private var sequenceSkips:int = 0;
 		private var stalled:Boolean = false;
 		private var fileHandler:M2TSFileHandler;
+		private var badManifestMap:Object = new Object();
+		private var badManifestCount:int = 3;// How many times a manifest experiences an error before we give up on it and remove it from our list
 
 		
 		public function HLSIndexHandler(_resource:MediaResourceBase, _fileHandler:HTTPStreamingFileHandlerBase)
@@ -95,6 +98,67 @@ package com.kaltura.hls
 		{
 			if(reloadTimer && !reloadTimer.running)
 				reloadTimer.start();
+			
+			// Keep track of how many times this particular manifest has failed to reload
+			var e:IOErrorEvent = event as IOErrorEvent;
+			if (!badManifestMap.hasOwnProperty(e.text))
+			{
+				badManifestMap[e.text] = 1;
+			}
+			else
+			{
+				badManifestMap[e.text] += 1;
+			}
+			
+			// Only continue on to removing the manifest if it has had an error enough times
+			if (badManifestMap[e.text] < badManifestCount)
+				return;
+			
+			for (var i:int = 0; i < resource.manifest.streams.length; i++)
+			{
+				var curStream:HLSManifestStream = resource.manifest.streams[i];
+				
+				// We continue to the next available stream if the url/uri doesn't match
+				if (e.text != curStream.uri)
+					continue;
+				
+				// We don't do anything if this is the lowest quality stream and there is no backup
+				if (i == 0 && !curStream.backupStream)
+					break;
+				
+				// Replace the stream with its backup if possible
+				if (curStream.backupStream)
+				{
+					// Remove the bad stream from the linked list, preserving the list's circular behavior
+					while (curStream.backupStream != resource.manifest.streams[i])
+					{
+						curStream = curStream.backupStream;
+					}
+					
+					curStream.backupStream = curStream.backupStream.backupStream;
+					
+					// Check if this stream only has one backup
+					if (curStream == curStream.backupStream)
+						curStream.backupStream = null;
+					
+					resource.manifest.streams[i] = curStream;
+					resource.streamItems[i] = curStream.dynamicStream;
+				}
+				else
+				{
+					// If there is no backup available, simply remove the stream from our stream list
+					for (var j:int = i; j < resource.manifest.streams.length - 1; j++)
+					{
+						resource.manifest.streams[j] = resource.manifest.streams[j+1];
+						resource.streamItems[j] = resource.streamItems[j+1];
+					}
+					
+					resource.manifest.streams.pop();
+					resource.streamItems.pop();
+				}
+			}
+			
+			postRatesReady();
 		}
 		private function onReloadComplete(event:Event):void
 		{
@@ -604,6 +668,9 @@ package com.kaltura.hls
 
 			// We give the HLSHTTPNetStream the stream for the quality we are currently using to help it recover after a URL error
 			HLSHTTPNetStream.currentStream = manifest.streams[quality];
+			
+			// Also give HLSHTTPNetStream a reference to ourselves so it can call postRatesReady()
+			HLSHTTPNetStream.indexHandler = this;
 			return manifest.streams[quality].manifest;
 		}
 		

@@ -21,6 +21,7 @@
  *****************************************************/
 package org.osmf.net.httpstreaming
 {
+	import com.kaltura.hls.HLSIndexHandler;
 	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
 	import com.kaltura.hls.manifest.HLSManifestStream;
@@ -338,7 +339,7 @@ package org.osmf.net.httpstreaming
 			 * @inheritDoc
 			 */
 			override public function get bytesLoaded():uint
-			{
+			{		
 				return _bytesLoaded;
 			}
 			
@@ -767,6 +768,7 @@ package org.osmf.net.httpstreaming
 										
 										// also switch the dynamic streaming item
 										res.streamItems[curIndex] = currentStream.dynamicStream;
+										indexHandler.postRatesReady();
 									}
 									
 									// if we hit an error while playing a segment that is downloading properly we have encountered a bad segment
@@ -1029,7 +1031,7 @@ package org.osmf.net.httpstreaming
 						{
 							logger.debug("Performing extra buffering because the player is probably stuck. bufferLength = "+this.bufferLength+" bufferTime = "+bufferTime);
 						}
-						return true;
+					return true;
 				}
 				
 				/**
@@ -2002,6 +2004,7 @@ package org.osmf.net.httpstreaming
 			private var errorFixSegmentIndex:int = -1;// this is the index of the segment we were at immedietly after a URL error. Used to expediate the retry process if we hit a bad segment URL
 			
 			public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
+			public static var indexHandler:HLSIndexHandler;// a reference to the active index handler. Used to update the quality list after a change.
 			
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			

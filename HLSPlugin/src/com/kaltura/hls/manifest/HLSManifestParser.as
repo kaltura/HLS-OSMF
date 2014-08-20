@@ -33,6 +33,7 @@ package com.kaltura.hls.manifest
 		public var subtitlePlayLists:Vector.<HLSManifestPlaylist> = new Vector.<HLSManifestPlaylist>();
 		public var subtitles:Vector.<SubTitleParser> = new Vector.<SubTitleParser>();
 		public var keys:Vector.<HLSManifestEncryptionKey> = new Vector.<HLSManifestEncryptionKey>();
+		public var goodManifest:Boolean = true;
 		
 		public var manifestLoaders:Vector.<URLLoader> = new Vector.<URLLoader>();
 		public var manifestParsers:Vector.<HLSManifestParser> = new Vector.<HLSManifestParser>();
@@ -65,7 +66,7 @@ package com.kaltura.hls.manifest
 			
 			// Normalize line endings.
 			input = input.replace("\r\n", "\n");
-			
+
 			// split into array.
 			var lines:Array = input.split("\n");
 			
@@ -78,6 +79,14 @@ package com.kaltura.hls.manifest
 			{
 				const curLine:String = lines[i];
 				const curPrefix:String = curLine.substr(0,1);
+				
+				// Determine if we are parsing good information
+				if (i == 0 && curLine.search("#EXTM3U") == -1)
+				{
+					trace("Bad stream, #EXTM3U not found on the first line");
+					goodManifest = false;
+					break;
+				}
 				
 				// Ignore empty lines
 				if ( curLine.length == 0 ) continue;
@@ -241,7 +250,7 @@ package com.kaltura.hls.manifest
 			// work through the streams and remove any broken ones and set up backup streams
 			for (var i:int = streams.length - 1; i >= 0; --i)
 			{
-				if (streams[i].manifest == null)
+				if (streams[i].manifest == null || !streams[i].manifest.goodManifest)
 				{
 					streams.splice(i, 1);
 					continue;
@@ -383,7 +392,12 @@ package com.kaltura.hls.manifest
 		protected function onManifestReloadError(e:Event):void
 		{
 			trace("ERROR loading manifest " + e.toString());
-			dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR));
+			
+			// parse the error and send up the manifest url
+			var event:IOErrorEvent = e as IOErrorEvent;
+			var url:String = event.text.substring(event.text.search("URL: ") + 5);
+			
+			dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR, false, false, url));
 		}
 		
 		public function reload(manifest:HLSManifestParser):void
