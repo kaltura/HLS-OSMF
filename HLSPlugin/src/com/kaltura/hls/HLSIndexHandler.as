@@ -480,6 +480,9 @@ package com.kaltura.hls
 			fileHandler.segmentId = lastSegmentIndex;
 			fileHandler.key = getKeyForIndex( i );
 			
+			if (!resource.manifest.streamEnds)
+				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL);
+			
 			return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 		}
 		
