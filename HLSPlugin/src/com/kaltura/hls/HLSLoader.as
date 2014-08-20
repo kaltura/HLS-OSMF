@@ -102,8 +102,21 @@ package com.kaltura.hls
 			{
 				var curStream:HLSManifestStream = parser.streams[i];
 				item = new DynamicStreamingItem(curStream.uri, curStream.bandwidth, curStream.width, curStream.height);
+				curStream.dynamicStream = item;
 				items.push(item);
 				if ( !curStream.manifest.streamEnds ) isDVR = true;
+				
+				// Create dynamic streaming items for the backup streams
+				if (!curStream.backupStream)
+					continue;
+				
+				var mainStream:HLSManifestStream = curStream;
+				curStream = curStream.backupStream;
+				while (curStream != mainStream)
+				{
+					curStream.dynamicStream = new DynamicStreamingItem(curStream.uri, curStream.bandwidth, curStream.width, curStream.height);
+					curStream = curStream.backupStream;
+				}
 			}
 			
 			// Deal with single rate M3Us by stuffing a single stream in.

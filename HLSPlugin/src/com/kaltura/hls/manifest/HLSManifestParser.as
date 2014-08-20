@@ -33,6 +33,7 @@ package com.kaltura.hls.manifest
 		public var subtitlePlayLists:Vector.<HLSManifestPlaylist> = new Vector.<HLSManifestPlaylist>();
 		public var subtitles:Vector.<SubTitleParser> = new Vector.<SubTitleParser>();
 		public var keys:Vector.<HLSManifestEncryptionKey> = new Vector.<HLSManifestEncryptionKey>();
+		public var goodManifest:Boolean = true;
 		
 		public var manifestLoaders:Vector.<URLLoader> = new Vector.<URLLoader>();
 		public var manifestParsers:Vector.<HLSManifestParser> = new Vector.<HLSManifestParser>();
@@ -65,7 +66,7 @@ package com.kaltura.hls.manifest
 			
 			// Normalize line endings.
 			input = input.replace("\r\n", "\n");
-			
+
 			// split into array.
 			var lines:Array = input.split("\n");
 			
@@ -78,6 +79,14 @@ package com.kaltura.hls.manifest
 			{
 				const curLine:String = lines[i];
 				const curPrefix:String = curLine.substr(0,1);
+				
+				// Determine if we are parsing good information
+				if (i == 0 && curLine.search("#EXTM3U") == -1)
+				{
+					trace("Bad stream, #EXTM3U not found on the first line");
+					goodManifest = false;
+					break;
+				}
 				
 				// Ignore empty lines
 				if ( curLine.length == 0 ) continue;
@@ -236,16 +245,42 @@ package com.kaltura.hls.manifest
 		
 		private function verifyManifestItemIntegrity():void
 		{
-			// work through the streams and remove any broken ones.
+			var backupNum:int = 0;// the number of backup streams for each unique stream set
+			
+			// work through the streams and remove any broken ones and set up backup streams
 			for (var i:int = streams.length - 1; i >= 0; --i)
 			{
-				if (streams[i].manifest == null)
+				if (streams[i].manifest == null || !streams[i].manifest.goodManifest)
 				{
 					streams.splice(i, 1);
 					continue;
 				}
+				
+				// only start the backup stream logic if we are not on our first checked (non-broken) stream
+				if (i == streams.length - 1)
+					continue;
+				
+				if (streams[i].bandwidth == streams[i+1].bandwidth)
+				{
+					backupNum++;
+				}
+				else if (backupNum > 0)
+				{
+					// link the main stream with it's backup stream(s)
+					linkBackupStreams(i+1, backupNum, streams.splice(i+2, backupNum));
+					
+					backupNum = 0;
+				}
+			}
+			
+			// if we ended the loop with a backupNum greater than 0, we still have backup streams to add
+			if (backupNum > 0)
+				linkBackupStreams(0, backupNum, streams.splice(1, backupNum));
+			
+			if (streams.length >= 1)
+			{
 				// make our main manifest streamEnds value match our sub manifests'
-				streamEnds = streams[i].manifest.streamEnds;
+				streamEnds = streams[0].manifest.streamEnds;
 			}
 			
 			for (var k:int = playLists.length - 1; k >= 0; --k)
@@ -255,6 +290,23 @@ package com.kaltura.hls.manifest
 			}
 			
 			// TODO: Do we need to worry about subtitle playlists?
+		}
+		
+		/**
+		 * Links together the main stream and its backup streams into a circular linked list
+		 */
+		private function linkBackupStreams(mainStreamIndex:int, backupNum:int, backupStreams:Vector.<HLSManifestStream>):void
+		{
+			streams[mainStreamIndex].backupStream = backupStreams[0];
+			streams[mainStreamIndex].numBackups = backupStreams[0].numBackups = backupNum;
+			
+			for (var i:int = 1; i < backupStreams.length; i++)
+			{
+				backupStreams[i-1].backupStream = backupStreams[i];
+				backupStreams[i].numBackups = backupNum;
+			}
+			
+			backupStreams[backupStreams.length - 1].backupStream = streams[mainStreamIndex];
 		}
 
 		/**
@@ -340,7 +392,12 @@ package com.kaltura.hls.manifest
 		protected function onManifestReloadError(e:Event):void
 		{
 			trace("ERROR loading manifest " + e.toString());
-			dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR));
+			
+			// parse the error and send up the manifest url
+			var event:IOErrorEvent = e as IOErrorEvent;
+			var url:String = event.text.substring(event.text.search("URL: ") + 5);
+			
+			dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR, false, false, url));
 		}
 		
 		public function reload(manifest:HLSManifestParser):void
