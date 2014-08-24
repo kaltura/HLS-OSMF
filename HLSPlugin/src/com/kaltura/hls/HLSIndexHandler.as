@@ -47,7 +47,7 @@ package com.kaltura.hls
 		private var fileHandler:M2TSFileHandler;
 		private var badManifestMap:Object = new Object();
 		private var badManifestCount:int = 3;// How many times a manifest experiences an error before we give up on it and remove it from our list
-		private var idTooFarBehind:int = 5;// How far behind a stream can be before we log a message warning significant delays
+		private var isTooFarBehind:int = 5;// How far behind a stream can be before we log a message warning significant delays
 		
 		CONFIG::LOGGING
 		{
@@ -314,9 +314,9 @@ package com.kaltura.hls
 					{
 						segmentDiff:int = matchSegment.id - targetSegments[targetSegments.length-1].id;
 						
-						if (segmentDiff < idTooFarBehind)
+						if (segmentDiff < isTooFarBehind)
 						{
-							logger.debug("WARNING target stream is " + segmentDiff + " behind the current stream, expect delays.");
+							logger.debug("WARNING target stream is " + segmentDiff + " segments behind the current stream, expect delays.");
 						}
 					}
 					
