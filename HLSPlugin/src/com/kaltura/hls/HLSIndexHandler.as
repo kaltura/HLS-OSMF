@@ -47,6 +47,13 @@ package com.kaltura.hls
 		private var fileHandler:M2TSFileHandler;
 		private var badManifestMap:Object = new Object();
 		private var badManifestCount:int = 3;// How many times a manifest experiences an error before we give up on it and remove it from our list
+		private var isTooFarBehind:int = 5;// How far behind a stream can be before we log a message warning significant delays
+		
+		CONFIG::LOGGING
+		{
+			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HTTPNetStream");
+			private var previouslyLoggedState:String = null;
+		}
 
 		
 		public function HLSIndexHandler(_resource:MediaResourceBase, _fileHandler:HTTPStreamingFileHandlerBase)
@@ -301,6 +308,18 @@ package com.kaltura.hls
 			
 			if (!found && targetSegments[targetSegments.length-1].id < matchSegment.id)
 			{
+				trace("***STALL*** Target segment id: " + targetSegments[targetSegments.length-1].id + "Match Segment id: " + matchSegment.id);
+				
+				CONFIG::LOGGING
+					{
+						segmentDiff:int = matchSegment.id - targetSegments[targetSegments.length-1].id;
+						
+						if (segmentDiff < isTooFarBehind)
+						{
+							logger.debug("WARNING target stream is " + segmentDiff + " segments behind the current stream, expect delays.");
+						}
+					}
+					
 				stalled = true; // We want to stall because we don't know what the index should be as our new playlist is not quite caught up
 				return found; // Returning early so that we don't change lastQuality (we still need that value around)
 			}

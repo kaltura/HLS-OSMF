@@ -47,7 +47,7 @@ package com.kaltura.hls
 			_dvrInfo = dvrInfo;
 			_stream.addEventListener(DVRStreamInfoEvent.DVRSTREAMINFO, onDVRStreamInfo);
 			
-			super(dvrInfo.isRecording);			
+			super(dvrInfo.isRecording, dvrInfo.windowDuration);			
 		}
 		
 		private function onDVRStreamInfo(event:DVRStreamInfoEvent):void
