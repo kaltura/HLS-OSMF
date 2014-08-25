@@ -50,6 +50,8 @@ package com.kaltura.hls.subtitles
 						break;
 					
 					case STATE_TIMESTAMP:
+						if (char != " ")
+							accum += char;
 						if ( char == " " || position == input.length - 1 )
 						{
 							var timeStamp:Number = SubTitleParser.parseTimeStamp( accum );
@@ -61,7 +63,6 @@ package com.kaltura.hls.subtitles
 							state = STATE_WHITESPACE;
 							break;
 						}
-						accum += char;
 						position++;
 						break;
 						
