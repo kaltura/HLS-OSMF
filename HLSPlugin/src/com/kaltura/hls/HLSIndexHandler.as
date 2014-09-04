@@ -203,6 +203,7 @@ package com.kaltura.hls
 				}
 				else if (reloadingQuality == targetQuality)
 				{
+					// If the new manifest is behind the new manifest and the DVR state doesn't match, ignore the update.
 					if (!updateManifestSegmentsQualityChange(newManifest, reloadingQuality) && reloadTimer != null)
 						reloadTimer.delay = timerOnErrorDelay;
 				}
@@ -219,6 +220,12 @@ package com.kaltura.hls
 		private function updateManifestSegmentsQualityChange(newManifest:HLSManifestParser, quality:int):Boolean
 		{
 			if (newManifest == null || newManifest.segments.length == 0) return true;
+			if (newManifest.isDVR != lastQualityManifest.isDVR)
+			{
+				// If the new manifest's DVR status does not match the current DVR status, don't switch qualities
+				targetQuality = lastQuality;
+				return false;
+			}
 			var lastQualityManifest:HLSManifestParser = getManifestForQuality(lastQuality);
 			var targetManifest:HLSManifestParser = getManifestForQuality(quality);
 			
@@ -227,8 +234,6 @@ package com.kaltura.hls
 			var newSegments:Vector.<HLSManifestSegment> = newManifest.segments;
 			
 			var matchSegment:HLSManifestSegment = lastQualitySegments[lastSegmentIndex];
-			
-			
 			
 			// Add the new manifest segments to the targetManifest
 			// Goals: (not in order)
@@ -246,8 +251,9 @@ package com.kaltura.hls
 			var matchIndex:int = 0;
 			var matchEra:int = 0;
 			var matchStartTime:Number = 0;
+			
 			for (var i:int = lastQualitySegments.length - 1; i >= 0; --i)
-			{
+			{	
 				if (lastQualitySegments[i].id == newSegments[0].id)
 				{
 					matchIndex = i;
