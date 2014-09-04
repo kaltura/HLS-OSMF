@@ -203,7 +203,6 @@ package com.kaltura.hls
 				}
 				else if (reloadingQuality == targetQuality)
 				{
-					// If the new manifest is behind the new manifest and the DVR state doesn't match, ignore the update.
 					if (!updateManifestSegmentsQualityChange(newManifest, reloadingQuality) && reloadTimer != null)
 						reloadTimer.delay = timerOnErrorDelay;
 				}
