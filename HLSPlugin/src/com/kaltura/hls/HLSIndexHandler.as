@@ -219,13 +219,16 @@ package com.kaltura.hls
 		private function updateManifestSegmentsQualityChange(newManifest:HLSManifestParser, quality:int):Boolean
 		{
 			if (newManifest == null || newManifest.segments.length == 0) return true;
+	
+			var lastQualityManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+			
 			if (newManifest.isDVR != lastQualityManifest.isDVR)
 			{
 				// If the new manifest's DVR status does not match the current DVR status, don't switch qualities
 				targetQuality = lastQuality;
 				return false;
 			}
-			var lastQualityManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+			
 			var targetManifest:HLSManifestParser = getManifestForQuality(quality);
 			
 			var lastQualitySegments:Vector.<HLSManifestSegment> = lastQualityManifest.segments;

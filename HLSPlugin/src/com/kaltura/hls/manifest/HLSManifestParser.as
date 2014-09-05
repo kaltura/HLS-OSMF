@@ -143,19 +143,7 @@ package com.kaltura.hls.manifest
 						if ( key.url.search("://") == -1)
 						{
 							// If this is a relative URI, append it to our base URL
-							// First we need to make sure we are using a true base url
-							var slashCount:int = 0;
-							var trueBaseUrl:String = "";
-							for (var j:int=0; j < baseUrl.length; j++)
-							{
-								if (baseUrl.charAt(j) == '/') slashCount++;
-								trueBaseUrl += baseUrl.charAt(j);
-								
-								if (slashCount >= 3)
-									break;
-							}
-							
-							key.url = getNormalizedUrl(trueBaseUrl, key.url);
+							key.url = getNormalizedUrl(baseUrl, key.url);
 						}
 						keys.push( key );
 						break;
