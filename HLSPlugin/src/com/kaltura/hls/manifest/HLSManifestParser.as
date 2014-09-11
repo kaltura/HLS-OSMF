@@ -140,6 +140,11 @@ package com.kaltura.hls.manifest
 						if ( keys.length > 0 ) keys[ keys.length - 1 ].endSegmentId = segments.length - 1;
 						var key:HLSManifestEncryptionKey = HLSManifestEncryptionKey.fromParams( tagParams );
 						key.startSegmentId = segments.length;
+						if ( key.url.search("://") == -1)
+						{
+							// If this is a relative URI, append it to our base URL
+							key.url = getNormalizedUrl(baseUrl, key.url);
+						}
 						keys.push( key );
 						break;
 					
@@ -245,12 +250,18 @@ package com.kaltura.hls.manifest
 		
 		private function verifyManifestItemIntegrity():void
 		{
+			if (streams.length >= 1)
+			{
+				// make our main manifest streamEnds value match our sub manifests'
+				streamEnds = streams[0].manifest.streamEnds;
+			}
+			
 			var backupNum:int = 0;// the number of backup streams for each unique stream set
 			
 			// work through the streams and remove any broken ones and set up backup streams
 			for (var i:int = streams.length - 1; i >= 0; --i)
 			{
-				if (streams[i].manifest == null || !streams[i].manifest.goodManifest)
+				if (streams[i].manifest == null || !streams[i].manifest.goodManifest || streams[i].manifest.streamEnds != streamEnds)
 				{
 					streams.splice(i, 1);
 					continue;
@@ -276,12 +287,6 @@ package com.kaltura.hls.manifest
 			// if we ended the loop with a backupNum greater than 0, we still have backup streams to add
 			if (backupNum > 0)
 				linkBackupStreams(0, backupNum, streams.splice(1, backupNum));
-			
-			if (streams.length >= 1)
-			{
-				// make our main manifest streamEnds value match our sub manifests'
-				streamEnds = streams[0].manifest.streamEnds;
-			}
 			
 			for (var k:int = playLists.length - 1; k >= 0; --k)
 			{
