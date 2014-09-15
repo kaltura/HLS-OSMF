@@ -1877,29 +1877,6 @@ package org.osmf.net.httpstreaming
 						var HLSResource:HLSStreamingResource = _resource as HLSStreamingResource;
 						return getSeekTimeWithSegments(HLSResource.manifest.segments);
 					}
-					
-					// find the segment we are currently playing
-					/*var currentIndex:int = determineSegmentIndex();// the index of the segment we are currently playing
-					var manifestLength:int = currentStream.manifest.segments.length;// we will use this more than once
-						
-					// if we are currently at the last segment in the manifest or our time does not match any segments, do not seek forward
-					if (currentIndex == manifestLength - 1 || currentIndex == -1)
-						return 0;
-						
-					// find the amount of time we need to seek forward
-					var index:int = 0;
-					var seekForwardTime:Number = currentStream.manifest.segments[currentIndex].duration -
-												 (time - currentStream.manifest.segments[currentIndex].startTime) + seekForwardBuffer;
-					for (index = 1; index <= seekForwardCount; index++)
-					{
-						// don't try to seek past the last segment
-						if (currentIndex + index >= manifestLength -1)
-							return seekForwardTime;
-						
-						// add the duration of segments in order to get to the segment we are trying to seek to
-						seekForwardTime += currentStream.manifest.segments[currentIndex + index].duration;
-					}
-					return seekForwardTime;*/
 				}
 				
 				/**
