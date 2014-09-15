@@ -221,6 +221,7 @@ package com.kaltura.hls
 			if (newManifest == null || newManifest.segments.length == 0) return true;
 	
 			var lastQualityManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+			var targetManifest:HLSManifestParser = getManifestForQuality(quality);
 			
 			if (newManifest.isDVR != lastQualityManifest.isDVR)
 			{
@@ -229,8 +230,6 @@ package com.kaltura.hls
 				return false;
 			}
 			
-			var targetManifest:HLSManifestParser = getManifestForQuality(quality);
-			
 			var lastQualitySegments:Vector.<HLSManifestSegment> = lastQualityManifest.segments;
 			var targetSegments:Vector.<HLSManifestSegment> = targetManifest.segments;
 			var newSegments:Vector.<HLSManifestSegment> = newManifest.segments;
@@ -238,74 +237,78 @@ package com.kaltura.hls
 			var matchSegment:HLSManifestSegment = lastQualitySegments[lastSegmentIndex];
 			
 			// Add the new manifest segments to the targetManifest
-			// Goals: (not in order)
-			//	1) Figure out what the start time of the new manifest is
-			//	2) Append the newManifest to the targetManifest
-			// 	3) Match lastQuality segments to the targetManifest segments by id
-			//		a) set the seg start time
-			//		b) set the seg era
-			//	4) figure out what the new "lastSegmentIndex" is
-			//	5) set lastQuality to the target quality
+			// Tasks: (in order)
+			//	1) Append the new segments to the target segment list and determine the new last known playlist start time
+			//  2) Determine the last segment index in the new segment list
 			
-			// Starting with adjusting the segment values (so we only have to go through the new manifest info instead of the whole list)
-			
-			// Find the first segment (by id) of the new list in the lastQuality list by running backward through the lastQuality list
-			var matchIndex:int = 0;
-			var matchEra:int = 0;
-			var matchStartTime:Number = 0;
-			
-			for (var i:int = lastQualitySegments.length - 1; i >= 0; --i)
-			{	
-				if (lastQualitySegments[i].id == newSegments[0].id)
+			// Find the point where the new segments id matches the old segment id
+			var matchId:int = targetSegments[targetSegments.length - 1].id;
+			var matchIndex:int = -1;
+			var matchStartTime:Number = lastKnownPlaylistStartTime;
+			for (var i:int = newSegments.length - 1; i >= 0; i--)
+			{
+				if (newSegments[i].id == matchId)
 				{
 					matchIndex = i;
-					matchEra = lastQualitySegments[i].continuityEra;
-					matchStartTime = lastQualitySegments[i].startTime;
 					break;
 				}
 			}
 			
-			// Run through the new segments and fix up the start time, continuity era, and... hmm
-			var nextStartTime:Number = matchStartTime;
-			for (i = 0; i < newSegments.length; ++i)
+			// We only need to make additional calculations if we were able to find a point where the segments matched up
+			if (matchIndex > 0)
 			{
-				newSegments[i].continuityEra += matchEra;
-				newSegments[i].startTime = nextStartTime;
-				nextStartTime += newSegments[i].duration;
+				// Fix the start times
+				var nextStartTime:Number = targetSegments[targetSegments.length - 1].startTime;
+				for (i = matchIndex; i < newSegments.length; i++)
+				{
+					newSegments[i].startTime = nextStartTime;
+					nextStartTime += newSegments[i].duration;
+				}
+				
+				// Append the new manifest segments to the targetManifest
+				for (i = matchIndex + 1; i < newSegments.length; ++i)
+				{
+					targetSegments.push(newSegments[i]);
+				}
+				
+				// Now we need to calculate the lask known playlist start time
+				for (i = 0; i < targetSegments.length; i++)
+				{
+					if (matchStartTime <= targetSegments[i].startTime && matchStartTime > targetSegments[i].startTime - targetSegments[i].duration)
+					{
+						matchStartTime += targetSegments[i].duration;
+						break;
+					}
+				}
+			}
+			else if (matchIndex < 0)
+			{
+				// The last playlist start time is at the start of the newest segment
+				matchStartTime += targetSegments[targetSegments.length - 1].duration;
+				
+				// No matches were found so we add all the new segments to the playlist, also adjust their start times
+				var nextStartTime:Number = matchStartTime;
+				for (i = 0; i < newSegments.length; i++)
+				{
+					newSegments[i].startTime = nextStartTime;
+					nextStartTime += newSegments[i].duration;
+					targetSegments.push(newSegments[i]);
+				}
+			}
+			else
+			{
+				// In this case there are no new segments and we don't actually need to do anything to the playlist
 			}
 			
 			// This is now where our new playlist starts
 			lastKnownPlaylistStartTime = matchStartTime;
 			
-			// Append the new manifest segments to the targetManifest
-			var idx:int = 0;
-			if (newSegments[0].id < targetSegments[targetSegments.length - 1].id)
-			{
-				for (i = targetSegments.length - 1; i >= 0; --i)
-				{
-					if (targetSegments[i].id == newSegments[0].id)
-					{
-						idx = i;
-						break;
-					}
-				}
-			}
-			else
-			{
-				idx = targetSegments.length;
-			}
-			
-			targetSegments.length = idx; // kill any matching segments since the start times and era will possibly be wrong
-			for (i = 0; i < newSegments.length; ++i)
-			{
-				targetSegments.push(newSegments[i]);
-			}
-			
 			// Figure out what the new lastSegmentIndex is
 			var found:Boolean = false;
+			var matchTime:Number = lastQualitySegments[lastSegmentIndex].startTime;
 			for (i = 0; i < targetSegments.length; ++i)
 			{
-				if (targetSegments[i].id == matchSegment.id)
+				if (targetSegments[i].startTime <= matchTime && targetSegments[i].startTime > matchTime - targetSegments[i].duration)
 				{
 					lastSegmentIndex = i;
 					found = true;
@@ -314,29 +317,12 @@ package com.kaltura.hls
 				}
 			}
 			
-			if (!found && targetSegments[targetSegments.length-1].id < matchSegment.id)
+			if (!found && targetSegments[targetSegments.length-1].startTime < matchSegment.startTime)
 			{
-				trace("***STALL*** Target segment id: " + targetSegments[targetSegments.length-1].id + "Match Segment id: " + matchSegment.id);
-				
-				CONFIG::LOGGING
-					{
-						segmentDiff:int = matchSegment.id - targetSegments[targetSegments.length-1].id;
-						
-						if (segmentDiff < isTooFarBehind)
-						{
-							logger.debug("WARNING target stream is " + segmentDiff + " segments behind the current stream, expect delays.");
-						}
-					}
+				trace("***STALL*** Target Start Time: " + targetSegments[targetSegments.length-1].startTime + "Match Start Time: " + matchSegment.startTime);
 					
 				stalled = true; // We want to stall because we don't know what the index should be as our new playlist is not quite caught up
 				return found; // Returning early so that we don't change lastQuality (we still need that value around)
-			}
-			else if (!found && targetSegments[targetSegments.length - 1].id > lastQualitySegments[lastSegmentIndex].id)
-			{
-				// The new playlist is so far ahead of the old playlist that the item we wanted to play is gone. So go to the
-				// first new index
-				lastSegmentIndex = idx;
-				found = true;
 			}
 			
 			// set lastQuality to targetQuality since we're finally all matched up

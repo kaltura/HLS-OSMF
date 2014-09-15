@@ -1909,7 +1909,7 @@ package org.osmf.net.httpstreaming
 				 * 
 				 * @param
 				 */
-				private function getSeekTimeWithSegments(seg:Vector.<HLSManifestSegment>)
+				private function getSeekTimeWithSegments(seg:Vector.<HLSManifestSegment>):Number
 				{
 					var currentIndex:int = determineSegmentIndex();// the index of the segment we are currently playing
 					var manifestLength:int = seg.length;// we will use this more than once
