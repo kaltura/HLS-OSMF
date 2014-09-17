@@ -603,9 +603,9 @@ package org.osmf.net.httpstreaming
 							emptyBufferInterruptionSinceLastQoSUpdate = true;
 							_wasBufferEmptied = true;
 							CONFIG::LOGGING
-						{
-							logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
-						}
+								{
+									logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
+								}
 							if  (_state == HTTPStreamingState.HALT) 
 							{
 								if (_notifyPlayUnpublishPending)

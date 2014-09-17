@@ -271,7 +271,7 @@ package com.kaltura.hls
 					targetSegments.push(newSegments[i]);
 				}
 				
-				// Now we need to calculate the lask known playlist start time
+				// Now we need to calculate the last known playlist start time
 				for (i = 0; i < targetSegments.length; i++)
 				{
 					if (matchStartTime <= targetSegments[i].startTime && matchStartTime > targetSegments[i].startTime - targetSegments[i].duration)
