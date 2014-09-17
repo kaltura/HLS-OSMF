@@ -250,12 +250,6 @@ package com.kaltura.hls.manifest
 		
 		private function verifyManifestItemIntegrity():void
 		{
-			if (streams.length >= 1)
-			{
-				// make our main manifest streamEnds value match our sub manifests'
-				streamEnds = streams[0].manifest.streamEnds;
-			}
-			
 			var backupNum:int = 0;// the number of backup streams for each unique stream set
 			
 			// work through the streams and remove any broken ones and set up backup streams
@@ -282,6 +276,12 @@ package com.kaltura.hls.manifest
 					
 					backupNum = 0;
 				}
+			}
+			
+			if (streams.length >= 1)
+			{
+				// make our main manifest streamEnds value match our sub manifests'
+				streamEnds = streams[0].manifest.streamEnds;
 			}
 			
 			// if we ended the loop with a backupNum greater than 0, we still have backup streams to add
