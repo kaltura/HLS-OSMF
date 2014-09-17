@@ -12,6 +12,7 @@ package
     import org.osmf.media.PluginInfoResource;
     import org.puremvc.as3.interfaces.IFacade;
     import com.kaltura.kdpfl.plugin.KPluginEvent;
+	import com.kaltura.kdpfl.plugin.KalturaHLSMediator;
 	
 	import flash.display.Sprite;
 	
@@ -38,6 +39,9 @@ package
         
         public function initializePlugin(facade:IFacade):void
         {
+			var mediator:KalturaHLSMediator = new KalturaHLSMediator();
+			facade.registerMediator(mediator);
+			
             //Getting Static reference to Plugin.
             var pluginInfoRef:Class = getDefinitionByName(HLS_PLUGIN_INFO) as Class;
 			_pluginResource = new PluginInfoResource(new pluginInfoRef);
