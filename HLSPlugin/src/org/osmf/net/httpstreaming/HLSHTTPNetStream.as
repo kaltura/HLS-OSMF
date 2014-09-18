@@ -215,6 +215,10 @@ package org.osmf.net.httpstreaming
 			{
 				_isPaused = false;
 				super.resume();
+				
+				// If pausing has caused the current time to be before the DVR window, seek to the earliest possible location
+				if (time < indexHandler.lastKnownPlaylistStartTime)
+					seek(indexHandler.lastKnownPlaylistStartTime);
 			}
 			
 			/**
@@ -860,6 +864,10 @@ package org.osmf.net.httpstreaming
 										insertScriptDataTag(sdoTag);
 									}
 								}
+								
+								// We do not allow the user to seek to before the DVR window
+								if (_seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0)
+									_seekTarget = indexHandler.lastKnownPlaylistStartTime;
 								
 								_seekTime = -1;
 								_source.seek(_seekTarget);
@@ -1930,18 +1938,6 @@ package org.osmf.net.httpstreaming
 						var HLSResource:HLSStreamingResource = _resource as HLSStreamingResource;
 						return getSegmentIndexWithSegments(HLSResource.manifest.segments);
 					}
-					
-					/*for (var index:int = 0; index < currentStream.manifest.segments.length; index++)
-					{
-						// if the current time in in between a segment's start time, and the segment's end time, we found the current segment
-						if (currentStream.manifest.segments[index].startTime <= time &&
-							time < currentStream.manifest.segments[index].startTime + currentStream.manifest.segments[index].duration)
-						{
-							return index;
-						}
-					}
-					// if our time does not match any available segments for some reason, return -1
-					return -1;*/
 				}
 				
 				/**
