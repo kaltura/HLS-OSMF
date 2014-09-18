@@ -395,6 +395,8 @@ package com.kaltura.hls
 				newStartTime += newManifest.segments[k].duration;
 			}
 			
+			//manifest.streamEnds = newManifest.streamEnds;
+			
 			// Seek backward through the new segment list until we find the one that matches
 			// the last segment of the current list
 			for (i = newManifest.segments.length - 1; i >= 0; --i)
@@ -414,6 +416,10 @@ package com.kaltura.hls
 			{
 				segments.push(newManifest.segments[k]);
 			}
+			
+			// Match the new manifest's and the old manifest's DVR status
+			getManifestForQuality(quality).streamEnds = newManifest.streamEnds;
+			manifest.streamEnds = newManifest.streamEnds;
 			
 			updateTotalDuration();
 		}
