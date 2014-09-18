@@ -866,7 +866,7 @@ package org.osmf.net.httpstreaming
 								}
 								
 								// We do not allow the user to seek to before the DVR window
-								if (_seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0)
+								if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0)
 									_seekTarget = indexHandler.lastKnownPlaylistStartTime;
 								
 								_seekTime = -1;
