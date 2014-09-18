@@ -394,12 +394,15 @@ package com.kaltura.hls
 			// kill all the segments from the new list that match what we already have
 			newManifest.segments.splice(0, i + 1);
 			
-			
 			// append the remaining segments to the existing segment list
 			for (k = 0; k < newManifest.segments.length; ++k)
 			{
 				segments.push(newManifest.segments[k]);
 			}
+			
+			// Match the new manifest's and the old manifest's DVR status
+			getManifestForQuality(quality).streamEnds = newManifest.streamEnds;
+			manifest.streamEnds = newManifest.streamEnds;
 			
 			updateTotalDuration();
 		}
