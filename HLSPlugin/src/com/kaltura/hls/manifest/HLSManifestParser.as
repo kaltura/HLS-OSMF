@@ -266,7 +266,7 @@ package com.kaltura.hls.manifest
 					
 					if (streams[i].manifest.streamEnds == streamEnds)
 					{
-						// if this manifest doesn't match the first good manifest's streamEnds value then we will get rid of it later
+						// make sure each manifest matches the first good manifest's streamEnds value
 						continue;
 					}
 				}
