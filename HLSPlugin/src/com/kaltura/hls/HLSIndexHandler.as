@@ -245,7 +245,7 @@ package com.kaltura.hls
 			var matchId:int = targetSegments[targetSegments.length - 1].id;
 			var matchIndex:int = -1;
 			var matchStartTime:Number = lastKnownPlaylistStartTime;
-			for (var i:int = newSegments.length - 1; i >= 0; i--)
+			for (var i:int = newSegments.length - 2; i >= 0; i--)
 			{
 				if (newSegments[i].id == matchId)
 				{
