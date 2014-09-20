@@ -218,7 +218,10 @@ package org.osmf.net.httpstreaming
 				
 				// If pausing has caused the current time to be before the DVR window, seek to the earliest possible location
 				if (time < indexHandler.lastKnownPlaylistStartTime)
+				{
+					trace("Resuming outside of DVR window, seeking to the last known playlist start time...");
 					seek(indexHandler.lastKnownPlaylistStartTime);
+				}
 			}
 			
 			/**
@@ -867,7 +870,10 @@ package org.osmf.net.httpstreaming
 								
 								// We do not allow the user to seek to before the DVR window
 								if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0)
+								{
+									trace("Attempting to seek outside of DVR window, seeking to last known playlist start time instead...");
 									_seekTarget = indexHandler.lastKnownPlaylistStartTime;
+								}
 								
 								_seekTime = -1;
 								_source.seek(_seekTarget);

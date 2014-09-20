@@ -245,7 +245,7 @@ package com.kaltura.hls
 			var matchId:int = targetSegments[targetSegments.length - 1].id;
 			var matchIndex:int = -1;
 			var matchStartTime:Number = lastKnownPlaylistStartTime;
-			for (var i:int = newSegments.length - 2; i >= 0; i--)
+			for (var i:int = newSegments.length - 1; i >= 0; i--)
 			{
 				if (newSegments[i].id == matchId)
 				{
@@ -255,7 +255,7 @@ package com.kaltura.hls
 			}
 			
 			// We only need to make additional calculations if we were able to find a point where the segments matched up
-			if (matchIndex > 0)
+			if (matchIndex >= 0 && matchIndex != newSegments.length -1)
 			{
 				// Fix the start times
 				var nextStartTime:Number = targetSegments[targetSegments.length - 1].startTime;
