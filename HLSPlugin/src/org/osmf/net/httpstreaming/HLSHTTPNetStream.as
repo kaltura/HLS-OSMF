@@ -217,7 +217,7 @@ package org.osmf.net.httpstreaming
 				super.resume();
 				
 				// If pausing has caused the current time to be before the DVR window, seek to the earliest possible location
-				if (time < indexHandler.lastKnownPlaylistStartTime)
+				if (indexHandler && time < indexHandler.lastKnownPlaylistStartTime)
 				{
 					trace("Resuming outside of DVR window, seeking to the last known playlist start time...");
 					seek(indexHandler.lastKnownPlaylistStartTime);
@@ -845,7 +845,7 @@ package org.osmf.net.httpstreaming
 										appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 									}
 									
-									_wasBufferEmptied = true;
+								_wasBufferEmptied = true;
 								
 								if (playbackDetailsRecorder != null)
 								{
@@ -856,7 +856,7 @@ package org.osmf.net.httpstreaming
 												logger.debug("Seeking before the last transition completed. Inserting TRANSITION_COMPLETE message in stream.");
 											}
 											
-											var info:Object = new Object();
+										var info:Object = new Object();
 										info.code = NetStreamCodes.NETSTREAM_PLAY_TRANSITION_COMPLETE;
 										info.level = "status";
 										info.details = lastTransitionStreamURL;
@@ -874,6 +874,10 @@ package org.osmf.net.httpstreaming
 									trace("Attempting to seek outside of DVR window, seeking to last known playlist start time instead...");
 									_seekTarget = indexHandler.lastKnownPlaylistStartTime;
 								}
+								
+								// Handle a case where seeking to the end of the video causes the replay function to break
+								if (_seekTarget == determinePlaylistLength())
+									timeBeforeSeek = Number.NaN;// This forces the player to finish the seeking process
 								
 								_seekTime = -1;
 								_source.seek(_seekTarget);
@@ -996,9 +1000,9 @@ package org.osmf.net.httpstreaming
 							attemptAppendBytes(tagBytes);
 							
 							CONFIG::FLASH_10_1
-						{
-							appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
-						}
+								{
+									appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
+								}
 							
 							setState(HTTPStreamingState.HALT);
 							break;
@@ -1967,6 +1971,38 @@ package org.osmf.net.httpstreaming
 					}
 					// if our time does not match any available segments for some reason, return -1
 					return -1;
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Determines the length (in seconds) of the playlist we are currently playing
+				 */
+				private function determinePlaylistLength():Number
+				{
+					if (currentStream)
+					{
+						// If we have more than one stream, use the last segment in the determined stream to find the stream length
+						return getPLengthWithSegment(currentStream.manifest.segments[currentStream.manifest.segments.length - 1]);
+					}
+					else
+					{
+						// Otherwise, use the current resource (it should contain our segments)
+						var HLSResource:HLSStreamingResource = _resource as HLSStreamingResource;
+						return getPLengthWithSegment(HLSResource.manifest.segments[HLSResource.manifest.segments.length - 1]);
+					}
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Helps to determine the length of the playlist we are currently playing
+				 * 
+				 * @param seg The last segment in the current playlist
+				 */
+				private function getPLengthWithSegment(seg:HLSManifestSegment):Number
+				{
+					return seg.startTime + seg.duration;
 				}
 				
 			private var _desiredBufferTime_Min:Number = 0;
