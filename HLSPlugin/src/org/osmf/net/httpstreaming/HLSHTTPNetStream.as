@@ -875,8 +875,9 @@ package org.osmf.net.httpstreaming
 									_seekTarget = indexHandler.lastKnownPlaylistStartTime;
 								}
 								
-								// Handle a case where seeking to the end of the video causes the replay function to break
-								if (_seekTarget == determinePlaylistLength())
+								// Handle a case where seeking to the end of a VOD causes the replay function to break
+								var HLSResource:HLSStreamingResource = _resource as HLSStreamingResource;
+								if (HLSResource.manifest.streamEnds && _seekTarget == determinePlaylistLength())
 									timeBeforeSeek = Number.NaN;// This forces the player to finish the seeking process
 								
 								_seekTime = -1;
