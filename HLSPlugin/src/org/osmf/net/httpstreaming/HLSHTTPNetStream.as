@@ -24,6 +24,7 @@ package org.osmf.net.httpstreaming
 	import com.kaltura.hls.HLSIndexHandler;
 	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
+	import com.kaltura.hls.manifest.HLSManifestSegment;
 	import com.kaltura.hls.manifest.HLSManifestStream;
 	
 	import flash.events.NetStatusEvent;
@@ -139,7 +140,7 @@ package org.osmf.net.httpstreaming
 						addEventListener(DRMStatusEvent.DRM_STATUS, onDRMStatus);
 					}
 					
-					this.bufferTime = OSMFSettings.hdsMinimumBufferTime;
+				this.bufferTime = OSMFSettings.hdsMinimumBufferTime;
 				this.bufferTimeMax = 0;
 				
 				setState(HTTPStreamingState.INIT);
@@ -214,6 +215,13 @@ package org.osmf.net.httpstreaming
 			{
 				_isPaused = false;
 				super.resume();
+				
+				// If pausing has caused the current time to be before the DVR window, seek to the earliest possible location
+				if (indexHandler && time < indexHandler.lastKnownPlaylistStartTime)
+				{
+					trace("Resuming outside of DVR window, seeking to the last known playlist start time of " + indexHandler.lastKnownPlaylistStartTime);
+					seek(indexHandler.lastKnownPlaylistStartTime);
+				}
 			}
 			
 			/**
@@ -602,9 +610,9 @@ package org.osmf.net.httpstreaming
 							emptyBufferInterruptionSinceLastQoSUpdate = true;
 							_wasBufferEmptied = true;
 							CONFIG::LOGGING
-						{
-							logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
-						}
+								{
+									logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
+								}
 							if  (_state == HTTPStreamingState.HALT) 
 							{
 								if (_notifyPlayUnpublishPending)
@@ -747,19 +755,19 @@ package org.osmf.net.httpstreaming
 							// if we are waiting for data due to a URL
 							// error, only wait for a few seconds
 							if (isWaitingForData)
-							{
+							{	
 								// the amount of time in seconds that we have been waiting to get data
 								timeSinceWait += _mainTimer.delay / 1000;
 								
 								// we can safely declare this stream is not good if we have been trying to recover for too long and we ran out of backups to try
-								if (recognizeBadStreamTime <= timeSinceWait && currentStream.numBackups < retryAttemptCount)
+								if (recognizeBadStreamTime <= timeSinceWait && (!currentStream || currentStream.numBackups < retryAttemptCount))
 									streamIsGood = false;
 								
 								// make sure we wait for the desired amount of time before attempting to get data again
 								if (retryAttemptWaitTime <= timeSinceWait - (retryAttemptCount * retryAttemptWaitTime))
 								{
 									// if we have a backup stream available, switch to it
-									if (currentStream.backupStream)
+									if (currentStream && currentStream.backupStream)
 									{
 										var res:HLSStreamingResource = _resource as HLSStreamingResource;
 										var curIndex:int = res.manifest.streams.indexOf(currentStream);
@@ -774,12 +782,12 @@ package org.osmf.net.httpstreaming
 									// if we hit an error while playing a segment that is downloading properly we have encountered a bad segment
 									// we will first try any available backup streams, then move to seeking forward as soon as they are all tried
 									if (errorFixSegmentIndex == determineSegmentIndex() && timeSinceWait < retryAttemptMaxTime &&
-										currentStream.numBackups <= retryAttemptCount)
+										(!currentStream || currentStream.numBackups <= retryAttemptCount))
 									{
 										timeSinceWait = retryAttemptMaxTime;
 									}
 									
-									if (retryAttemptMaxTime > timeSinceWait && currentStream.numBackups >= retryAttemptCount)
+									if (retryAttemptMaxTime > timeSinceWait && (!currentStream || currentStream.numBackups >= retryAttemptCount))
 									{										
 										// we reset the stream by seeking to our curent play position
 										seekToRetrySegment(time);
@@ -837,7 +845,7 @@ package org.osmf.net.httpstreaming
 										appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 									}
 									
-									_wasBufferEmptied = true;
+								_wasBufferEmptied = true;
 								
 								if (playbackDetailsRecorder != null)
 								{
@@ -848,7 +856,7 @@ package org.osmf.net.httpstreaming
 												logger.debug("Seeking before the last transition completed. Inserting TRANSITION_COMPLETE message in stream.");
 											}
 											
-											var info:Object = new Object();
+										var info:Object = new Object();
 										info.code = NetStreamCodes.NETSTREAM_PLAY_TRANSITION_COMPLETE;
 										info.level = "status";
 										info.details = lastTransitionStreamURL;
@@ -859,6 +867,18 @@ package org.osmf.net.httpstreaming
 										insertScriptDataTag(sdoTag);
 									}
 								}
+								
+								// We do not allow the user to seek to before the DVR window
+								if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0)
+								{
+									trace("Attempting to seek outside of DVR window, seeking to last known playlist start time of " + indexHandler.lastKnownPlaylistStartTime);
+									_seekTarget = indexHandler.lastKnownPlaylistStartTime;
+								}
+								
+								// Handle a case where seeking to the end of a VOD causes the replay function to break
+								var HLSResource:HLSStreamingResource = _resource as HLSStreamingResource;
+								if (HLSResource.manifest.streamEnds && _seekTarget == determinePlaylistLength())
+									timeBeforeSeek = Number.NaN;// This forces the player to finish the seeking process
 								
 								_seekTime = -1;
 								_source.seek(_seekTarget);
@@ -981,9 +1001,9 @@ package org.osmf.net.httpstreaming
 							attemptAppendBytes(tagBytes);
 							
 							CONFIG::FLASH_10_1
-						{
-							appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
-						}
+								{
+									appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
+								}
 							
 							setState(HTTPStreamingState.HALT);
 							break;
@@ -1864,23 +1884,39 @@ package org.osmf.net.httpstreaming
 				 * @return The amount of time the player needs to seek forward
 				 */
 				private function calculateSeekTime():Number
+				{	
+					if (currentStream)
+					{
+						// If we have more than one stream, use the determined stream to find the segment index
+						return getSeekTimeWithSegments(currentStream.manifest.segments);
+					}
+					else
+					{
+						// Otherwise, use the current resource (it should contain our segments)
+						var HLSResource:HLSStreamingResource = _resource as HLSStreamingResource;
+						return getSeekTimeWithSegments(HLSResource.manifest.segments);
+					}
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Helps to determine how far forward to seek in the event of a continuing URL error
+				 * 
+				 * @param
+				 */
+				private function getSeekTimeWithSegments(seg:Vector.<HLSManifestSegment>):Number
 				{
-					// first check and make sure that we actually have a manifest
-					if (currentStream.manifest == null)
-						return 0;
-					
-					// find the segment we are currently playing
 					var currentIndex:int = determineSegmentIndex();// the index of the segment we are currently playing
-					var manifestLength:int = currentStream.manifest.segments.length;// we will use this more than once
-						
+					var manifestLength:int = seg.length;// we will use this more than once
+					
 					// if we are currently at the last segment in the manifest or our time does not match any segments, do not seek forward
 					if (currentIndex == manifestLength - 1 || currentIndex == -1)
 						return 0;
-						
+					
 					// find the amount of time we need to seek forward
 					var index:int = 0;
-					var seekForwardTime:Number = currentStream.manifest.segments[currentIndex].duration -
-												 (time - currentStream.manifest.segments[currentIndex].startTime) + seekForwardBuffer;
+					var seekForwardTime:Number = seg[currentIndex].duration - (time - seg[currentIndex].startTime) + seekForwardBuffer;
 					for (index = 1; index <= seekForwardCount; index++)
 					{
 						// don't try to seek past the last segment
@@ -1888,7 +1924,7 @@ package org.osmf.net.httpstreaming
 							return seekForwardTime;
 						
 						// add the duration of segments in order to get to the segment we are trying to seek to
-						seekForwardTime += currentStream.manifest.segments[currentIndex + index].duration;
+						seekForwardTime += seg[currentIndex + index].duration;
 					}
 					return seekForwardTime;
 				}
@@ -1902,18 +1938,72 @@ package org.osmf.net.httpstreaming
 				 */
 				private function determineSegmentIndex():Number
 				{
-					var index:int = 0;
-					for (index = 0; index < currentStream.manifest.segments.length; index++)
+					if (currentStream)
+					{
+						// If we have more than one stream, use the determined stream to find the segment index
+						return getSegmentIndexWithSegments(currentStream.manifest.segments);
+					}
+					else
+					{
+						// Otherwise, use the current resource (it should contain our segments)
+						var HLSResource:HLSStreamingResource = _resource as HLSStreamingResource;
+						return getSegmentIndexWithSegments(HLSResource.manifest.segments);
+					}
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Helps to determine the segment we are currently playing and is used in case our playlist has a single stream.
+				 * 
+				 * @param seg The vector of segments we are attempting to find our current position in.
+				 * @return The index of our current segment, or -1 if the current segment cannot be found.
+				 */
+				private function getSegmentIndexWithSegments(seg:Vector.<HLSManifestSegment>):int
+				{
+					for (var index:int = 0; index < seg.length; index++)
 					{
 						// if the current time in in between a segment's start time, and the segment's end time, we found the current segment
-						if (currentStream.manifest.segments[index].startTime <= time &&
-							time < currentStream.manifest.segments[index].startTime + currentStream.manifest.segments[index].duration)
+						if (seg[index].startTime <= time &&
+							time < seg[index].startTime + seg[index].duration)
 						{
 							return index;
 						}
 					}
 					// if our time does not match any available segments for some reason, return -1
 					return -1;
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Determines the length (in seconds) of the playlist we are currently playing
+				 */
+				private function determinePlaylistLength():Number
+				{
+					if (currentStream)
+					{
+						// If we have more than one stream, use the last segment in the determined stream to find the stream length
+						return getPLengthWithSegment(currentStream.manifest.segments[currentStream.manifest.segments.length - 1]);
+					}
+					else
+					{
+						// Otherwise, use the current resource (it should contain our segments)
+						var HLSResource:HLSStreamingResource = _resource as HLSStreamingResource;
+						return getPLengthWithSegment(HLSResource.manifest.segments[HLSResource.manifest.segments.length - 1]);
+					}
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Helps to determine the length of the playlist we are currently playing
+				 * 
+				 * @param seg The last segment in the current playlist
+				 */
+				private function getPLengthWithSegment(seg:HLSManifestSegment):Number
+				{
+					return seg.startTime + seg.duration;
 				}
 				
 			private var _desiredBufferTime_Min:Number = 0;

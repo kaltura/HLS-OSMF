@@ -250,23 +250,33 @@ package com.kaltura.hls.manifest
 		
 		private function verifyManifestItemIntegrity():void
 		{
-			if (streams.length >= 1)
-			{
-				// make our main manifest streamEnds value match our sub manifests'
-				streamEnds = streams[0].manifest.streamEnds;
-			}
-			
 			var backupNum:int = 0;// the number of backup streams for each unique stream set
 			
-			// work through the streams and remove any broken ones and set up backup streams
-			for (var i:int = streams.length - 1; i >= 0; --i)
+			// clear out bad manifests and match the streamEnd's value
+			for (var i:int = 0; i <streams.length; i++)
 			{
-				if (streams[i].manifest == null || !streams[i].manifest.goodManifest || streams[i].manifest.streamEnds != streamEnds)
+				if (streams[i].manifest != null && streams[i].manifest.goodManifest)
 				{
-					streams.splice(i, 1);
-					continue;
+					if (i == 0)
+					{
+						// if this is the first manifest and it is good, match the streamEnds value
+						streamEnds = streams[0].manifest.streamEnds;
+						continue;
+					}
+					
+					if (streams[i].manifest.streamEnds == streamEnds)
+					{
+						// make sure each manifest matches the first good manifest's streamEnds value
+						continue;
+					}
 				}
-				
+				// if we get here it means we have a bad manifest and we should get rid of it
+				streams.splice(i--, 1);
+			}
+			
+			// work through the manifests and set up backup streams
+			for (i = streams.length - 1; i >= 0; --i)
+			{					
 				// only start the backup stream logic if we are not on our first checked (non-broken) stream
 				if (i == streams.length - 1)
 					continue;
