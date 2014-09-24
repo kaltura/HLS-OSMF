@@ -272,18 +272,16 @@ package com.kaltura.hls
 				}
 				
 				// Now we need to calculate the last known playlist start time
+				var matchStartId:int = newSegments[0].id;
 				for (i = 0; i < targetSegments.length; i++)
 				{
-					if (matchStartTime <= targetSegments[i].startTime && matchStartTime > targetSegments[i].startTime - targetSegments[i].duration)
-					{
-						matchStartTime += targetSegments[i].duration;
-						break;
-					}
+					if (targetSegments[i].id == matchStartId)
+						matchStartTime = targetSegments[i].startTime;
 				}
 			}
 			else if (matchIndex < 0)
 			{
-				// The last playlist start time is at the start of the newest segment
+				// The last playlist start time is at the start of the newest segment, the best we can do here is estimate
 				matchStartTime += targetSegments[targetSegments.length - 1].duration;
 				
 				// No matches were found so we add all the new segments to the playlist, also adjust their start times
@@ -349,7 +347,7 @@ package com.kaltura.hls
 			var i:int = 0;
 			var k:int = 0;
 			var continuityOffset:int = 0;
-			var newStartTime:int = 0;
+			var newStartTime:Number = 0;
 			for (i = 0; i < segments.length; ++i)
 			{
 				if (newManifest.segments[0].id == segments[i].id)

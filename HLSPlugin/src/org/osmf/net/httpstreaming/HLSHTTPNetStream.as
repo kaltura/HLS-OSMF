@@ -219,7 +219,7 @@ package org.osmf.net.httpstreaming
 				// If pausing has caused the current time to be before the DVR window, seek to the earliest possible location
 				if (indexHandler && time < indexHandler.lastKnownPlaylistStartTime)
 				{
-					trace("Resuming outside of DVR window, seeking to the last known playlist start time...");
+					trace("Resuming outside of DVR window, seeking to the last known playlist start time of " + indexHandler.lastKnownPlaylistStartTime);
 					seek(indexHandler.lastKnownPlaylistStartTime);
 				}
 			}
@@ -755,7 +755,7 @@ package org.osmf.net.httpstreaming
 							// if we are waiting for data due to a URL
 							// error, only wait for a few seconds
 							if (isWaitingForData)
-							{
+							{	
 								// the amount of time in seconds that we have been waiting to get data
 								timeSinceWait += _mainTimer.delay / 1000;
 								
@@ -871,7 +871,7 @@ package org.osmf.net.httpstreaming
 								// We do not allow the user to seek to before the DVR window
 								if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0)
 								{
-									trace("Attempting to seek outside of DVR window, seeking to last known playlist start time instead...");
+									trace("Attempting to seek outside of DVR window, seeking to last known playlist start time of " + indexHandler.lastKnownPlaylistStartTime);
 									_seekTarget = indexHandler.lastKnownPlaylistStartTime;
 								}
 								
