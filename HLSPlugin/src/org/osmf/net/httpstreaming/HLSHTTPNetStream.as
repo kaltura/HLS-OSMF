@@ -787,16 +787,16 @@ package org.osmf.net.httpstreaming
 										timeSinceWait = retryAttemptMaxTime;
 									}
 									
-									if (retryAttemptMaxTime > timeSinceWait && (!currentStream || currentStream.numBackups >= retryAttemptCount))
+									if (retryAttemptMaxTime < timeSinceWait && (!currentStream || currentStream.numBackups < retryAttemptCount))
 									{										
-										// we reset the stream by seeking to our curent play position
-										seekToRetrySegment(time);
-									}
-									else
-									{
 										// if we are finished waiting for the same segment we seek forward to trigger new segments
 										seekToRetrySegment(time + calculateSeekTime());
 										seekForwardCount++;
+									}
+									else
+									{
+										// we reset the stream by seeking to our curent play position
+										seekToRetrySegment(time);
 									}
 									retryAttemptCount++;
 								}
@@ -1309,7 +1309,7 @@ package org.osmf.net.httpstreaming
 				/**
 				 * @private
 				 * 
-				 * We received an download error event. We will dispatch a NetStatusEvent with StreamNotFound
+				 * We received an download error event. We will attempt to recover the stream, then dispatch a NetStatusEvent with StreamNotFound
 				 * error to notify all NetStream consumers and close the current NetStream.
 				 */
 				private function onDownloadError(event:HTTPStreamingEvent):void
