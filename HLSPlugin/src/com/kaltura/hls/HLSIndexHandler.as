@@ -42,12 +42,10 @@ package com.kaltura.hls
 		public var resource:HLSStreamingResource;
 		
 		private var reloadTimer:Timer = null;
-		private var errorReloadTimer:Timer = new Timer(1000);// In the case of an error, we want to reload very quickly.
 		private var sequenceSkips:int = 0;
 		private var stalled:Boolean = false;
 		private var fileHandler:M2TSFileHandler;
 		private var badManifestMap:Object = new Object();
-		private var badManifestCount:int = 20;// How many times we can experience manifest errors in a row before we give up on the stream
 		private var currentManifestErrorCount:int = 0;// How many manifest errors we have experienced so far
 		
 		CONFIG::LOGGING
@@ -77,7 +75,6 @@ package com.kaltura.hls
 			{
 				reloadTimer = new Timer(man.segments[man.segments.length-1].duration * 1000);
 				reloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
-				errorReloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
 				reloadTimer.start();
 			}
 		}
@@ -94,7 +91,6 @@ package com.kaltura.hls
 		{
 			if (reloadTimer)
 				reloadTimer.stop(); // In case the timer is active - don't want to do another reload in the middle of it
-			errorReloadTimer.stop();
 			reloadingQuality = quality;
 			var manToReload:HLSManifestParser = getManifestForQuality(reloadingQuality);
 			reloadingManifest = new HLSManifestParser();
@@ -106,82 +102,28 @@ package com.kaltura.hls
 		
 		private function onReloadError(event:Event):void
 		{
-			// First stop the regular timer and start the error timer
-			if(reloadTimer && reloadTimer.running)
-				reloadTimer.stop();
-			errorReloadTimer.start();
+			// First set the timer to the error recovery interval set in HLSHTTPNetStream
+			if(reloadTimer)
+			{
+				if (reloadTimer.running)
+					reloadTimer.stop();
+				reloadTimer.delay = HLSHTTPNetStream.retryAttemptWaitTime * 1000;
+				reloadTimer.start();
+			}
 			
 			// Shut everything down if we have had too many errors in a row
-			var IOEvent:IOErrorEvent = event as IOErrorEvent;
-			if (currentManifestErrorCount++ >=  badManifestCount)
-				HLSHTTPNetStream.badManifestUrl = IOEvent.text;
+			var e:IOErrorEvent = event as IOErrorEvent;
+			if (currentManifestErrorCount++ * HLSHTTPNetStream.retryAttemptWaitTime >= HLSHTTPNetStream.recognizeBadStreamTime)
+			{
+				HLSHTTPNetStream.badManifestUrl = e.text;
+				return;	
+			}
 			
 			// This might just be a bad manifest, so try swapping it with a backup if we can
 			if (targetQuality != lastQuality)
 				swapBackupManifest(targetQuality);
 			else
 				swapBackupManifest(lastQuality);
-			
-			/*// Keep track of how many times this particular manifest has failed to reload
-			var e:IOErrorEvent = event as IOErrorEvent;
-			if (!badManifestMap.hasOwnProperty(e.text))
-			{
-				badManifestMap[e.text] = 1;
-			}
-			else
-			{
-				badManifestMap[e.text] += 1;
-			}
-			
-			// Only continue on to removing the manifest if it has had an error enough times
-			if (badManifestMap[e.text] < badManifestCount)
-				return;
-			
-			for (var i:int = 0; i < resource.manifest.streams.length; i++)
-			{
-				var curStream:HLSManifestStream = resource.manifest.streams[i];
-				
-				// We continue to the next available stream if the url/uri doesn't match
-				if (e.text != curStream.uri)
-					continue;
-				
-				// We don't do anything if this is the lowest quality stream and there is no backup
-				if (i == 0 && !curStream.backupStream)
-					break;
-				
-				// Replace the stream with its backup if possible
-				if (curStream.backupStream)
-				{
-					// Remove the bad stream from the linked list, preserving the list's circular behavior
-					while (curStream.backupStream != resource.manifest.streams[i])
-					{
-						curStream = curStream.backupStream;
-					}
-					
-					curStream.backupStream = curStream.backupStream.backupStream;
-					
-					// Check if this stream only has one backup
-					if (curStream == curStream.backupStream)
-						curStream.backupStream = null;
-					
-					resource.manifest.streams[i] = curStream;
-					resource.streamItems[i] = curStream.dynamicStream;
-				}
-				else
-				{
-					// If there is no backup available, simply remove the stream from our stream list
-					for (var j:int = i; j < resource.manifest.streams.length - 1; j++)
-					{
-						resource.manifest.streams[j] = resource.manifest.streams[j+1];
-						resource.streamItems[j] = resource.streamItems[j+1];
-					}
-					
-					resource.manifest.streams.pop();
-					resource.streamItems.pop();
-				}
-			}
-			
-			postRatesReady();*/
 		}
 		
 		private function swapBackupManifest(quality:int):void
