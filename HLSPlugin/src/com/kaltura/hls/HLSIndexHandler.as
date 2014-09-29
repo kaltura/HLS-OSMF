@@ -42,12 +42,13 @@ package com.kaltura.hls
 		public var resource:HLSStreamingResource;
 		
 		private var reloadTimer:Timer = null;
+		private var errorReloadTimer:Timer = new Timer(1000);// In the case of an error, we want to reload very quickly.
 		private var sequenceSkips:int = 0;
 		private var stalled:Boolean = false;
 		private var fileHandler:M2TSFileHandler;
 		private var badManifestMap:Object = new Object();
-		private var badManifestCount:int = 3;// How many times a manifest experiences an error before we give up on it and remove it from our list
-		private var isTooFarBehind:int = 5;// How far behind a stream can be before we log a message warning significant delays
+		private var badManifestCount:int = 20;// How many times we can experience manifest errors in a row before we give up on the stream
+		private var currentManifestErrorCount:int = 0;// How many manifest errors we have experienced so far
 		
 		CONFIG::LOGGING
 		{
@@ -76,6 +77,7 @@ package com.kaltura.hls
 			{
 				reloadTimer = new Timer(man.segments[man.segments.length-1].duration * 1000);
 				reloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
+				errorReloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
 				reloadTimer.start();
 			}
 		}
@@ -92,6 +94,7 @@ package com.kaltura.hls
 		{
 			if (reloadTimer)
 				reloadTimer.stop(); // In case the timer is active - don't want to do another reload in the middle of it
+			errorReloadTimer.stop();
 			reloadingQuality = quality;
 			var manToReload:HLSManifestParser = getManifestForQuality(reloadingQuality);
 			reloadingManifest = new HLSManifestParser();
@@ -103,10 +106,23 @@ package com.kaltura.hls
 		
 		private function onReloadError(event:Event):void
 		{
-			if(reloadTimer && !reloadTimer.running)
-				reloadTimer.start();
+			// First stop the regular timer and start the error timer
+			if(reloadTimer && reloadTimer.running)
+				reloadTimer.stop();
+			errorReloadTimer.start();
 			
-			// Keep track of how many times this particular manifest has failed to reload
+			// Shut everything down if we have had too many errors in a row
+			var IOEvent:IOErrorEvent = event as IOErrorEvent;
+			if (currentManifestErrorCount++ >=  badManifestCount)
+				HLSHTTPNetStream.badManifestUrl = IOEvent.text;
+			
+			// This might just be a bad manifest, so try swapping it with a backup if we can
+			if (targetQuality != lastQuality)
+				swapBackupManifest(targetQuality);
+			else
+				swapBackupManifest(lastQuality);
+			
+			/*// Keep track of how many times this particular manifest has failed to reload
 			var e:IOErrorEvent = event as IOErrorEvent;
 			if (!badManifestMap.hasOwnProperty(e.text))
 			{
@@ -165,10 +181,21 @@ package com.kaltura.hls
 				}
 			}
 			
+			postRatesReady();*/
+		}
+		
+		private function swapBackupManifest(quality:int):void
+		{
+			// If the requested quality stream has a backup, switch to it
+			if (manifest.streams.length > quality && manifest.streams[quality].backupStream)
+				manifest.streams[quality] = manifest.streams[quality].backupStream;
+			
 			postRatesReady();
 		}
+		
 		private function onReloadComplete(event:Event):void
 		{
+			currentManifestErrorCount = 0;
 			trace ("::onReloadComplete - last/reload/target: " + lastQuality + "/" + reloadingQuality + "/" + targetQuality);
 			var newManifest:HLSManifestParser = event.target as HLSManifestParser;
 			if (newManifest)
