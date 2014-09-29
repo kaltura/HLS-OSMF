@@ -1343,7 +1343,9 @@ package org.osmf.net.httpstreaming
 				/**
 				 * @private
 				 * 
-				 * Closes the stream with a stream not found error
+				 * Closes the stream with a stream not found error. Used after failing to get a new manifest multiple times in a row.
+				 * 
+				 * @param url The URL of the manifest that is failing to load.
 				 */
 				private function cantLoadManifest(url:String):void
 				{
