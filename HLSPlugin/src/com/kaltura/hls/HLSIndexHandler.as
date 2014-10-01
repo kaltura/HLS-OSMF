@@ -457,6 +457,7 @@ package com.kaltura.hls
 				accum += curSegment.duration; 
 			}
 			
+			// TODO: Handle live streaming lists by returning a stall.
 			lastSegmentIndex = i;
 			
 			fileHandler.segmentId = lastSegmentIndex;

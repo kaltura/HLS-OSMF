@@ -257,6 +257,13 @@ package com.kaltura.hls.manifest
 			{
 				if (streams[i].manifest != null && streams[i].manifest.goodManifest)
 				{
+					if (i == 0)
+					{
+						// if this is the first manifest and it is good, match the streamEnds value
+						streamEnds = streams[0].manifest.streamEnds;
+						continue;
+					}
+					
 					if (streams[i].manifest.streamEnds == streamEnds)
 					{
 						// make sure each manifest matches the first good manifest's streamEnds value
@@ -266,10 +273,6 @@ package com.kaltura.hls.manifest
 				// if we get here it means we have a bad manifest and we should get rid of it
 				streams.splice(i--, 1);
 			}
-			
-			// set our stream ends value
-			if (streams.length > 0)
-				streamEnds = streams[0].manifest.streamEnds;
 			
 			// work through the manifests and set up backup streams
 			for (i = streams.length - 1; i >= 0; --i)
