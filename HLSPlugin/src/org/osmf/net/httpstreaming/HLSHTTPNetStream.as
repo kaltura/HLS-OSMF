@@ -787,16 +787,16 @@ package org.osmf.net.httpstreaming
 										timeSinceWait = retryAttemptMaxTime;
 									}
 									
-									if (retryAttemptMaxTime > timeSinceWait && (!currentStream || currentStream.numBackups >= retryAttemptCount))
+									if (retryAttemptMaxTime < timeSinceWait && (!currentStream || currentStream.numBackups < retryAttemptCount))
 									{										
-										// we reset the stream by seeking to our curent play position
-										seekToRetrySegment(time);
-									}
-									else
-									{
 										// if we are finished waiting for the same segment we seek forward to trigger new segments
 										seekToRetrySegment(time + calculateSeekTime());
 										seekForwardCount++;
+									}
+									else
+									{
+										// we reset the stream by seeking to our curent play position
+										seekToRetrySegment(time);
 									}
 									retryAttemptCount++;
 								}
@@ -887,6 +887,12 @@ package org.osmf.net.httpstreaming
 							break;
 						
 						case HTTPStreamingState.PLAY:
+							if (badManifestUrl)
+							{
+								cantLoadManifest(badManifestUrl);
+								break;
+							}
+							
 							if (_notifyPlayStartPending)
 							{
 								_notifyPlayStartPending = false;
@@ -1309,7 +1315,7 @@ package org.osmf.net.httpstreaming
 				/**
 				 * @private
 				 * 
-				 * We received an download error event. We will dispatch a NetStatusEvent with StreamNotFound
+				 * We received an download error event. We will attempt to recover the stream, then dispatch a NetStatusEvent with StreamNotFound
 				 * error to notify all NetStream consumers and close the current NetStream.
 				 */
 				private function onDownloadError(event:HTTPStreamingEvent):void
@@ -1330,6 +1336,25 @@ package org.osmf.net.httpstreaming
 							, false
 							, false
 							, {code:NetStreamCodes.NETSTREAM_PLAY_STREAMNOTFOUND, level:"error", details:event.url}
+						)
+					);
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Closes the stream with a stream not found error. Used after failing to get a new manifest multiple times in a row.
+				 * 
+				 * @param url The URL of the manifest that is failing to load.
+				 */
+				private function cantLoadManifest(url:String):void
+				{
+					dispatchEvent
+					( new NetStatusEvent
+						( NetStatusEvent.NET_STATUS
+							, false
+							, false
+							, {code:NetStreamCodes.NETSTREAM_PLAY_STREAMNOTFOUND, level:"error", details:url}
 						)
 					);
 				}
@@ -2083,9 +2108,7 @@ package org.osmf.net.httpstreaming
 			
 			private var streamIsGood:Boolean = false;// true if we have gotten some data from the stream
 			private var isWaitingForData:Boolean = false;// true if we can't find our data but have already started a valid stream
-			private var retryAttemptWaitTime:Number = 1;// this is how long we will wait after a URL error in seconds before trying to get the segment again
 			private var retryAttemptMaxTime:Number = 11;// this is how long in seconds we will try to reset after a URL error before we start moving forward in the stream
-			private var recognizeBadStreamTime:Number = 21;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
 			private var timeSinceWait:Number = 0;// this is how long we have currently been waiting for a retry attempt. Used to determine when we should retry again
 			private var retryAttemptCount:Number = 0;// this is how many times we have tried to recover from a URL error in a row. Used to assist in retry timing and scrubbing
 			private var seekForwardCount:Number = 0;// this is how many time we have tried to scrub forward after a URL error. Used to determine the amount to scrub
@@ -2095,6 +2118,9 @@ package org.osmf.net.httpstreaming
 			
 			public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
 			public static var indexHandler:HLSIndexHandler;// a reference to the active index handler. Used to update the quality list after a change.
+			public static var recognizeBadStreamTime:Number = 21;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
+			public static var retryAttemptWaitTime:Number = 1;// this is how long we will wait after a URL error in seconds before trying to get the segment again
+			public static var badManifestUrl:String = null;// if this is not null we need to close down the stream
 			
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			

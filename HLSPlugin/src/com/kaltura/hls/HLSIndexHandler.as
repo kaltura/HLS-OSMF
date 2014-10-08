@@ -46,8 +46,7 @@ package com.kaltura.hls
 		private var stalled:Boolean = false;
 		private var fileHandler:M2TSFileHandler;
 		private var badManifestMap:Object = new Object();
-		private var badManifestCount:int = 3;// How many times a manifest experiences an error before we give up on it and remove it from our list
-		private var isTooFarBehind:int = 5;// How far behind a stream can be before we log a message warning significant delays
+		private var currentManifestErrorCount:int = 0;// How many manifest errors we have experienced so far
 		
 		CONFIG::LOGGING
 		{
@@ -103,72 +102,42 @@ package com.kaltura.hls
 		
 		private function onReloadError(event:Event):void
 		{
-			if(reloadTimer && !reloadTimer.running)
+			// First set the timer to the error recovery interval set in HLSHTTPNetStream
+			if(reloadTimer)
+			{
+				if (reloadTimer.running)
+					reloadTimer.stop();
+				reloadTimer.delay = HLSHTTPNetStream.retryAttemptWaitTime * 1000;
 				reloadTimer.start();
+			}
 			
-			// Keep track of how many times this particular manifest has failed to reload
+			// Shut everything down if we have had too many errors in a row
 			var e:IOErrorEvent = event as IOErrorEvent;
-			if (!badManifestMap.hasOwnProperty(e.text))
+			if (currentManifestErrorCount++ * HLSHTTPNetStream.retryAttemptWaitTime >= HLSHTTPNetStream.recognizeBadStreamTime)
 			{
-				badManifestMap[e.text] = 1;
+				HLSHTTPNetStream.badManifestUrl = e.text;
+				return;	
 			}
+			
+			// This might just be a bad manifest, so try swapping it with a backup if we can
+			if (targetQuality != lastQuality)
+				swapBackupManifest(targetQuality);
 			else
-			{
-				badManifestMap[e.text] += 1;
-			}
-			
-			// Only continue on to removing the manifest if it has had an error enough times
-			if (badManifestMap[e.text] < badManifestCount)
-				return;
-			
-			for (var i:int = 0; i < resource.manifest.streams.length; i++)
-			{
-				var curStream:HLSManifestStream = resource.manifest.streams[i];
-				
-				// We continue to the next available stream if the url/uri doesn't match
-				if (e.text != curStream.uri)
-					continue;
-				
-				// We don't do anything if this is the lowest quality stream and there is no backup
-				if (i == 0 && !curStream.backupStream)
-					break;
-				
-				// Replace the stream with its backup if possible
-				if (curStream.backupStream)
-				{
-					// Remove the bad stream from the linked list, preserving the list's circular behavior
-					while (curStream.backupStream != resource.manifest.streams[i])
-					{
-						curStream = curStream.backupStream;
-					}
-					
-					curStream.backupStream = curStream.backupStream.backupStream;
-					
-					// Check if this stream only has one backup
-					if (curStream == curStream.backupStream)
-						curStream.backupStream = null;
-					
-					resource.manifest.streams[i] = curStream;
-					resource.streamItems[i] = curStream.dynamicStream;
-				}
-				else
-				{
-					// If there is no backup available, simply remove the stream from our stream list
-					for (var j:int = i; j < resource.manifest.streams.length - 1; j++)
-					{
-						resource.manifest.streams[j] = resource.manifest.streams[j+1];
-						resource.streamItems[j] = resource.streamItems[j+1];
-					}
-					
-					resource.manifest.streams.pop();
-					resource.streamItems.pop();
-				}
-			}
+				swapBackupManifest(lastQuality);
+		}
+		
+		private function swapBackupManifest(quality:int):void
+		{
+			// If the requested quality stream has a backup, switch to it
+			if (manifest.streams.length > quality && manifest.streams[quality].backupStream)
+				manifest.streams[quality] = manifest.streams[quality].backupStream;
 			
 			postRatesReady();
 		}
+		
 		private function onReloadComplete(event:Event):void
 		{
+			currentManifestErrorCount = 0;
 			trace ("::onReloadComplete - last/reload/target: " + lastQuality + "/" + reloadingQuality + "/" + targetQuality);
 			var newManifest:HLSManifestParser = event.target as HLSManifestParser;
 			if (newManifest)
