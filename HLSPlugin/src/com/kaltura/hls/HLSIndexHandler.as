@@ -88,12 +88,13 @@ package com.kaltura.hls
 				reload(lastQuality);
 		}
 		
-		private function reload(quality:int, manifest:HLSManifestParser = void):void
+		// Here a quality of -1 indecates that we are attempting to load a backup manifest
+		private function reload(quality:int, manifest:HLSManifestParser = null):void
 		{
 			if (reloadTimer)
 				reloadTimer.stop(); // In case the timer is active - don't want to do another reload in the middle of it
 			reloadingQuality = quality;
-			// Reload the manifet we were given, if we were given a manifest
+			// Reload the manifest we were given, if we were given a manifest
 			var manToReload:HLSManifestParser = manifest ? manifest : getManifestForQuality(reloadingQuality);
 			reloadingManifest = new HLSManifestParser();
 			reloadingManifest.type = manToReload.type;
@@ -135,28 +136,31 @@ package com.kaltura.hls
 		 * @param stream Value used to find a stream to replace with its backup. If an int is provided it will find a stream of the requested
 		 * quality level. If an HLSManifestStream object is provided it will find the stream referenced by the object. No other data types are
 		 * accepted.
-		 * @param depth The number of the backup to be used relative to the requested stream.
+		 * @param backupOffset The number of the backup to be used relative to the requested stream.
 		 * 
 		 * @returns Returns whether or not a backup could be found for the requested stream
 		 */
-		private function swapBackupStream(stream:*, depth:int = 0):Boolean
+		private function swapBackupStream(stream:*, backupOffset:int = 0):Boolean
 		{
 			// If the requested stream has a backup, switch to it
 			if (stream is int)
 			{
 				// If we were given an int then switch a stream with its backup at the requested quality level
-				if (manifest.streams.length > stream && manifest.streams[stream].backupStream)
+				if (stream >= 0 && manifest.streams.length > stream && manifest.streams[stream].backupStream)
 				{
 					primaryStream = manifest.streams[stream];
 					var streamToReload:HLSManifestStream = manifest.streams[stream].backupStream;
-					for (var i:int = 0; i < depth; i++)
+					for (var i:int = 0; i < backupOffset; i++)
 					{
 						streamToReload = streamToReload.backupStream;
 					}
 					reload(-1, streamToReload.manifest);
 				}
 				else
+				{
+					trace("Backup Stream Swap Failed: No stream of quiality level " + stream + " found. Max quality level is " + (manifest.streams.length - 1));
 					return false;
+				}
 			}
 			else if (stream is HLSManifestStream)
 			{
@@ -164,7 +168,10 @@ package com.kaltura.hls
 				for (var i:int = 0; i <= manifest.streams.length; i++)
 				{
 					if (i == manifest.streams.length)
+					{
+						trace("Backup Stream Swap Failed: No stream with URI " + (stream as HLSManifestStream).uri + " found");
 						return false;
+					}
 					
 					if (manifest.streams[i] == stream && manifest.streams[i].backupStream)
 					{
@@ -175,7 +182,7 @@ package com.kaltura.hls
 			}
 			else
 			{
-				trace ("WARNING: Function swapBackupStream() in HLSIndexHandler given invalid parameter. Parameter data: " + stream);
+				throw new Error("Function swapBackupStream() in HLSIndexHandler given invalid parameter. Parameter data: " + stream);
 				return false;
 			}
 			
@@ -230,8 +237,6 @@ package com.kaltura.hls
 			if (reloadTimer) reloadTimer.start();
 		}
 		
-		// TODO: See if there are common bits of updateManifestSegmentsQualityChange() and updateManifestSegments() that
-		// can be shared
 		private function updateNewManifestSegments(newManifest:HLSManifestParser, quality:int):Boolean
 		{
 			if (newManifest == null || newManifest.segments.length == 0) return true;
@@ -342,10 +347,16 @@ package com.kaltura.hls
 			
 			// Either set lastQuality to targetQuality or switch to the backup since we're finally all matched up
 			if (quality == -1)
-			{
+			{		
 				// Find the stream to replace with its backup
-				for (i = 0; i < manifest.streams.length; i++)
+				for (i = 0; i <= manifest.streams.length; i++)
 				{
+					if (i == manifest.streams.length)
+					{
+						trace ("WARNING - Backup Replacement Failed: Stream with URI " + primaryStream.uri + " not found");
+						break;
+					}
+					
 					if (manifest.streams[i] == primaryStream && manifest.streams[i].backupStream)
 					{
 						manifest.streams[i] = manifest.streams[i].backupStream;
@@ -551,8 +562,8 @@ package com.kaltura.hls
 				trace("Stalling -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);
 			}
-			if (HLSHTTPNetStream.recoveryStateNum == 1)
-				HLSHTTPNetStream.recoveryStateNum = 2;
+			if (HLSHTTPNetStream.recoveryStateNum == URLErrorRecoveryStates.SEG_BY_TIME_ATTEMPTED)
+				HLSHTTPNetStream.recoveryStateNum = URLErrorRecoveryStates.SEG_BY_TIME_ATTEMPTED;
 			
 			quality = getWorkingQuality(quality);
 			

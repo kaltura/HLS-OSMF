@@ -23,6 +23,7 @@ package org.osmf.net.httpstreaming
 {
 	import com.kaltura.hls.HLSIndexHandler;
 	import com.kaltura.hls.HLSStreamingResource;
+	import com.kaltura.hls.URLErrorRecoveryStates;
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
 	import com.kaltura.hls.manifest.HLSManifestSegment;
 	import com.kaltura.hls.manifest.HLSManifestStream;
@@ -896,13 +897,13 @@ package org.osmf.net.httpstreaming
 										}
 										
 									// we can reset the recovery state if we are able to process some bytes and the time has changed since the last error
-									if (time != lastErrorTime && recoveryStateNum == 2)
+									if (time != lastErrorTime && recoveryStateNum == URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED)
 									{	
 										errorSurrenderTimer.reset();
 										firstSeekForwardCount = -1;
 										recoveryStartTime = -1;
 										needToRecover = false;
-										recoveryStateNum = 0;
+										recoveryStateNum = URLErrorRecoveryStates.IDLE;
 									}
 									
 									if (_waitForDRM)
@@ -1302,10 +1303,10 @@ package org.osmf.net.httpstreaming
 						indexHandler.switchToBackup(currentStream);
 					
 					// We recover by forcing another reload attempt through seeking
-					if (recoveryStateNum < 2 && errorSurrenderTimer.currentCount < 10)
+					if (recoveryStateNum != URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED && errorSurrenderTimer.currentCount < 10)
 					{
 						// We just try to reload the same place when we know we aren't just dealing with a bad segment AND we have been trying to recover for < 10 seconds
-						recoveryStateNum = 1;
+						recoveryStateNum = URLErrorRecoveryStates.SEG_BY_TIME_ATTEMPTED;
 						seekToRetrySegment(time);
 					}
 					else
@@ -2095,9 +2096,7 @@ package org.osmf.net.httpstreaming
 			public static var indexHandler:HLSIndexHandler;// a reference to the active index handler. Used to update the quality list after a change.
 			public static var recognizeBadStreamTime:Number = 20;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
 			public static var badManifestUrl:String = null;// if this is not null we need to close down the stream
-			// used when recovering from a URL error to determine if we need to quickly skip ahead due to a bad segment
-			// 0 == idle 1 == attempted to get segment by time, 2 == moved on to getting next segment (not by time)
-			public static var recoveryStateNum:int = 0;
+			public static var recoveryStateNum:int = URLErrorRecoveryStates.IDLE;// used when recovering from a URL error to determine if we need to quickly skip ahead due to a bad segment
 			public static var errorSurrenderTimer:Timer = new Timer(1000);// Timer used by both this and HLSHTTPNetStream to determine if we should give up recovery of a URL error
 			
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
