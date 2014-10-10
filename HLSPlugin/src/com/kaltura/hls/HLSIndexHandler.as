@@ -88,7 +88,7 @@ package com.kaltura.hls
 				reload(lastQuality);
 		}
 		
-		// Here a quality of -1 indecates that we are attempting to load a backup manifest
+		// Here a quality of -1 indicates that we are attempting to load a backup manifest
 		private function reload(quality:int, manifest:HLSManifestParser = null):void
 		{
 			if (reloadTimer)
@@ -158,7 +158,7 @@ package com.kaltura.hls
 				}
 				else
 				{
-					trace("Backup Stream Swap Failed: No stream of quiality level " + stream + " found. Max quality level is " + (manifest.streams.length - 1));
+					trace("Backup Stream Swap Failed: No stream of quality level " + stream + " found. Max quality level is " + (manifest.streams.length - 1));
 					return false;
 				}
 			}
@@ -563,7 +563,7 @@ package com.kaltura.hls
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);
 			}
 			if (HLSHTTPNetStream.recoveryStateNum == URLErrorRecoveryStates.SEG_BY_TIME_ATTEMPTED)
-				HLSHTTPNetStream.recoveryStateNum = URLErrorRecoveryStates.SEG_BY_TIME_ATTEMPTED;
+				HLSHTTPNetStream.recoveryStateNum = URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED;
 			
 			quality = getWorkingQuality(quality);
 			
