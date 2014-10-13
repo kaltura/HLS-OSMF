@@ -844,12 +844,12 @@ package org.osmf.net.httpstreaming
 							}
 							
 							// start the recovery process if we need to recover and our buffer is getting too low
-							if (needToRecover && bufferLength <= recoveryBufferMin)
+							if (recoveryBufferTimer && recoveryBufferTimer.currentCount >= 1 && bufferLength <= recoveryBufferMin)
 							{
 								if (hasGottenManifest)
 								{
 									seekToRecoverStream();
-									needToRecover = false;
+									recoveryBufferTimer.reset();
 								}
 								break;
 							}
@@ -904,8 +904,6 @@ package org.osmf.net.httpstreaming
 									{	
 										errorSurrenderTimer.reset();
 										firstSeekForwardCount = -1;
-										recoveryStartTime = -1;
-										needToRecover = false;
 										recoveryStateNum = URLErrorRecoveryStates.IDLE;
 									}
 									
@@ -1279,7 +1277,17 @@ package org.osmf.net.httpstreaming
 					// Attempt to recover from a URL Error
 					if (errorSurrenderTimer.currentCount < recognizeBadStreamTime)
 					{	
-						needToRecover = true;
+						if (!recoveryBufferTimer)
+						{
+							recoveryBufferTimer = new Timer(bufferLength * 1000);// must convert seconds to miliseconds
+						}
+						else
+						{
+							recoveryBufferTimer.reset();
+							recoveryBufferTimer.delay = bufferLength * 1000;
+						}
+						recoveryBufferTimer.start();
+						
 						attemptStreamRecovery();
 						
 						return;
@@ -1303,8 +1311,8 @@ package org.osmf.net.httpstreaming
 					// Switch to a backup stream if available
 					if (currentStream)
 					{
-						indexHandler.switchToBackup(currentStream);
 						hasGottenManifest = false;
+						indexHandler.switchToBackup(currentStream);
 					}
 					else
 						hasGottenManifest = true;
@@ -2106,13 +2114,12 @@ package org.osmf.net.httpstreaming
 			
 			private var hasStarted:Boolean = false;// true after we have played once, checked before automatically switching to a default stream
 			
-			private var needToRecover:Boolean = false;// if we ran into a URL error and need to try and recover the stream
 			private var retryAttemptCount:Number = 0;// this is how many times we have tried to recover from a URL error in a row. Used to assist in retry timing and scrubbing
 			private var seekForwardBuffer:Number = 0.5;// this is how far ahead of the next segment we should seek to in order to ensure we load that segment
 			private var lastErrorTime:Number = 0;// this is the last time there was an error. Used when determining if an error has been resolved
 			private var firstSeekForwardCount:int = -1;// the count of errorSurrenderTimer when we first try to seek forward
 			private var recoveryBufferMin:Number = 2;// how low the bufferTime can get in seconds before we start trying to recover a stream by seeking
-			private var recoveryStartTime:Number = -1;// the time at which we attempt to recover at in the case of a URL error
+			private var recoveryBufferTimer:Timer; // timer that will be set to the length of the buffer so that we can be guaranteed to recover
 			
 			public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
 			public static var indexHandler:HLSIndexHandler;// a reference to the active index handler. Used to update the quality list after a change.
