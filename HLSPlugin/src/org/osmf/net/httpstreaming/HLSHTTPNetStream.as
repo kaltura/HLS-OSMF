@@ -843,13 +843,16 @@ package org.osmf.net.httpstreaming
 								break;
 							}
 							
-							// start the recovery process if we are set to need to recover and our buffer is getting too low
-							/*if (needToRecover && bufferLength <= recoveryBufferMin)
+							// start the recovery process if we need to recover and our buffer is getting too low
+							if (needToRecover && bufferLength <= recoveryBufferMin)
 							{
-								attemptStreamRecovery();
-								needToRecover = false;
+								if (hasGottenManifest)
+								{
+									seekToRecoverStream();
+									needToRecover = false;
+								}
 								break;
-							}*/
+							}
 							
 							if (_notifyPlayStartPending)
 							{
@@ -1276,10 +1279,8 @@ package org.osmf.net.httpstreaming
 					// Attempt to recover from a URL Error
 					if (errorSurrenderTimer.currentCount < recognizeBadStreamTime)
 					{	
-						//if (bufferLength < recoveryBufferMin)
+						needToRecover = true;
 						attemptStreamRecovery();
-						/*else
-							needToRecover = true;*/
 						
 						return;
 					}
@@ -1301,7 +1302,27 @@ package org.osmf.net.httpstreaming
 					
 					// Switch to a backup stream if available
 					if (currentStream)
+					{
 						indexHandler.switchToBackup(currentStream);
+						hasGottenManifest = false;
+					}
+					else
+						hasGottenManifest = true;
+					
+					if (hasGottenManifest && bufferLength <= recoveryBufferMin)
+						seekToRecoverStream();
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * URL error recovery is done through the clever use of seeking
+				 */
+				private function seekToRecoverStream():void
+				{
+					// We only want to start seeking if we have gotten our backup manifest (or we don't have one)
+					if (!hasGottenManifest)
+						return;
 					
 					// We recover by forcing another reload attempt through seeking
 					if (recoveryStateNum != URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED && errorSurrenderTimer.currentCount < 10)
@@ -2099,6 +2120,7 @@ package org.osmf.net.httpstreaming
 			public static var badManifestUrl:String = null;// if this is not null we need to close down the stream
 			public static var recoveryStateNum:int = URLErrorRecoveryStates.IDLE;// used when recovering from a URL error to determine if we need to quickly skip ahead due to a bad segment
 			public static var errorSurrenderTimer:Timer = new Timer(1000);// Timer used by both this and HLSHTTPNetStream to determine if we should give up recovery of a URL error
+			public static var hasGottenManifest:Boolean = false;
 			
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			
