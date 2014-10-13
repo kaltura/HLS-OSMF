@@ -844,12 +844,12 @@ package org.osmf.net.httpstreaming
 							}
 							
 							// start the recovery process if we are set to need to recover and our buffer is getting too low
-							if (needToRecover && bufferLength <= recoveryBufferMin)
+							/*if (needToRecover && bufferLength <= recoveryBufferMin)
 							{
 								attemptStreamRecovery();
 								needToRecover = false;
 								break;
-							}
+							}*/
 							
 							if (_notifyPlayStartPending)
 							{
@@ -1162,12 +1162,12 @@ package org.osmf.net.httpstreaming
 							logger.debug("Reached end fragment for stream [" + event.url + "].");
 						}
 						
-						if (_videoHandler == null)
-						{
-							return;
-						}
+					if (_videoHandler == null)
+					{
+						return;
+					}
 						
-						var date:Date = new Date();
+					var date:Date = new Date();
 					var machineTimestamp:Number = date.getTime();
 					
 					var sourceQoSInfo:HTTPStreamHandlerQoSInfo = _videoHandler.qosInfo;
@@ -1276,9 +1276,10 @@ package org.osmf.net.httpstreaming
 					// Attempt to recover from a URL Error
 					if (errorSurrenderTimer.currentCount < recognizeBadStreamTime)
 					{	
-						needToRecover = true;
-						if (bufferLength < recoveryBufferMin)
-							attemptStreamRecovery();
+						//if (bufferLength < recoveryBufferMin)
+						attemptStreamRecovery();
+						/*else
+							needToRecover = true;*/
 						
 						return;
 					}

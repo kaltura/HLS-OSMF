@@ -177,6 +177,7 @@ package com.kaltura.hls
 					{
 						primaryStream = manifest.streams[i];
 						reload(-1, manifest.streams[i].backupStream.manifest);
+						return true;
 					}
 				}
 			}
@@ -361,9 +362,10 @@ package com.kaltura.hls
 					{
 						manifest.streams[i] = manifest.streams[i].backupStream;
 						HLSHTTPNetStream.currentStream = manifest.streams[i];
+						postRatesReady();
+						break;
 					}
 				}
-				postRatesReady();
 			}
 			else
 			{
