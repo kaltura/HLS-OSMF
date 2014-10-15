@@ -843,13 +843,16 @@ package org.osmf.net.httpstreaming
 								break;
 							}
 							
-							// start the recovery process if we are set to need to recover and our buffer is getting too low
-							/*if (needToRecover && bufferLength <= recoveryBufferMin)
+							// start the recovery process if we need to recover and our buffer is getting too low
+							if (recoveryDelayTimer.running && recoveryDelayTimer.currentCount >= 1)
 							{
-								attemptStreamRecovery();
-								needToRecover = false;
+								if (hasGottenManifest)
+								{
+									recoveryDelayTimer.stop();
+									seekToRecoverStream();
+								}
 								break;
-							}*/
+							}
 							
 							if (_notifyPlayStartPending)
 							{
@@ -896,14 +899,15 @@ package org.osmf.net.httpstreaming
 											logger.debug("Processed " + processed + " bytes ( buffer = " + this.bufferLength + ", bufferTime = " + this.bufferTime+", wasBufferEmptied = "+_wasBufferEmptied+" )" ); 
 										}
 										
+									gotBytes = true;
+										
 									// we can reset the recovery state if we are able to process some bytes and the time has changed since the last error
 									if (time != lastErrorTime && recoveryStateNum == URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED)
 									{	
 										errorSurrenderTimer.reset();
 										firstSeekForwardCount = -1;
-										recoveryStartTime = -1;
-										needToRecover = false;
 										recoveryStateNum = URLErrorRecoveryStates.IDLE;
+										recoveryDelayTimer.reset();
 									}
 									
 									if (_waitForDRM)
@@ -1274,12 +1278,16 @@ package org.osmf.net.httpstreaming
 				{
 					// We map all URL errors to Play.StreamNotFound.
 					// Attempt to recover from a URL Error
-					if (errorSurrenderTimer.currentCount < recognizeBadStreamTime)
+					if (gotBytes && errorSurrenderTimer.currentCount < recognizeBadStreamTime)
 					{	
-						//if (bufferLength < recoveryBufferMin)
+						if (recoveryDelayTimer.currentCount < 1 && recoveryDelayTimer.running)
+							return;
+						
+						recoveryDelayTimer.reset();
+						recoveryDelayTimer.delay = bufferLength * 1000 < reloadDelayTime ? reloadDelayTime : bufferLength * 1000;
+						recoveryDelayTimer.start();
+						
 						attemptStreamRecovery();
-						/*else
-							needToRecover = true;*/
 						
 						return;
 					}
@@ -1301,7 +1309,27 @@ package org.osmf.net.httpstreaming
 					
 					// Switch to a backup stream if available
 					if (currentStream)
+					{
+						hasGottenManifest = false;
 						indexHandler.switchToBackup(currentStream);
+					}
+					else
+						hasGottenManifest = true;
+					
+					if (hasGottenManifest && recoveryDelayTimer.currentCount >= 1)
+						seekToRecoverStream();
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * URL error recovery is done through the clever use of seeking
+				 */
+				private function seekToRecoverStream():void
+				{
+					// We only want to start seeking if we have gotten our backup manifest (or we don't have one)
+					if (!hasGottenManifest)
+						return;
 					
 					// We recover by forcing another reload attempt through seeking
 					if (recoveryStateNum != URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED && errorSurrenderTimer.currentCount < 10)
@@ -2085,13 +2113,13 @@ package org.osmf.net.httpstreaming
 			
 			private var hasStarted:Boolean = false;// true after we have played once, checked before automatically switching to a default stream
 			
-			private var needToRecover:Boolean = false;// if we ran into a URL error and need to try and recover the stream
 			private var retryAttemptCount:Number = 0;// this is how many times we have tried to recover from a URL error in a row. Used to assist in retry timing and scrubbing
 			private var seekForwardBuffer:Number = 0.5;// this is how far ahead of the next segment we should seek to in order to ensure we load that segment
 			private var lastErrorTime:Number = 0;// this is the last time there was an error. Used when determining if an error has been resolved
 			private var firstSeekForwardCount:int = -1;// the count of errorSurrenderTimer when we first try to seek forward
 			private var recoveryBufferMin:Number = 2;// how low the bufferTime can get in seconds before we start trying to recover a stream by seeking
-			private var recoveryStartTime:Number = -1;// the time at which we attempt to recover at in the case of a URL error
+			private var recoveryDelayTimer:Timer = new Timer(0); // timer that will be set to the required delay of reload attempts in the case of a URL error
+			private var gotBytes:Boolean = false;// If we got bytes- marks a stream that we should attempt to recover
 			
 			public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
 			public static var indexHandler:HLSIndexHandler;// a reference to the active index handler. Used to update the quality list after a change.
@@ -2099,6 +2127,8 @@ package org.osmf.net.httpstreaming
 			public static var badManifestUrl:String = null;// if this is not null we need to close down the stream
 			public static var recoveryStateNum:int = URLErrorRecoveryStates.IDLE;// used when recovering from a URL error to determine if we need to quickly skip ahead due to a bad segment
 			public static var errorSurrenderTimer:Timer = new Timer(1000);// Timer used by both this and HLSHTTPNetStream to determine if we should give up recovery of a URL error
+			public static var hasGottenManifest:Boolean = false;
+			public static var reloadDelayTime:int = 500;// The amount of time (in miliseconds) we want to wait between reload attempts in case of a URL error
 			
 			private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 			
