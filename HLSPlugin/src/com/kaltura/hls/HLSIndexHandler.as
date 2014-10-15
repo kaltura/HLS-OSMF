@@ -75,10 +75,20 @@ package com.kaltura.hls
 			var man:HLSManifestParser = getManifestForQuality(lastQuality);
 			if (man && !man.streamEnds && man.segments.length > 0)
 			{
-				reloadTimer = new Timer(man.segments[man.segments.length-1].duration * 1000);
-				reloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
-				reloadTimer.start();
+				if (!reloadTimer)
+					setUpReloadTimer(man.segments[man.segments.length-1].duration * 1000);
 			}
+			
+			// Reset our recovery variables just in case
+			isRecovering = false;
+			backupStreamNumber = 0;
+		}
+		
+		private function setUpReloadTimer(initialDelay:int):void
+		{
+			reloadTimer = new Timer(initialDelay);
+			reloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
+			reloadTimer.start();
 		}
 		
 		private function onReloadTimer(event:TimerEvent):void
@@ -114,12 +124,10 @@ package com.kaltura.hls
 			isRecovering = true;
 			lastBadManifestUri = (event as IOErrorEvent).text;
 			
-			// Create our timer if it hasn't been created yet
+			// Create our timer if it hasn't been created yet and set the delay to our delay time
 			if (!reloadTimer)
-				reloadTimer = new Timer(HLSHTTPNetStream.reloadDelayTime + 1);
-			
-			// First set the timer to the error recovery interval set in HLSHTTPNetStream
-			if (reloadTimer.delay != HLSHTTPNetStream.reloadDelayTime)
+				setUpReloadTimer(HLSHTTPNetStream.reloadDelayTime);
+			else if (reloadTimer.delay != HLSHTTPNetStream.reloadDelayTime)
 			{
 				reloadTimer.reset();
 				reloadTimer.delay = HLSHTTPNetStream.reloadDelayTime;
@@ -256,10 +264,9 @@ package com.kaltura.hls
 				}
 				else if (reloadingQuality == targetQuality || reloadingQuality == -1)
 				{
-					if (!updateNewManifestSegments(newManifest, reloadingQuality) && reloadTimer != null)
-						reloadTimer.delay = timerOnErrorDelay;
+					if (!updateNewManifestSegments(newManifest, reloadingQuality) && reloadTimer)
+						reloadTimer.delay = timerOnErrorDelay;	
 				}
-
 			}
 			
 			dispatchDVRStreamInfo();
