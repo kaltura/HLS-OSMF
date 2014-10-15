@@ -45,9 +45,10 @@ package com.kaltura.hls
 		private var sequenceSkips:int = 0;
 		private var stalled:Boolean = false;
 		private var fileHandler:M2TSFileHandler;
-		private var badManifestMap:Object = new Object();
 		private var backupStreamNumber:int = 0;// Which backup stream we are currently on. Used to effectively switch between backup streams
 		private var primaryStream:HLSManifestStream;// The manifest we are currently using when we attempt to switch to a backup
+		private var isRecovering:Boolean = false;// If we are currently recovering from a URL error
+		private var lastBadManifestUri:String = "Unknown URI";
 		
 		CONFIG::LOGGING
 		{
@@ -82,7 +83,12 @@ package com.kaltura.hls
 		
 		private function onReloadTimer(event:TimerEvent):void
 		{
-			if (targetQuality != lastQuality)
+			if (isRecovering)
+			{
+				attemptRecovery();
+				reloadTimer.reset();
+			}
+			else if (targetQuality != lastQuality)
 				reload(targetQuality);
 			else
 				reload(lastQuality);
@@ -105,18 +111,41 @@ package com.kaltura.hls
 		
 		private function onReloadError(event:Event):void
 		{
+			isRecovering = true;
+			lastBadManifestUri = (event as IOErrorEvent).text;
+			
+			// Create our timer if it hasn't been created yet
+			if (!reloadTimer)
+				reloadTimer = new Timer(HLSHTTPNetStream.reloadDelayTime + 1);
+			
 			// First set the timer to the error recovery interval set in HLSHTTPNetStream
-			if (reloadTimer && reloadTimer.running)
-				reloadTimer.stop();
+			if (reloadTimer.delay != HLSHTTPNetStream.reloadDelayTime)
+			{
+				reloadTimer.reset();
+				reloadTimer.delay = HLSHTTPNetStream.reloadDelayTime;
+			}
+			
+			reloadTimer.start();
+			
+			if (reloadTimer.currentCount < 1)
+			{
+				return;
+			}
+			
+			attemptRecovery();
+		}
+		
+		private function attemptRecovery():void
+		{
+			isRecovering = false;
 			
 			if (!HLSHTTPNetStream.errorSurrenderTimer.running)
 				HLSHTTPNetStream.errorSurrenderTimer.start();
 			
 			// Shut everything down if we have had too many errors in a row
-			var e:IOErrorEvent = event as IOErrorEvent;
 			if (HLSHTTPNetStream.errorSurrenderTimer.currentCount >= HLSHTTPNetStream.recognizeBadStreamTime)
 			{
-				HLSHTTPNetStream.badManifestUrl = e.text;
+				HLSHTTPNetStream.badManifestUrl = lastBadManifestUri;
 				return;	
 			}
 			
@@ -126,7 +155,7 @@ package com.kaltura.hls
 			
 			if (!swapBackupStream(quality, backupStreamNumber))
 				reload(quality);
-		}		
+		}
 		
 		/**
 		 * Swaps a requested stream with its backup if it is available. If no backup is available, or the requested stream cannot be found
@@ -630,7 +659,7 @@ package com.kaltura.hls
 		public function switchToBackup(stream:HLSManifestStream):void
 		{			
 			// Swap the stream to its backup if possible
-			if(!swapBackupStream(stream));
+			if(!swapBackupStream(stream))
 				HLSHTTPNetStream.hasGottenManifest = true;
 		}
 		
