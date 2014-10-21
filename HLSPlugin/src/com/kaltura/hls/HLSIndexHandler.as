@@ -45,8 +45,10 @@ package com.kaltura.hls
 		private var sequenceSkips:int = 0;
 		private var stalled:Boolean = false;
 		private var fileHandler:M2TSFileHandler;
-		private var badManifestMap:Object = new Object();
-		private var currentManifestErrorCount:int = 0;// How many manifest errors we have experienced so far
+		private var backupStreamNumber:int = 0;// Which backup stream we are currently on. Used to effectively switch between backup streams
+		private var primaryStream:HLSManifestStream;// The manifest we are currently using when we attempt to switch to a backup
+		private var isRecovering:Boolean = false;// If we are currently recovering from a URL error
+		private var lastBadManifestUri:String = "Unknown URI";
 		
 		CONFIG::LOGGING
 		{
@@ -73,26 +75,43 @@ package com.kaltura.hls
 			var man:HLSManifestParser = getManifestForQuality(lastQuality);
 			if (man && !man.streamEnds && man.segments.length > 0)
 			{
-				reloadTimer = new Timer(man.segments[man.segments.length-1].duration * 1000);
-				reloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
-				reloadTimer.start();
+				if (!reloadTimer)
+					setUpReloadTimer(man.segments[man.segments.length-1].duration * 1000);
 			}
+			
+			// Reset our recovery variables just in case
+			isRecovering = false;
+			backupStreamNumber = 0;
+		}
+		
+		private function setUpReloadTimer(initialDelay:int):void
+		{
+			reloadTimer = new Timer(initialDelay);
+			reloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
+			reloadTimer.start();
 		}
 		
 		private function onReloadTimer(event:TimerEvent):void
 		{
-			if (targetQuality != lastQuality)
+			if (isRecovering)
+			{
+				attemptRecovery();
+				reloadTimer.reset();
+			}
+			else if (targetQuality != lastQuality)
 				reload(targetQuality);
 			else
 				reload(lastQuality);
 		}
 		
-		private function reload(quality:int):void
+		// Here a quality of -1 indicates that we are attempting to load a backup manifest
+		private function reload(quality:int, manifest:HLSManifestParser = null):void
 		{
 			if (reloadTimer)
 				reloadTimer.stop(); // In case the timer is active - don't want to do another reload in the middle of it
 			reloadingQuality = quality;
-			var manToReload:HLSManifestParser = getManifestForQuality(reloadingQuality);
+			// Reload the manifest we were given, if we were given a manifest
+			var manToReload:HLSManifestParser = manifest ? manifest : getManifestForQuality(reloadingQuality);
 			reloadingManifest = new HLSManifestParser();
 			reloadingManifest.type = manToReload.type;
 			reloadingManifest.addEventListener(Event.COMPLETE, onReloadComplete);
@@ -102,42 +121,114 @@ package com.kaltura.hls
 		
 		private function onReloadError(event:Event):void
 		{
-			// First set the timer to the error recovery interval set in HLSHTTPNetStream
-			if(reloadTimer)
+			isRecovering = true;
+			lastBadManifestUri = (event as IOErrorEvent).text;
+			
+			// Create our timer if it hasn't been created yet and set the delay to our delay time
+			if (!reloadTimer)
+				setUpReloadTimer(HLSHTTPNetStream.reloadDelayTime);
+			else if (reloadTimer.delay != HLSHTTPNetStream.reloadDelayTime)
 			{
-				if (reloadTimer.running)
-					reloadTimer.stop();
-				reloadTimer.delay = HLSHTTPNetStream.retryAttemptWaitTime * 1000;
-				reloadTimer.start();
+				reloadTimer.reset();
+				reloadTimer.delay = HLSHTTPNetStream.reloadDelayTime;
 			}
 			
-			// Shut everything down if we have had too many errors in a row
-			var e:IOErrorEvent = event as IOErrorEvent;
-			if (currentManifestErrorCount++ * HLSHTTPNetStream.retryAttemptWaitTime >= HLSHTTPNetStream.recognizeBadStreamTime)
+			reloadTimer.start();
+			
+			if (reloadTimer.currentCount < 1)
 			{
-				HLSHTTPNetStream.badManifestUrl = e.text;
+				return;
+			}
+			
+			attemptRecovery();
+		}
+		
+		private function attemptRecovery():void
+		{
+			isRecovering = false;
+			
+			if (!HLSHTTPNetStream.errorSurrenderTimer.running)
+				HLSHTTPNetStream.errorSurrenderTimer.start();
+			
+			// Shut everything down if we have had too many errors in a row
+			if (HLSHTTPNetStream.errorSurrenderTimer.currentCount >= HLSHTTPNetStream.recognizeBadStreamTime)
+			{
+				HLSHTTPNetStream.badManifestUrl = lastBadManifestUri;
 				return;	
 			}
 			
-			// This might just be a bad manifest, so try swapping it with a backup if we can
-			if (targetQuality != lastQuality)
-				swapBackupManifest(targetQuality);
-			else
-				swapBackupManifest(lastQuality);
+			// This might just be a bad manifest, so try swapping it with a backup if we can and reload the manifest immediately
+			var quality:int = targetQuality != lastQuality ? targetQuality : lastQuality;
+			backupStreamNumber = backupStreamNumber >= manifest.streams.length - 1 ? 0 : backupStreamNumber + 1;
+			
+			if (!swapBackupStream(quality, backupStreamNumber))
+				reload(quality);
 		}
 		
-		private function swapBackupManifest(quality:int):void
+		/**
+		 * Swaps a requested stream with its backup if it is available. If no backup is available, or the requested stream cannot be found
+		 * then nothing will be done. Can accept either an integer representing a quality level or an HLSManifestStream object representing a
+		 * reference to the requested stream.
+		 * 
+		 * @param stream Value used to find a stream to replace with its backup. If an int is provided it will find a stream of the requested
+		 * quality level. If an HLSManifestStream object is provided it will find the stream referenced by the object. No other data types are
+		 * accepted.
+		 * @param backupOffset The number of the backup to be used relative to the requested stream.
+		 * 
+		 * @returns Returns whether or not a backup could be found for the requested stream
+		 */
+		private function swapBackupStream(stream:*, backupOffset:int = 0):Boolean
 		{
-			// If the requested quality stream has a backup, switch to it
-			if (manifest.streams.length > quality && manifest.streams[quality].backupStream)
-				manifest.streams[quality] = manifest.streams[quality].backupStream;
+			// If the requested stream has a backup, switch to it
+			if (stream is int)
+			{
+				// If we were given an int then switch a stream with its backup at the requested quality level
+				if (stream >= 0 && manifest.streams.length > stream && manifest.streams[stream].backupStream)
+				{
+					primaryStream = manifest.streams[stream];
+					var streamToReload:HLSManifestStream = manifest.streams[stream].backupStream;
+					for (var i:int = 0; i < backupOffset; i++)
+					{
+						streamToReload = streamToReload.backupStream;
+					}
+					reload(-1, streamToReload.manifest);
+				}
+				else
+				{
+					trace("Backup Stream Swap Failed: No backup stream of quality level " + stream + " found. Max quality level is " + (manifest.streams.length - 1));
+					return false;
+				}
+			}
+			else if (stream is HLSManifestStream)
+			{
+				// If we were given an HLSManifestStream object, find that stream in our master list and switch to the backup if possible
+				for (var i:int = 0; i <= manifest.streams.length; i++)
+				{
+					if (i == manifest.streams.length)
+					{
+						trace("Backup Stream Swap Failed: No stream with URI " + (stream as HLSManifestStream).uri + " with a backup found");
+						return false;
+					}
+					
+					if (manifest.streams[i] == stream && manifest.streams[i].backupStream)
+					{
+						primaryStream = manifest.streams[i];
+						reload(-1, manifest.streams[i].backupStream.manifest);
+						return true;
+					}
+				}
+			}
+			else
+			{
+				throw new Error("Function swapBackupStream() in HLSIndexHandler given invalid parameter. Parameter data: " + stream);
+				return false;
+			}
 			
-			postRatesReady();
+			return true;
 		}
 		
 		private function onReloadComplete(event:Event):void
 		{
-			currentManifestErrorCount = 0;
 			trace ("::onReloadComplete - last/reload/target: " + lastQuality + "/" + reloadingQuality + "/" + targetQuality);
 			var newManifest:HLSManifestParser = event.target as HLSManifestParser;
 			if (newManifest)
@@ -148,11 +239,12 @@ package com.kaltura.hls
 				// remove the reload completed listener since this might become the new manifest
 				newManifest.removeEventListener(Event.COMPLETE, onReloadComplete);
 				
-				var currentManifest:HLSManifestParser = getManifestForQuality(reloadingQuality);
+				if (reloadingQuality != -1)
+					var currentManifest:HLSManifestParser = getManifestForQuality(reloadingQuality);
 				
-				var timerOnErrorDelay:Number = currentManifest.targetDuration * 1000  / 2;
+				var timerOnErrorDelay:Number = newManifest.targetDuration * 1000  / 2;
 				
-				// If we're not switching quality
+				// If we're not switching quality or going to a backup stream
 				if (reloadingQuality == lastQuality)
 				{				
 					if (newManifest.mediaSequence > currentManifest.mediaSequence)
@@ -170,12 +262,11 @@ package com.kaltura.hls
 						if (reloadTimer) reloadTimer.delay = timerOnErrorDelay;
 					}
 				}
-				else if (reloadingQuality == targetQuality)
+				else if (reloadingQuality == targetQuality || reloadingQuality == -1)
 				{
-					if (!updateManifestSegmentsQualityChange(newManifest, reloadingQuality) && reloadTimer != null)
-						reloadTimer.delay = timerOnErrorDelay;
+					if (!updateNewManifestSegments(newManifest, reloadingQuality) && reloadTimer)
+						reloadTimer.delay = timerOnErrorDelay;	
 				}
-
 			}
 			
 			dispatchDVRStreamInfo();
@@ -183,24 +274,23 @@ package com.kaltura.hls
 			if (reloadTimer) reloadTimer.start();
 		}
 		
-		// TODO: See if there are common bits of updateManifestSegmentsQualityChange() && updateManifestSegments() that
-		// can be shared
-		private function updateManifestSegmentsQualityChange(newManifest:HLSManifestParser, quality:int):Boolean
+		private function updateNewManifestSegments(newManifest:HLSManifestParser, quality:int):Boolean
 		{
 			if (newManifest == null || newManifest.segments.length == 0) return true;
 	
 			var lastQualityManifest:HLSManifestParser = getManifestForQuality(lastQuality);
-			var targetManifest:HLSManifestParser = getManifestForQuality(quality);
+			var targetManifest:HLSManifestParser = quality == -1 ? primaryStream.backupStream.manifest : getManifestForQuality(quality);
 			
 			if (newManifest.isDVR != lastQualityManifest.isDVR)
 			{
-				// If the new manifest's DVR status does not match the current DVR status, don't switch qualities
+				// If the new manifest's DVR status does not match the current DVR status, don't switch qualities or go to a backup
 				targetQuality = lastQuality;
 				return false;
 			}
 			
 			var lastQualitySegments:Vector.<HLSManifestSegment> = lastQualityManifest.segments;
 			var targetSegments:Vector.<HLSManifestSegment> = targetManifest.segments;
+			
 			var newSegments:Vector.<HLSManifestSegment> = newManifest.segments;
 			
 			var matchSegment:HLSManifestSegment = lastQualitySegments[lastSegmentIndex];
@@ -292,8 +382,32 @@ package com.kaltura.hls
 				return found; // Returning early so that we don't change lastQuality (we still need that value around)
 			}
 			
-			// set lastQuality to targetQuality since we're finally all matched up
-			lastQuality = quality;
+			// Either set lastQuality to targetQuality or switch to the backup since we're finally all matched up
+			if (quality == -1)
+			{		
+				// Find the stream to replace with its backup
+				for (i = 0; i <= manifest.streams.length; i++)
+				{
+					if (i == manifest.streams.length)
+					{
+						trace ("WARNING - Backup Replacement Failed: Stream with URI " + primaryStream.uri + " not found");
+						break;
+					}
+					
+					if (manifest.streams[i] == primaryStream && manifest.streams[i].backupStream)
+					{
+						manifest.streams[i] = manifest.streams[i].backupStream;
+						HLSHTTPNetStream.currentStream = manifest.streams[i];
+						postRatesReady();
+						break;
+					}
+				}
+				HLSHTTPNetStream.hasGottenManifest = true;
+			}
+			else
+			{
+				lastQuality = targetQuality;
+			}
 			stalled = false;
 			return found;
 		}
@@ -427,7 +541,7 @@ package com.kaltura.hls
 		}
 		
 		public override function getFileForTime(time:Number, quality:int):HTTPStreamRequest
-		{
+		{	
 			quality = getWorkingQuality(quality);
 			
 			var accum:Number = 0.0;
@@ -487,6 +601,9 @@ package com.kaltura.hls
 				trace("Stalling -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);
 			}
+
+			HLSHTTPNetStream.recoveryStateNum = URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED;
+			
 			quality = getWorkingQuality(quality);
 			
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
@@ -518,7 +635,7 @@ package com.kaltura.hls
 			return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 		}
 		
-		public function getKeyForIndex( index:uint ):HLSManifestEncryptionKey
+		public function getKeyForIndex(index:uint):HLSManifestEncryptionKey
 		{
 			var keys:Vector.<HLSManifestEncryptionKey>;
 			
@@ -538,6 +655,19 @@ package com.kaltura.hls
 			}
 			
 			return null;
+		}
+		
+		/**
+		 * Begins the process of switching to a backup stream if possible. Will do nothing if there is no backup stream attached
+		 * to the HLSManifestStream object provided.
+		 * 
+		 * @param stream The stream object that we want to switch with its backup.
+		 */
+		public function switchToBackup(stream:HLSManifestStream):void
+		{			
+			// Swap the stream to its backup if possible
+			if(!swapBackupStream(stream))
+				HLSHTTPNetStream.hasGottenManifest = true;
 		}
 		
 		private function updateTotalDuration():void
