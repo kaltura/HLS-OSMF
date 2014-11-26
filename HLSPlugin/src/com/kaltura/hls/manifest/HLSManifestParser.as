@@ -65,7 +65,8 @@ package com.kaltura.hls.manifest
 			//trace("BASE URL " + baseUrl);
 			
 			// Normalize line endings.
-			input = input.replace("\r\n", "\n");
+			var windowsEndingPattern:RegExp = /\r\n/g;
+			input = input.replace(windowsEndingPattern, "\n");
 
 			// split into array.
 			var lines:Array = input.split("\n");
