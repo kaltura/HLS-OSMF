@@ -124,6 +124,9 @@ package com.kaltura.hls
 			{
 				item = new DynamicStreamingItem(URLResource(loadTrait.resource).url, 0, 0, 0);
 				items.push(item);
+				
+				// Also set the DVR state
+				if ( !stream.manifest.streamEnds ) isDVR = true;
 			}
 			
 			var alternateAudioItems:Vector.<StreamingItem> = new <StreamingItem>[];
