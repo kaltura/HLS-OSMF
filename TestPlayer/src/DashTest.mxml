@@ -19,9 +19,10 @@
 			
 			override protected function get developmentStream():String {
 				
-				return "http://www.djing.com/tv/live.m3u8";
+				//return "http://www.djing.com/tv/live.m3u8";
 				//return "http://abclive.abcnews.com/i/abc_live4@136330/master.m3u8";
 				//return "http://playertest.longtailvideo.com/adaptive/captions/playlist.m3u8";
+				return "http://cdnbakmi.kaltura.com/p/243342/sp/24334200/playManifest/entryId/0_uka1msg4/flavorIds/1_vqhfu6uy,1_80sohj7p/format/applehttp/protocol/http/a.m3u8"
 				
 				//return "http://dash.edgesuite.net/digitalprimates/sony/DISC1651343080050699_TEST_US_12_28_56_DASH/DASH_vod.mpd";
 				//return "http://origintest.cloudapp.net/media/SintelTrailer_Smooth_from_WAME/sintel_trailer-1080p.ism/manifest(format=mpd-time-csf)";

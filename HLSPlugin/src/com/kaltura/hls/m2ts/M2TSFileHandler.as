@@ -1,6 +1,6 @@
 package com.kaltura.hls.m2ts
 {
-	import com.kaltura.hls.HLSLoader;
+	import com.kaltura.hls.HLSElement;
 	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.SubtitleTrait;
 	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
@@ -319,10 +319,10 @@ package com.kaltura.hls.m2ts
 				{
 					var cue:TextTrackCue = cues[ j ];
 					if ( cue.startTime > endTime ) break;
-					else if ( cue.startTime >= startTime && cue.endTime <= endTime)
+					else if ( cue.startTime >= startTime)
 					{
 						// TODO: Add trackid support for multiple track id's
-						HLSLoader.loadedElem.dispatchEvent(new SubtitleEvent("onTextEvent", false, false, cue.buffer, subtitleTrait.language));
+						HLSElement.element.dispatchEvent(new SubtitleEvent("onTextEvent", true, false, cue.buffer, subtitleTrait.language));
 						_converter.createAndSendCaptionMessage( cue.startTime, cue.buffer );
 						_lastInjectedSubtitleTime = cue.startTime;
 					}

@@ -9,7 +9,9 @@
 	
 	<fx:Script>
 		<![CDATA[
+			import com.kaltura.hls.HLSElement;
 			import com.kaltura.hls.SubtitleTrait;
+			import com.kaltura.hls.subtitles.SubtitleEvent;
 			
 			import mx.collections.ArrayList;
 			import mx.collections.IList;
@@ -229,6 +231,7 @@
 				element = factory.createMediaElement(resource);
 				
 				element.addEventListener(MediaElementEvent.TRAIT_ADD, onTraitAdd);
+				element.addEventListener("onTextEvent", onTextData);
 				
 				statisticsWindow.element = element;
 				
@@ -283,6 +286,11 @@
 				pluginLoader.removeEventListener(PluginLoaderEvent.LOAD_ERROR, onPluginsLoadError);
 				pluginLoader = null;
 				trace( "Error loading plugin." );
+			}
+			
+			private function onTextData(event:SubtitleEvent):void
+			{
+				trace("Subtitle Data Recieved\nLang" + event.lang + "\ntext: " + event.text + "\ntrackid: " + event.trackid);
 			}
 			
 			private function onTraitAdd(event:MediaElementEvent):void {

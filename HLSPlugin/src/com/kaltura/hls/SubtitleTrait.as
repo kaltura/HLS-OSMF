@@ -11,7 +11,7 @@ package com.kaltura.hls
 		
 		private var _playLists:Vector.<HLSManifestPlaylist> = new <HLSManifestPlaylist>[];
 		private var _languages:Vector.<String> = new <String>[];
-		private var _language:String = "eng";
+		private var _language:String = "";
 		
 		public function SubtitleTrait()
 		{
@@ -28,7 +28,10 @@ package com.kaltura.hls
 			for ( var i:int = 0; i < value.length; i++ )
 			{
 				_playLists.push( value[ i ] );
-				_languages.push( value[ i ].name );
+				if (value[ i ].language && value[ i ].language != "")
+					_languages.push( value[ i ].language );
+				else
+					_languages.push( value[ i ].name );
 			}
 		}
 		
@@ -53,13 +56,13 @@ package com.kaltura.hls
 			for ( var i:int = 0; i < _playLists.length; i++ )
 			{
 				// If the playlist has a language associated with it, use that language
-				var language:String;
+				var PLanguage:String;
 				if (_playLists[ i ].language && _playLists[ i ].language != "")
-					language = _playLists[ i ].language;
+					PLanguage = _playLists[ i ].language;
 				else
-					language = _playLists[ i ].name;
+					PLanguage = _playLists[ i ].name;
 				
-				if (language == _language ) return _playLists[ i ].manifest.subtitles;
+				if (PLanguage == _language ) return _playLists[ i ].manifest.subtitles;
 			}
 			return null;
 		}

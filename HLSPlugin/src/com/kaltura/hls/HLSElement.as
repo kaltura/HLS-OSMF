@@ -7,8 +7,12 @@ package com.kaltura.hls
 
 	public class HLSElement extends LoadFromDocumentElement
 	{
+		public static var element:HLSElement;
+		
 		public function HLSElement(resource:MediaResourceBase = null, loader:HLSLoader = null) 
 		{
+			element = this;
+			
 			if (loader == null) 
 			{
 				loader = new HLSLoader();
