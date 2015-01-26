@@ -39,6 +39,8 @@ package com.kaltura.hls
 		protected var parser:HLSManifestParser;
 		protected var factory:DefaultMediaFactory = new DefaultMediaFactory();
 		private var supportedMimeTypes:Vector.<String> = new Vector.<String>();
+		
+		public static var loadedElem:VideoElement;
 
 		public function HLSLoader()
 		{
@@ -144,7 +146,7 @@ package com.kaltura.hls
 			
 			stream.addMetadataValue( HLSMetadataNamespaces.PLAYABLE_RESOURCE_METADATA, true );
 			
-			var loadedElem:MediaElement = new VideoElement( stream, new M2TSNetLoader() );
+			loadedElem = new VideoElement( stream, new M2TSNetLoader() );
 			LoadFromDocumentLoadTrait( loadTrait ).mediaElement = loadedElem;
 			
 			
