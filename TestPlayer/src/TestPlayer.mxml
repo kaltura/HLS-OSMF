@@ -290,7 +290,7 @@
 			
 			private function onTextData(event:SubtitleEvent):void
 			{
-				trace("Subtitle Data Recieved\nLang" + event.lang + "\ntext: " + event.text + "\ntrackid: " + event.trackid);
+				trace("Subtitle Data Recieved\nlang: " + event.lang + "\ntext: " + event.text + "\ntrackid: " + event.trackid);
 			}
 			
 			private function onTraitAdd(event:MediaElementEvent):void {

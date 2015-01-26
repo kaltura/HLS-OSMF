@@ -16,7 +16,7 @@ package com.kaltura.hls.subtitles
 			_trackid = trackid;
 		}
 		
-		public function get text():Boolean
+		public function get text():String
 		{
 			return _text;
 		}
