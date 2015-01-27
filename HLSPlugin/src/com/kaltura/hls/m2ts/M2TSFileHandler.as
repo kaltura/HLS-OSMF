@@ -5,7 +5,6 @@ package com.kaltura.hls.m2ts
 	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.muxing.AACParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
-	import com.kaltura.hls.subtitles.SubtitleEvent;
 	import com.kaltura.hls.subtitles.TextTrackCue;
 	
 	import flash.utils.ByteArray;
@@ -43,37 +42,6 @@ package com.kaltura.hls.m2ts
 		private var _lastInjectedSubtitleTime:Number = 0;
 		
 		private var _decryptionIV:ByteArray;
-		private static var instances:Vector.<M2TSFileHandler> = new Vector.<M2TSFileHandler>;// Keep track of all of our potential instances
-		private static var listeners:Vector.<Object> = new Vector.<Object>;// Also keep track of the events added
-		
-		/**
-		 * This is a static add event listener function that will take a listener, and add it to all active instances of this object.
-		 */
-		public static function sAddEventListener(type:String, listener:Function, useCapture:Boolean = false, priority:int = 0, useWeakReference:Boolean = false):void
-		{
-			for (var i:int=0; i<instances.length; i++)
-			{
-				// First make sure the instance we are looking at is still active (exists) and remove it if it is (does) not
-				if (!instances[i])
-				{
-					instances.splice(i, 1);
-					continue;
-				}
-				
-				// Add the event listener
-				instances[i].addEventListener(type, listener, useCapture, priority, useWeakReference);
-			}
-			
-			// ...and keep track of the listener
-			var lis:Object = new Object();
-			lis.type = type;
-			lis.listener = listener;
-			lis.useCapture = useCapture;
-			lis.priority = priority;
-			lis.useWeakReference = useWeakReference;
-			
-			listeners.push(lis);
-		}
 		
 		public function M2TSFileHandler()
 		{
@@ -94,16 +62,6 @@ package com.kaltura.hls.m2ts
 			_extendedIndexHandler = null;
 			
 			_lastContinuityToken = null;
-			
-			// Keep track of this instance
-			instances.push(this);
-			
-			// Add event listeners
-			for (var i:int=0; i<listeners.length; i++)
-			{
-				this.addEventListener(listeners[i].type, listeners[i].listener, listeners[i].useCapture,
-									  listeners[i].priority, listeners[i].useWeakReference);
-			}
 		}
 
 		public function set extendedIndexHandler(handler:IExtraIndexHandlerState):void
@@ -359,12 +317,10 @@ package com.kaltura.hls.m2ts
 				{
 					var cue:TextTrackCue = cues[ j ];
 					if ( cue.startTime > endTime ) break;
-					else if ( cue.startTime >= startTime)
+					else if ( cue.startTime >= startTime )
 					{
 						// TODO: Add support for trackid
-						trace("Expecting Subtitles...");
-						dispatchEvent(new SubtitleEvent("onTextData", false, false, cue.buffer, subtitleTrait.language));
-						_converter.createAndSendCaptionMessage( cue.startTime, cue.buffer );
+						_converter.createAndSendCaptionMessage( cue.startTime, cue.buffer, subtitleTrait.language );
 						_lastInjectedSubtitleTime = cue.startTime;
 					}
 				}

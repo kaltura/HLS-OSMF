@@ -144,7 +144,7 @@ package com.kaltura.hls
 			
 			stream.addMetadataValue( HLSMetadataNamespaces.PLAYABLE_RESOURCE_METADATA, true );
 			
-			var loadedElem:VideoElement = new VideoElement( stream, new M2TSNetLoader() );
+			var loadedElem:MediaElement = new VideoElement( stream, new M2TSNetLoader() );
 			LoadFromDocumentLoadTrait( loadTrait ).mediaElement = loadedElem;
 			
 			

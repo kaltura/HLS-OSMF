@@ -6,9 +6,9 @@ package com.kaltura.hls
 	import org.osmf.metadata.Metadata;
 
 	public class HLSElement extends LoadFromDocumentElement
-	{		
+	{
 		public function HLSElement(resource:MediaResourceBase = null, loader:HLSLoader = null) 
-		{	
+		{
 			if (loader == null) 
 			{
 				loader = new HLSLoader();
