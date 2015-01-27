@@ -262,8 +262,9 @@
 			
 			private function onEmbeddedCaptions(info:Object):void
 			{
-				trace("EXPECTING TEXT");
+				trace("\n========Subtitle========");
 				trace(info.text);
+				trace("========================\n");
 			}
 			
 			private function onStatisticsClose(event:CloseEvent):void {
@@ -303,6 +304,7 @@
 					// Default to the first language encountered
 					subtitleTrait.language = subtitleTrait.languages[ 0 ];
 					
+					// Listen for the onTextData event
 					var localElem:MediaElement = element;
 					while (localElem is ProxyElement)
 					{

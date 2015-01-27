@@ -1103,7 +1103,7 @@ package org.osmf.net.httpstreaming
 					
 					return true;
 				}
-
+				
 				/**
 				 * @private
 				 * 

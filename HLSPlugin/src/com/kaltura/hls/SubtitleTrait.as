@@ -56,13 +56,13 @@ package com.kaltura.hls
 			for ( var i:int = 0; i < _playLists.length; i++ )
 			{
 				// If the playlist has a language associated with it, use that language
-				var PLanguage:String;
+				var pLanguage:String;
 				if (_playLists[ i ].language && _playLists[ i ].language != "")
-					PLanguage = _playLists[ i ].language;
+					pLanguage = _playLists[ i ].language;
 				else
-					PLanguage = _playLists[ i ].name;
+					pLanguage = _playLists[ i ].name;
 				
-				if (PLanguage == _language ) return _playLists[ i ].manifest.subtitles;
+				if (pLanguage == _language ) return _playLists[ i ].manifest.subtitles;
 			}
 			return null;
 		}
