@@ -813,12 +813,22 @@ package com.kaltura.hls
 		{
 			// Check to ensure we do not get a range error
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
+			
+			if (segments.length == 0)
+			{
+				var returnString:String = "/" + sequenceSkips + "/" + lastQuality + "/0";
+				trace("WARNING: There are 0 segments in the last quality, generating Continuity Token \"" + returnString + "\"");
+				return returnString;
+			}
+			
 			if (lastSegmentIndex >= segments.length || lastSegmentIndex < 0)
 			{
 				trace("==WARNING: lastSegmentIndex is greater than number of segments in last quality==");
-				trace("lastSegmentIndex: " + lastSegmentIndex + " | max allowed index: " + (segments.length - 1 + "\n"));
+				trace("lastSegmentIndex: " + lastSegmentIndex + " | max allowed index: " + (segments.length - 1));
+				trace("Setting lastSegmentIndex to " + (segments.length - 1) + "\n");
 				lastSegmentIndex = segments.length - 1;
 			}
+			
 			return "/" + sequenceSkips + "/" + lastQuality + "/" + segments[lastSegmentIndex].continuityEra;
 		}
 		
