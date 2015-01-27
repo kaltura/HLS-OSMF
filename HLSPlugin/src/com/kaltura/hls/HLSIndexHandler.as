@@ -233,6 +233,13 @@ package com.kaltura.hls
 			var newManifest:HLSManifestParser = event.target as HLSManifestParser;
 			if (newManifest)
 			{
+				// Detect if there are 0 segments in the new manifest
+				if (newManifest.segments.length == 0)
+				{
+					trace("WARNING: newManifest has 0 segments");
+					return;
+				}
+					
 				// Set the timer delay to the most likely possible delay
 				if (reloadTimer) reloadTimer.delay = newManifest.segments[newManifest.segments.length - 1].duration * 1000;
 				
@@ -804,7 +811,15 @@ package com.kaltura.hls
 		//
 		public function getCurrentContinuityToken():String
 		{
-			return "/" + sequenceSkips + "/" + lastQuality + "/" + getSegmentsForQuality(lastQuality)[lastSegmentIndex].continuityEra;
+			// Check to ensure we do not get a range error
+			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
+			if (lastSegmentIndex >= segments.length || lastSegmentIndex < 0)
+			{
+				trace("==WARNING: lastSegmentIndex is greater than number of segments in last quality==");
+				trace("lastSegmentIndex: " + lastSegmentIndex + " | max allowed index: " + (segments.length - 1 + "\n"));
+				lastSegmentIndex = segments.length - 1;
+			}
+			return "/" + sequenceSkips + "/" + lastQuality + "/" + segments[lastSegmentIndex].continuityEra;
 		}
 		
 		// returns the time offset into the fragment based on the time
