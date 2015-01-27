@@ -474,7 +474,6 @@ package com.kaltura.hls.m2ts
 		public function createAndSendCaptionMessage( timeStamp:Number, captionBuffer:String ):void
 		{
 			var captionObject:Array = ["onCaptionInfo", { type:"WebVTT", data:captionBuffer }];
-			trace( "\n\n=========================\n\n" + captionBuffer + "\n\n=========================\n\n" );
 			sendScriptDataFLVTag( timeStamp * 1000, captionObject);
 		}
 		

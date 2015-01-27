@@ -24,9 +24,11 @@ package org.osmf.net.httpstreaming
 	import com.kaltura.hls.HLSIndexHandler;
 	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.URLErrorRecoveryStates;
+	import com.kaltura.hls.m2ts.M2TSFileHandler;
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
 	import com.kaltura.hls.manifest.HLSManifestSegment;
 	import com.kaltura.hls.manifest.HLSManifestStream;
+	import com.kaltura.hls.subtitles.SubtitleEvent;
 	
 	import flash.events.NetStatusEvent;
 	import flash.events.TimerEvent;
@@ -134,6 +136,8 @@ package org.osmf.net.httpstreaming
 				addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE,		onDownloadComplete);
 				
 				addEventListener(NetStatusEvent.NET_STATUS, onNetStatus, false, HIGH_PRIORITY, true);
+				
+				M2TSFileHandler.sAddEventListener("onTextData", onTextData);
 				
 				CONFIG::FLASH_10_1
 					{
@@ -1102,6 +1106,25 @@ package org.osmf.net.httpstreaming
 					}
 					
 					return true;
+				}
+				
+				/**
+				 * @private
+				 * 
+				 * Event handler for subtitle text data
+				 */
+				private function onTextData(event:SubtitleEvent):void
+				{
+					trace( "========Subtitles========\n" + event.text + "\n=========================" );
+					var info:Object = new Object();
+					info.text = event.text;
+					info.lang = event.lang;
+					info.trackid = event.trackid;
+					
+					var sdoTag:FLVTagScriptDataObject = new FLVTagScriptDataObject();
+					sdoTag.objects = ["onTextData", info];
+					
+					insertScriptDataTag(sdoTag);
 				}
 				
 				/**
