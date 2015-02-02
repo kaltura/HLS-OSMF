@@ -350,6 +350,9 @@ package com.kaltura.hls
 				// The last playlist start time is at the start of the newest segment, the best we can do here is estimate
 				matchStartTime += targetSegments[targetSegments.length - 1].duration;
 				
+				// Let the cosole know that we might have a problem
+				trace("Warning: Estimating playlist start time. Estimated start time: " + matchStartTime);
+				
 				// No matches were found so we add all the new segments to the playlist, also adjust their start times
 				var nextStartTime:Number = matchStartTime;
 				for (i = 0; i < newSegments.length; i++)
