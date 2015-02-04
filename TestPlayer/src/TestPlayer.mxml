@@ -10,6 +10,7 @@
 	<fx:Script>
 		<![CDATA[
 			import com.kaltura.hls.SubtitleTrait;
+			import com.kaltura.hls.manifest.HLSManifestParser;
 			
 			import mx.collections.ArrayList;
 			import mx.collections.IList;
@@ -166,6 +167,8 @@
 				traceWindow.x = 400;
 				traceWindow.y = 25;
 				traceWindow.addEventListener(CloseEvent.CLOSE, onTraceClose); */
+				
+				HLSManifestParser.MAX_SEG_BUFFER = 4;
 				
 				loadVariableURL();
 			}
