@@ -298,6 +298,11 @@ package com.kaltura.hls
 			var lastQualitySegments:Vector.<HLSManifestSegment> = lastQualityManifest.segments;
 			var targetSegments:Vector.<HLSManifestSegment> = targetManifest.segments;
 			
+			/* Handle Buffered Segments */
+			var numBuffered:int = targetManifest.bufferSegments.length;
+			
+			targetSegments.concat(targetManifest.bufferSegments);
+			
 			var newSegments:Vector.<HLSManifestSegment> = newManifest.segments;
 			
 			var matchSegment:HLSManifestSegment = lastQualitySegments[lastSegmentIndex];
@@ -334,8 +339,12 @@ package com.kaltura.hls
 				// Append the new manifest segments to the targetManifest
 				for (i = matchIndex + 1; i < newSegments.length; ++i)
 				{
+					numBuffered++;
 					targetSegments.push(newSegments[i]);
 				}
+				
+				if (numBuffered > HLSManifestParser.MAX_SEG_BUFFER)
+					numBuffered = HLSManifestParser.MAX_SEG_BUFFER;
 				
 				// Now we need to calculate the last known playlist start time
 				var matchStartId:int = newSegments[0].id;
@@ -353,8 +362,15 @@ package com.kaltura.hls
 				// Let the console know that we might have a problem
 				trace("Warning: Estimating playlist start time. Estimated start time: " + matchStartTime);
 				
+				// Make a ompletely new buffer, we don't want the elements in the segment buffer to have a gap
+				if (newSegments.length < HLSManifestParser.MAX_SEG_BUFFER)
+					numBuffered = HLSManifestParser.MAX_SEG_BUFFER - 1;
+				else
+					numBuffered = HLSManifestParser.MAX_SEG_BUFFER;
+					
+				
 				// No matches were found so we add all the new segments to the playlist, also adjust their start times
-				var nextStartTime:Number = matchStartTime;
+				nextStartTime = matchStartTime;
 				for (i = 0; i < newSegments.length; i++)
 				{
 					newSegments[i].startTime = nextStartTime;
@@ -366,6 +382,9 @@ package com.kaltura.hls
 			{
 				// In this case there are no new segments and we don't actually need to do anything to the playlist
 			}
+			
+			// Re-create the segment buffer
+			targetManifest.bufferSegments = targetSegments.splice(targetSegments.length - numBuffered, numBuffered);
 			
 			// This is now where our new playlist starts
 			lastKnownPlaylistStartTime = matchStartTime;
@@ -434,7 +453,11 @@ package com.kaltura.hls
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
 			var curManifest:HLSManifestParser = getManifestForQuality(quality);
 			var segId:int= segments[segments.length - 1].id;
-
+			
+			/* Handle our segment buffer */
+			var numBuffered:int = curManifest.bufferSegments.length;
+			
+			segments.concat(curManifest.bufferSegments);
 			
 			// Seek forward from the lastindex of the list (no need to start from 0) to match continuity eras
 			var i:int = 0;
@@ -485,11 +508,19 @@ package com.kaltura.hls
 			// kill all the segments from the new list that match what we already have
 			newManifest.segments.splice(0, i + 1);
 			
+			numBuffered += newManifest.segments.length
+			
 			// append the remaining segments to the existing segment list
 			for (k = 0; k < newManifest.segments.length; ++k)
 			{
 				segments.push(newManifest.segments[k]);
 			}
+			
+			// We only ever store the maximum allowed segments into a buffer
+			if (numBuffered > HLSManifestParser.MAX_SEG_BUFFER) 
+				numBuffered = HLSManifestParser.MAX_SEG_BUFFER;
+			
+			curManifest.bufferSegments = segments.splice(segments.length - numBuffered, numBuffered);
 			
 			// Match the new manifest's and the old manifest's DVR status
 			getManifestForQuality(quality).streamEnds = newManifest.streamEnds;
@@ -616,8 +647,13 @@ package com.kaltura.hls
 			
 			quality = getWorkingQuality(quality);
 			
-			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
+			var currentManifest:HLSManifestParser = getManifestForQuality ( quality );
+			var segments:Vector.<HLSManifestSegment> = currentManifest.segments;
 			lastSegmentIndex++;
+			
+			// Add a buffered segment if we need to and we have one
+			if (lastSegmentIndex >= segments.length && currentManifest.bufferSegments.length > 0)
+				segments.push( currentManifest.bufferSegments.shift() );
 			
 			fileHandler.segmentId = lastSegmentIndex;
 			fileHandler.key = getKeyForIndex( lastSegmentIndex );

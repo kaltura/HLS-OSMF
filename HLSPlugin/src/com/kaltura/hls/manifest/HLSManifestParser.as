@@ -19,6 +19,8 @@ package com.kaltura.hls.manifest
 		public static const VIDEO:String = "VIDEO";
 		public static const SUBTITLES:String = "SUBTITLES";
 		
+		public static const MAX_SEG_BUFFER:int = 3;
+		
 		public var type:String = DEFAULT;
 		public var version:int;
 		public var baseUrl:String;
@@ -30,6 +32,7 @@ package com.kaltura.hls.manifest
 		public var playLists:Vector.<HLSManifestPlaylist> = new Vector.<HLSManifestPlaylist>();
 		public var streams:Vector.<HLSManifestStream> = new Vector.<HLSManifestStream>();
 		public var segments:Vector.<HLSManifestSegment> = new Vector.<HLSManifestSegment>();
+		public var bufferSegments:Vector.<HLSManifestSegment> = new Vector.<HLSManifestSegment>();
 		public var subtitlePlayLists:Vector.<HLSManifestPlaylist> = new Vector.<HLSManifestPlaylist>();
 		public var subtitles:Vector.<SubTitleParser> = new Vector.<SubTitleParser>();
 		public var keys:Vector.<HLSManifestEncryptionKey> = new Vector.<HLSManifestEncryptionKey>();
@@ -277,7 +280,23 @@ package com.kaltura.hls.manifest
 			
 			// work through the manifests and set up backup streams
 			for (i = streams.length - 1; i >= 0; --i)
-			{					
+			{
+				// While we are here, set up buffers IF we are in a livestream
+				if (!streams[i].manifest.streamEnds)
+				{
+					var numSegments:int = streams[i].manifest.segments.length;
+					
+					// Mess with the number of segments if there are 3 are fewer so we can later extract as many as possible
+					if (numSegments <= MAX_SEG_BUFFER)
+						numSegments = MAX_SEG_BUFFER + 1
+					
+					if (numSegments > MAX_SEG_BUFFER)
+					{
+						// Only add segments to a buffer if we can, we want to try and maintain a 3 segment buffer
+						streams[i].manifest.bufferSegments = streams[i].manifest.segments.splice(numSegments - MAX_SEG_BUFFER, MAX_SEG_BUFFER);
+					}
+				}
+				
 				// only start the backup stream logic if we are not on our first checked (non-broken) stream
 				if (i == streams.length - 1)
 					continue;
