@@ -19,7 +19,7 @@ package com.kaltura.hls.manifest
 		public static const VIDEO:String = "VIDEO";
 		public static const SUBTITLES:String = "SUBTITLES";
 		
-		public static const MAX_SEG_BUFFER:int = 3;
+		public static var MAX_SEG_BUFFER:int = 3;
 		
 		public var type:String = DEFAULT;
 		public var version:int;
@@ -286,7 +286,7 @@ package com.kaltura.hls.manifest
 				{
 					var numSegments:int = streams[i].manifest.segments.length;
 					
-					// Mess with the number of segments if there are 3 are fewer so we can later extract as many as possible
+					// Mess with the number of segments if there are 3 or fewer so we can later extract as many as possible
 					if (numSegments <= MAX_SEG_BUFFER)
 						numSegments = MAX_SEG_BUFFER + 1
 					
