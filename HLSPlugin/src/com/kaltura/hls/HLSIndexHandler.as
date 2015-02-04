@@ -362,7 +362,7 @@ package com.kaltura.hls
 				// Let the console know that we might have a problem
 				trace("Warning: Estimating playlist start time. Estimated start time: " + matchStartTime);
 				
-				// Make a ompletely new buffer, we don't want the elements in the segment buffer to have a gap
+				// Make a completely new buffer, we don't want the elements in the segment buffer to have a gap
 				if (newSegments.length < HLSManifestParser.MAX_SEG_BUFFER)
 					numBuffered = HLSManifestParser.MAX_SEG_BUFFER - 1;
 				else
