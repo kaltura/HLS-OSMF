@@ -168,6 +168,7 @@
 				traceWindow.y = 25;
 				traceWindow.addEventListener(CloseEvent.CLOSE, onTraceClose); */
 				
+				// Adjust the segment buffer length by altering this static variable
 				HLSManifestParser.MAX_SEG_BUFFER = 4;
 				
 				loadVariableURL();
