@@ -471,11 +471,13 @@ package com.kaltura.hls.m2ts
 			_sendAVCC = true;
 		}
 		
-		public function createAndSendCaptionMessage( timeStamp:Number, captionBuffer:String ):void
+		public function createAndSendCaptionMessage( timeStamp:Number, captionBuffer:String, lang:String="", textid:Number=99):void
 		{
 			var captionObject:Array = ["onCaptionInfo", { type:"WebVTT", data:captionBuffer }];
-			trace( "\n\n=========================\n\n" + captionBuffer + "\n\n=========================\n\n" );
 			sendScriptDataFLVTag( timeStamp * 1000, captionObject);
+			
+			var subtitleObject:Array = ["onTextData", { text:captionBuffer, lang:lang, textid:textid }];
+			sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
 		}
 		
 		private function parseAVCCCData(bytes:ByteArray, cursor:uint, length:uint):void

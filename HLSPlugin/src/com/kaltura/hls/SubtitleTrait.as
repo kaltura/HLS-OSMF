@@ -28,7 +28,10 @@ package com.kaltura.hls
 			for ( var i:int = 0; i < value.length; i++ )
 			{
 				_playLists.push( value[ i ] );
-				_languages.push( value[ i ].name );
+				if (value[ i ].language && value[ i ].language != "")
+					_languages.push( value[ i ].language );
+				else
+					_languages.push( value[ i ].name );
 			}
 		}
 		
@@ -52,7 +55,14 @@ package com.kaltura.hls
 			if ( _language == "" ) return null;
 			for ( var i:int = 0; i < _playLists.length; i++ )
 			{
-				if ( _playLists[ i ].name == _language ) return _playLists[ i ].manifest.subtitles;
+				// If the playlist has a language associated with it, use that language
+				var pLanguage:String;
+				if (_playLists[ i ].language && _playLists[ i ].language != "")
+					pLanguage = _playLists[ i ].language;
+				else
+					pLanguage = _playLists[ i ].name;
+				
+				if (pLanguage == _language ) return _playLists[ i ].manifest.subtitles;
 			}
 			return null;
 		}

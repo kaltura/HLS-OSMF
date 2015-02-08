@@ -22,6 +22,7 @@
 			import net.digitalprimates.osmf.utils.PluginLoader;
 			import net.digitalprimates.osmf.utils.events.PluginLoaderEvent;
 			
+			import org.osmf.elements.ProxyElement;
 			import org.osmf.containers.MediaContainer;
 			import org.osmf.events.BufferEvent;
 			import org.osmf.events.MediaElementEvent;
@@ -259,6 +260,13 @@
 			
 			// HANDLERS /////////////////////////////////////////////////////////////////
 			
+			private function onEmbeddedCaptions(info:Object):void
+			{
+				trace("\n========Subtitle========");
+				trace(info.text);
+				trace("========================\n");
+			}
+			
 			private function onStatisticsClose(event:CloseEvent):void {
 				statisticsWindow.player = null;
 				statisticsWindow.element = null;
@@ -295,6 +303,16 @@
 				{
 					// Default to the first language encountered
 					subtitleTrait.language = subtitleTrait.languages[ 0 ];
+					
+					// Listen for the onTextData event
+					var localElem:MediaElement = element;
+					while (localElem is ProxyElement)
+					{
+						localElem = (localElem as ProxyElement).proxiedElement;
+					} 
+					if (localElem.hasOwnProperty("client") && localElem["client"]) {
+						localElem["client"].addHandler( "onTextData", onEmbeddedCaptions );
+					}
 				}
 				
 			}

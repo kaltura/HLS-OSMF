@@ -319,7 +319,8 @@ package com.kaltura.hls.m2ts
 					if ( cue.startTime > endTime ) break;
 					else if ( cue.startTime >= startTime )
 					{
-						_converter.createAndSendCaptionMessage( cue.startTime, cue.buffer );
+						// TODO: Add support for trackid
+						_converter.createAndSendCaptionMessage( cue.startTime, cue.buffer, subtitleTrait.language );
 						_lastInjectedSubtitleTime = cue.startTime;
 					}
 				}
