@@ -301,6 +301,7 @@ package com.kaltura.hls
 			/* Handle Buffered Segments */
 			var numBuffered:int = targetManifest.bufferSegments.length;
 			
+			lastQualitySegments.concat(lastQualityManifest.bufferSegments);
 			targetSegments.concat(targetManifest.bufferSegments);
 			
 			var newSegments:Vector.<HLSManifestSegment> = newManifest.segments;
@@ -356,11 +357,32 @@ package com.kaltura.hls
 			}
 			else if (matchIndex < 0)
 			{
-				// The last playlist start time is at the start of the newest segment, the best we can do here is estimate
-				matchStartTime += targetSegments[targetSegments.length - 1].duration;
+				// The last playlist start time is at the start of the newest segment, try to find an accurate start time
+				var lastQualityTimeMatchFound:Boolean = false;
 				
-				// Let the console know that we might have a problem
-				trace("Warning: Estimating playlist start time. Estimated start time: " + matchStartTime);
+				if (lastQualitySegments[lastQualitySegments.length - 1].id >= newSegments[0].id)
+				{
+					// If we have at least one ID that matches between quality levels, use that to sync up out times. It is a better solution than pure estimation
+					for (var i:int = lastQualitySegments.length - 1; i >= 0; i--)
+					{
+						// Find the segment in the last quality level that matches the segment in the new quality level
+						if (lastQualitySegments[i].id == newSegments[0].id && lastQualitySegments[i].duration == newSegments[0].duration)
+						{
+							matchStartTime = lastQualitySegments[i].startTime;
+							lastQualityTimeMatchFound = true;
+							trace ("Found Match Start Time: " + matchStartTime);
+						}
+					}
+				}
+				
+				// Only do this messy estimation if we couldn't find a start time with ID matching
+				if (!lastQualityTimeMatchFound)
+				{
+					matchStartTime += targetSegments[targetSegments.length - 1].duration * 0.5;
+					
+					// Let the console know that we might have a problem
+					trace("Warning: Estimating playlist start time. Estimated start time: " + matchStartTime);
+				}
 				
 				// Make a completely new buffer, we don't want the elements in the segment buffer to have a gap
 				if (newSegments.length < HLSManifestParser.MAX_SEG_BUFFER)
