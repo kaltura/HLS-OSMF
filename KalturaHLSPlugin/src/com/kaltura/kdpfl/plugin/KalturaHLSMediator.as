@@ -1,18 +1,24 @@
 package com.kaltura.kdpfl.plugin
 {
-	import org.puremvc.as3.patterns.mediator.Mediator;
+	import com.kaltura.hls.SubtitleTrait;
 	import com.kaltura.kdpfl.model.MediaProxy;
 	import com.kaltura.kdpfl.model.type.NotificationType;
-	import org.puremvc.as3.interfaces.INotification;
-	import org.osmf.traits.MediaTraitType;
+	import com.kaltura.kdpfl.view.controls.KTrace;
+	
+	import org.osmf.events.MediaElementEvent;
 	import org.osmf.traits.DVRTrait;
+	import org.osmf.traits.MediaTraitType;
+	import org.puremvc.as3.interfaces.INotification;
+	import org.puremvc.as3.patterns.mediator.Mediator;
 	
 	public class KalturaHLSMediator extends Mediator
 	{
 		public static const NAME:String = "KalturaHLSMediator";
 		public static const HLS_END_LIST:String = "hlsEndList";
+		public static const HLS_TRACK_SWITCH:String = "doTextTrackSwitch";
 		
 		private var _mediaProxy:MediaProxy;
+		private var _subtitleTrait:SubtitleTrait;
 		
 		public function KalturaHLSMediator( viewComponent:Object=null)
 		{
@@ -28,7 +34,9 @@ package com.kaltura.kdpfl.plugin
 		override public function listNotificationInterests():Array
 		{
 			return [
-				NotificationType.DURATION_CHANGE
+				NotificationType.DURATION_CHANGE,
+				NotificationType.MEDIA_ELEMENT_READY,
+				HLS_TRACK_SWITCH
 			];
 		}
 		
@@ -45,6 +53,36 @@ package com.kaltura.kdpfl.plugin
 				} 
 			}
 			
+			if ( notification.getName() == NotificationType.MEDIA_ELEMENT_READY ) {
+				_mediaProxy.vo.media.addEventListener(MediaElementEvent.TRAIT_ADD, getSubtitleTrait);
+			}
+			
+			if ( notification.getName() == HLS_TRACK_SWITCH ) {
+				if ( _subtitleTrait && notification.getBody() && notification.getBody().hasOwnProperty("textIndex"))
+					_subtitleTrait.language = _subtitleTrait.languages[ notification.getBody().textIndex ];
+				else
+					KTrace.getInstance().log("KalturaHLSMediator :: doTextTrackSwitch >> subtitleTrait or textIndex error.");
+			}
+			
 		}
+		
+		protected function getSubtitleTrait(event:MediaElementEvent):void
+		{
+			if(event.traitType == SubtitleTrait.TYPE){
+				_mediaProxy.vo.media.removeEventListener(MediaElementEvent.TRAIT_ADD, getSubtitleTrait);
+				_subtitleTrait = _mediaProxy.vo.media.getTrait( SubtitleTrait.TYPE ) as SubtitleTrait;
+				if ( _subtitleTrait && _subtitleTrait.languages.length > 0 )
+				{
+					var langArray:Array = new Array();
+					var i:int = 0;
+					while (i < _subtitleTrait.languages.length){
+						langArray.push({"label":_subtitleTrait.languages[0], "index": i++});
+					}
+					
+					sendNotification("textTracksReceived", {languages:langArray});
+				}	
+			}
+		}		
+		
 	}
 }
