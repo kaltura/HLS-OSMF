@@ -476,7 +476,10 @@ package com.kaltura.hls.m2ts
 			var captionObject:Array = ["onCaptionInfo", { type:"WebVTT", data:captionBuffer }];
 			sendScriptDataFLVTag( timeStamp * 1000, captionObject);
 			
-			var subtitleObject:Array = ["onTextData", { text:captionBuffer, lang:lang, textid:textid }];
+			// We need to strip the timestamp off of the text data
+			captionBuffer = captionBuffer.slice(captionBuffer.indexOf('\n') + 1);
+			
+			var subtitleObject:Array = ["onTextData", { text:captionBuffer, language:lang, trackid:textid }];
 			sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
 		}
 		
