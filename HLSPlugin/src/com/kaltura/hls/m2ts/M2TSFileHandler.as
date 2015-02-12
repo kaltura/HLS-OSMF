@@ -286,15 +286,12 @@ package com.kaltura.hls.m2ts
 			_lastFLVMessageTime = timestampSeconds;
 			
 			// If timer was reset due to seek, reset last subtitle time
-<<<<<<< HEAD
-			if ( _lastInjectedSubtitleTime == -1 || !_lastInjectedSubtitleTime) _lastInjectedSubtitleTime = lastMsgTime;
-=======
+
 			if(timestampSeconds < _lastInjectedSubtitleTime)
 			{
 				trace("Bumping back on subtitle threshold.")
 				_lastInjectedSubtitleTime = timestampSeconds;
 			} 
->>>>>>> master
 			
 			// Inject any subtitle tags between messages
 			injectSubtitles( _lastInjectedSubtitleTime + 0.001, timestampSeconds );
