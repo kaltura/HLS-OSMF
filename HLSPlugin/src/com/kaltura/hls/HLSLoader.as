@@ -45,6 +45,7 @@ package com.kaltura.hls
 			super();
 			
 			supportedMimeTypes.push( "application/x-mpegURL" );
+			supportedMimeTypes.push( "application/vnd.apple.mpegURL" );
 			supportedMimeTypes.push( "vnd.apple.mpegURL" );
 			supportedMimeTypes.push( "video/MP2T" );
 		}

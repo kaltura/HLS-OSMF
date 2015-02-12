@@ -755,11 +755,29 @@ package org.osmf.net.httpstreaming
 						case HTTPStreamingState.WAIT:
 							// if we are getting dry then go back into
 							// active play mode and get more bytes 
-							// from the stream provider						
+							// from the stream provider
 							if (!_waitForDRM && (this.bufferLength < _desiredBufferTime_Min || checkIfExtraBufferingNeeded()))
 							{
 								setState(HTTPStreamingState.PLAY);
 							}
+							
+							// Reset a timer every time this code is reached. If this code is NOT reached for a significant amount of time, it means
+							// we are attempting to stream a quality level that is too high for the current bandwidth, and should switch to the lowest
+							// quality, as a precaution.
+							if (!streamTooSlowTimer)
+							{
+								// If the timer doesn't yet exist, create it, setting the delay to twice the maximum desired buffer time
+								streamTooSlowTimer = new Timer(_desiredBufferTime_Max * 2000);
+
+								streamTooSlowTimer.addEventListener(TimerEvent.TIMER, function(timerEvent:TimerEvent = null):void {
+									// If this event is hit, set the quality level to the lowest available quality level
+									trace("Warning: Buffer Time of " + _desiredBufferTime_Max * 2 + " seconds exceeded. Switching to quality 0");
+									changeQualityLevelTo((_resource as HLSStreamingResource).manifest.streams[0].uri);
+								});
+							}
+							streamTooSlowTimer.reset();
+							streamTooSlowTimer.start();
+									
 							break;
 						
 						case HTTPStreamingState.SEEK:
@@ -909,7 +927,7 @@ package org.osmf.net.httpstreaming
 										recoveryStateNum = URLErrorRecoveryStates.IDLE;
 										recoveryDelayTimer.reset();
 									}
-									
+
 									if (_waitForDRM)
 									{
 										setState(HTTPStreamingState.WAIT);
@@ -2120,6 +2138,8 @@ package org.osmf.net.httpstreaming
 			private var recoveryBufferMin:Number = 2;// how low the bufferTime can get in seconds before we start trying to recover a stream by seeking
 			private var recoveryDelayTimer:Timer = new Timer(0); // timer that will be set to the required delay of reload attempts in the case of a URL error
 			private var gotBytes:Boolean = false;// If we got bytes- marks a stream that we should attempt to recover
+			
+			private var streamTooSlowTimer:Timer;
 			
 			public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
 			public static var indexHandler:HLSIndexHandler;// a reference to the active index handler. Used to update the quality list after a change.

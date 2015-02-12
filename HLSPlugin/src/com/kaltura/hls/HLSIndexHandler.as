@@ -239,9 +239,12 @@ package com.kaltura.hls
 					trace("WARNING: newManifest has 0 segments");
 					return;
 				}
-					
+				
 				// Set the timer delay to the most likely possible delay
-				if (reloadTimer) reloadTimer.delay = newManifest.segments[newManifest.segments.length - 1].duration * 1000;
+				if (reloadTimer && newManifest.segments.length > 0)
+				{
+					reloadTimer.delay = newManifest.segments[newManifest.segments.length - 1].duration * 1000;
+				} 
 				
 				// remove the reload completed listener since this might become the new manifest
 				newManifest.removeEventListener(Event.COMPLETE, onReloadComplete);
@@ -283,7 +286,8 @@ package com.kaltura.hls
 		
 		private function updateNewManifestSegments(newManifest:HLSManifestParser, quality:int):Boolean
 		{
-			if (newManifest == null || newManifest.segments.length == 0) return true;
+			if (newManifest == null || newManifest.segments.length == 0) 
+				return true;
 	
 			var lastQualityManifest:HLSManifestParser = getManifestForQuality(lastQuality);
 			var targetManifest:HLSManifestParser = quality == -1 ? primaryStream.backupStream.manifest : getManifestForQuality(quality);
@@ -306,6 +310,12 @@ package com.kaltura.hls
 			
 			var newSegments:Vector.<HLSManifestSegment> = newManifest.segments;
 			
+			if(lastSegmentIndex >= lastQualitySegments.length)
+				lastSegmentIndex = lastQualitySegments.length - 1;
+
+			if(lastSegmentIndex < 0)
+				return true;
+
 			var matchSegment:HLSManifestSegment = lastQualitySegments[lastSegmentIndex];
 			
 			// Add the new manifest segments to the targetManifest
@@ -314,16 +324,24 @@ package com.kaltura.hls
 			//  2) Determine the last segment index in the new segment list
 			
 			// Find the point where the new segments id matches the old segment id
-			var matchId:int = targetSegments[targetSegments.length - 1].id;
-			var matchIndex:int = -1;
-			var matchStartTime:Number = lastKnownPlaylistStartTime;
-			for (var i:int = newSegments.length - 1; i >= 0; i--)
+			try
 			{
-				if (newSegments[i].id == matchId)
+				var matchId:int = targetSegments[targetSegments.length - 1].id;
+				var matchIndex:int = -1;
+				var matchStartTime:Number = lastKnownPlaylistStartTime;
+				for (var i:int = newSegments.length - 1; i >= 0; i--)
 				{
-					matchIndex = i;
-					break;
-				}
+					if (newSegments[i].id == matchId)
+					{
+						matchIndex = i;
+						break;
+					}
+				}				
+			}
+			catch(e:Error)
+			{
+				trace("Error handling target segment lookup.");
+				return true;
 			}
 			
 			// We only need to make additional calculations if we were able to find a point where the segments matched up

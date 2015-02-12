@@ -248,8 +248,7 @@ package com.kaltura.hls.manifest
 				timeAccum += segments[m].duration;
 			}
 			
-			if(manifestLoaders.length == 0)
-				dispatchEvent(new Event(Event.COMPLETE));
+			announceIfComplete();
 		}
 		
 		private function verifyManifestItemIntegrity():void

@@ -286,7 +286,15 @@ package com.kaltura.hls.m2ts
 			_lastFLVMessageTime = timestampSeconds;
 			
 			// If timer was reset due to seek, reset last subtitle time
+<<<<<<< HEAD
 			if ( _lastInjectedSubtitleTime == -1 || !_lastInjectedSubtitleTime) _lastInjectedSubtitleTime = lastMsgTime;
+=======
+			if(timestampSeconds < _lastInjectedSubtitleTime)
+			{
+				trace("Bumping back on subtitle threshold.")
+				_lastInjectedSubtitleTime = timestampSeconds;
+			} 
+>>>>>>> master
 			
 			// Inject any subtitle tags between messages
 			injectSubtitles( _lastInjectedSubtitleTime + 0.001, timestampSeconds );
@@ -295,9 +303,15 @@ package com.kaltura.hls.m2ts
 			
 			_buffer.writeBytes(message);
 		}
+
+		protected var _lastCue:TextTrackCue = null;
 		
 		private function injectSubtitles( startTime:Number, endTime:Number ):void
 		{
+			//if(startTime > endTime) trace("***** BAD BEHAVIOR " + startTime + " " + endTime);
+
+			//trace("Inject subtitles " + startTime + " " + endTime);
+
 			// Early out if no subtitles, no time has elapsed or we are already injecting subtitles
 			if ( !subtitleTrait || endTime - startTime <= 0 || _injectingSubtitles ) return;
 			
@@ -313,15 +327,28 @@ package com.kaltura.hls.m2ts
 				if ( subtitle.startTime > endTime ) break;
 				var cues:Vector.<TextTrackCue> = subtitle.textTrackCues;
 				var cueCount:int = cues.length;
+				
+				var potentials:Vector.<TextTrackCue> = new Vector.<TextTrackCue>();
+
 				for ( var j:int = 0; j < cueCount; j++ )
 				{
 					var cue:TextTrackCue = cues[ j ];
 					if ( cue.startTime > endTime ) break;
 					else if ( cue.startTime >= startTime )
 					{
-						// TODO: Add support for trackid
+						potentials.push(cue);
+					}
+				}
+
+				if(potentials.length > 0)
+				{
+					// TODO: Add support for trackid
+					cue = potentials[potentials.length - 1];
+					if(cue != _lastCue)
+					{
 						_converter.createAndSendCaptionMessage( cue.startTime, cue.buffer, subtitleTrait.language );
 						_lastInjectedSubtitleTime = cue.startTime;
+						_lastCue = cue;						
 					}
 				}
 			}
