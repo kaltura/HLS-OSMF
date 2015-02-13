@@ -303,11 +303,12 @@
 				}
 				
 				var subtitleTrait:SubtitleTrait = element.getTrait( SubtitleTrait.TYPE ) as SubtitleTrait;
+				
+				// Give the statistics window the subtitle Trait so it can turn them on and off
+				statisticsWindow.subtitleTrait = subtitleTrait;
+				
 				if ( subtitleTrait && subtitleTrait.languages.length > 0 )
 				{
-					// Default to the first language encountered
-					subtitleTrait.language = subtitleTrait.languages[ 0 ];
-					
 					// Listen for the onTextData event
 					var localElem:MediaElement = element;
 					while (localElem is ProxyElement)
