@@ -119,7 +119,7 @@ package com.kaltura.hls.m2ts
 		
 		private function convertFLVTimestamp(ts:Number):uint
 		{
-			return uint((ts / 90.0) + 0.5);
+			return uint(ts) / 90;
 		}
 		
 		public function onOtherElementaryPacket(packetID:uint, type:uint, pts:Number, dts:Number, cursor:uint, bytes:ByteArray):void
@@ -138,6 +138,8 @@ package com.kaltura.hls.m2ts
 		
 		public function onAACPacket(timestamp:Number, bytes:ByteArray, cursor:uint, length:uint):void
 		{
+			trace("ENTER onAACPacket " + timestamp + "," + cursor + "," + length );
+
 			var timeAccumulation:Number = 0.0;
 			var limit:uint;
 			var stream:ByteArray;
@@ -246,6 +248,7 @@ package com.kaltura.hls.m2ts
 					var flvts:uint = convertFLVTimestamp(timestamp + timeAccumulation);
 					
 					sendAACConfigFLVTag(flvts, profile, sampleRateIndex, channelConfig);
+					trace("Sending AAC");
 					sendFLVTag(flvts, FLVTags.TYPE_AUDIO, FLVTags.AUDIO_CODEC_AAC, FLVTags.AAC_MODE_FRAME, stream, cursor + FLVTags.ADTS_FRAME_HEADER_LENGTH, frameLength - FLVTags.ADTS_FRAME_HEADER_LENGTH);
 					
 					timeAccumulation += (1024.0 / sampleRate) * 90000.0; // account for the duration of this frame
@@ -262,9 +265,11 @@ package com.kaltura.hls.m2ts
 			
 			if(cursor < limit)
 			{
+				trace("AAC timestamp was " + _aacTimestamp);
 				_aacRemainder = new ByteArray();
 				_aacRemainder.writeBytes(stream, cursor, limit - cursor);
 				_aacTimestamp = timestamp + timeAccumulation;
+				trace("AAC timestamp now " + _aacTimestamp);
 			}
 		}
 		
@@ -337,6 +342,14 @@ package com.kaltura.hls.m2ts
 			sendFLVTag(flvts, FLVTags.TYPE_SCRIPTDATA, -1, -1, bytes, 0, bytes.length);
 		}
 		
+		static var passFirst:int = 10;
+		static var flvBuffer:Array = [];
+
+		//sorting function
+		public function randomSort(objA:Object, objB:Object):int{
+		    return Math.round(Math.random() * 2) - 1;
+		}
+
 		private function sendFLVTag(flvts:uint, type:uint, codec:int, mode:int, bytes:ByteArray, offset:uint, length:uint):void
 		{
 			var tag:ByteArray = new ByteArray();
@@ -373,7 +386,40 @@ package com.kaltura.hls.m2ts
 			tag[cursor++] = (msgLength >> 16) & 0xff;
 			tag[cursor++] = (msgLength >>  8) & 0xff;
 			tag[cursor++] = (msgLength      ) & 0xff;
+
+
 			
+if(false) {
+			if(type != FLVTags.TYPE_AUDIO)
+			{
+				trace("SKIPPING NON-AUDIO TAG! ***********************");
+				return;
+			}
+
+			// Randomize things.
+			if(passFirst > 0)
+			{
+				// NOP first few things.
+				passFirst--;
+			}
+			else
+			{
+				// Push until we have 5 then start pulling random items.
+				flvBuffer.push([flvts, tag]);
+				if(flvBuffer.length < 5)
+					return;
+
+				flvBuffer.sort(randomSort);
+				var outItem:Array = flvBuffer.pop() as Array;
+				if(outItem)
+				{
+					_handler(outItem[0], outItem[1]);
+				}
+			}
+			return;
+}
+			trace("FLV Emit " + flvts);
+
 			_handler(flvts, tag);
 		}
 		
@@ -421,6 +467,8 @@ package com.kaltura.hls.m2ts
 		
 		private function sendCompleteAVCFLVTag(pts:Number, dts:Number):void
 		{
+			trace("pts = " + pts + " dts = " + dts + " V");
+			
 			var flvts:uint = convertFLVTimestamp(dts);
 			var tsu:uint = convertFLVTimestamp(pts - dts);
 			var tmp:ByteArray = new ByteArray;
