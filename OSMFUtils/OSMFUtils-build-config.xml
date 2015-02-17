@@ -33,7 +33,7 @@
       
       <!-- List of path elements that form the roots of ActionScript class hierarchies. -->
       <source-path>
-         <path-element>.</path-element>
+         <path-element>src</path-element>
       </source-path>
  
 

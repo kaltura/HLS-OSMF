@@ -1,7 +1,5 @@
 package com.kaltura.hls.m2ts
-{
-	import com.kaltura.hls.subtitles.SubTitleParser;
-	
+{	
 	import flash.utils.ByteArray;
 	
 	/**
@@ -124,12 +122,18 @@ package com.kaltura.hls.m2ts
 			
 			while(true)
 			{
+				var scanCount:int = 0;
 				while(cursor + 187 < len)
 				{
 					if(0x47 == _buffer[cursor])  // search for TS sync byte
 						break;
+
 					cursor++;
+					scanCount++;
 				}
+
+				if(scanCount > 0)
+					trace("WARNING: appendBytes - skipped " + scanCount + " bytes to sync point.");
 				
 				if(cursor + 188 > len)
 					break;
@@ -186,6 +190,7 @@ package com.kaltura.hls.m2ts
 				case 0x1fff:
 					break; // padding
 				default:
+					//trace("parseTSPacket - Saw packet ID " + packetID + " at "  + cursor + " start " + payloadStart + " headerLen=" + headerLength + " payloadLen=" + payloadLength);
 					parseTSPayload(packetID, payloadStart, continuityCounter, discontinuity, cursor + headerLength, payloadLength);
 					break;
 			}
@@ -283,8 +288,13 @@ package com.kaltura.hls.m2ts
 		private function parseAACPacket(pts:Number, dts:Number, cursor:uint, bytes:ByteArray, flushing:Boolean):uint
 		{
 			if(bytes.length - cursor < 7)
+			{
+				trace("Only got " + bytes.length + " against " + cursor + " so aborting AAC parse");
 				return cursor;
+			}
 			
+			//trace("pts = " + pts + " dts = " + dts + " A");
+
 			_callbacks.onAACPacket(pts, bytes, cursor, bytes.length - cursor);
 
 			return bytes.length;
@@ -296,6 +306,9 @@ package com.kaltura.hls.m2ts
 			var end:int;
 			var naluLength:uint;
 			
+			// We always flush because many PES packets don't have trailing NALU.
+			//flushing  = true;
+
 			start = scanForNALUStart(start, bytes);
 			while(start >= 0)
 			{
@@ -305,7 +318,10 @@ package com.kaltura.hls.m2ts
 				else if(flushing)
 					naluLength = bytes.length - start;
 				else
+				{
+					//trace("parseAVCPAcket - Exiting due to no NALU before end");
 					break;
+				}
 				
 				_callbacks.onAVCNALU(pts, dts, bytes, uint(start), naluLength);
 				
@@ -326,6 +342,8 @@ package com.kaltura.hls.m2ts
 			var pts:Number = pes._pts;
 			var dts:Number = pes._dts;
 			
+			//trace("parsePESPacketStreamComplete - pts=" + pts + ", dst=" + dts + ", type=" + _types[packetID] + ", bufferLength=" + bytes.length);
+
 			switch(_types[packetID])
 			{
 				case 0x03: // ISO 11172-3 MP3 audio
@@ -342,11 +360,13 @@ package com.kaltura.hls.m2ts
 					break;
 					
 				default:
+					//trace("Handling other type");
 					_callbacks.onOtherElementaryPacket(packetID, _types[packetID], pts, dts, cursor, bytes);
 					cursor = bytes.length;
 					break;
 			}
 			
+			//trace("Consumed " + cursor + " bytes");
 			pes.shiftLeft(cursor);
 		}
 		
@@ -378,14 +398,18 @@ package com.kaltura.hls.m2ts
 			
 			if(packetLength)
 			{
-				if(bytes.length > packetLength + 6)
-					bytes.length = packetLength + 6; // eliminate any padding
-				else if(bytes.length < packetLength + 6)
+				if(bytes.length < packetLength )
+				{
+					trace("WARNING: parsePESPacket - not enough bytes, expecting " + (packetLength) + ", but have " + bytes.length);
 					return; // not enough bytes in packet
+				}
 			}
 			
 			if(bytes.length < 9)
+			{
+				trace("WARNING: parsePESPacket - too short");
 				return;
+			}
 			
 			var dataAlignment:Boolean = (bytes[cursor] & 0x04) != 0;
 			cursor++;
@@ -434,15 +458,24 @@ package com.kaltura.hls.m2ts
 			}
 			cursor += pesHeaderDataLength;
 			if(cursor > bytes.length)
+			{
+				trace("WARNING: parsePESPacket - out 1");
 				return;
+			}
 			
 			if(_types[packetID] == undefined)
+			{
+				trace("WARNING: parsePESPacket - out 2");
 				return;
+			}
 			
 			if(_pesPackets[packetID] == undefined)
 			{
 				if(dts < 0.0)
+				{
+					trace("WARNING: parsePESPacket - out 3");
 					return;
+				}
 				
 				pes = new PESPacketStream(pts, dts);
 				_pesPackets[packetID] = pes;
@@ -452,20 +485,24 @@ package com.kaltura.hls.m2ts
 				pes = _pesPackets[packetID];
 			}
 			
-			if( (pts >= 0.0) && (pts != pes._pts))
-			{
-				parsePESPacketStreamComplete(pes, packetID, false);
-				pes._pts = pts;
-				pes._dts = dts;
-			}
-
+			//trace("Appending " + bytes.length + ", cursor=" + cursor);
+			pes._buffer.position = pes._buffer.length; // - 1 > 0 ? pes._buffer.length - 1 : 0;
 			pes._buffer.writeBytes(bytes, cursor);
+
+			//trace("TRIGGERING COMPLETE PES STREAM");
+			pes._pts = pts;
+			pes._dts = dts;
+			parsePESPacketStreamComplete(pes, packetID, false);
+
 		}
 		
 		private function handlePacketComplete(packetID:uint, bytes:ByteArray):void
 		{
 			if(bytes.length < 3)
+			{
+				trace("WARNING: handlePacketComplete - too short packet");
 				return;
+			}
 
 			if( (bytes[0] == 0x00)
 			 && (bytes[1] == 0x00)
@@ -487,11 +524,16 @@ package com.kaltura.hls.m2ts
 			if( (remaining < 23)
 			 || (bytes[cursor] != 0x02)
 			 || ((bytes[cursor + 1] & 0xfc)) != 0xb0)
+			{
+				//trace("handlePacketComplete - Firing other callback for " + remaining + " bytes.");
 				_callbacks.onOtherPacket(packetID, bytes);
+			}
 		}
 		
 		private function onPacketProgress(packetID:uint, bytes:ByteArray):Boolean
 		{
+			//trace("packet progress " + packetID + " len=" + bytes.length);
+
 			// Too short?
 			if(bytes.length < 3)
 				return false;
@@ -541,25 +583,37 @@ internal class PacketStream
 			// Ignore duplicate packets.
 			if( (!payloadStart)
 			 && (!discontinuity))
+			{
+				trace("WARNING: duplicate packet!");
 				return; // duplicate
+			}
 		}
 		
 		if(payloadStart)
 		{
+			if(_buffer.length > 0)
+				trace("WARNING: Flushed due to payloadStart flag, didn't predict length properly!");
 			onPacketComplete(onComplete);
 		}
 		else
 		{
 			if(_lastContinuity < 0)
+			{
+				trace("WARNING: Saw discontinuous packet!");
 				return;
+			}
 			
 			if( (((_lastContinuity + 1) & 0x0f) != continuityCounter) && !discontinuity)
 			{
 				// Corrupt packet - skip it.
+				trace("WARNING: Saw corrupt packet!");
 				_buffer.length = 0;
 				_lastContinuity = -1;
 				return;
 			}
+
+			if(_buffer.length == 0 && length > 0)
+				trace("WARNING: Got new bytes without PUSI set!");
 		}
 		
 		_buffer.position = _buffer.length;
@@ -573,15 +627,38 @@ internal class PacketStream
 		 && (_buffer.length > 1)
 		 && (onProgress(_packetID, _buffer)))
 		{
+			//trace("RESETTING BUFFER FOR " + _packetID +", tossing " + _buffer.length + " bytes");
 			_buffer.length = 0;
 			_lastContinuity = -1;
+		}
+
+		// Check to see if we can fire a complete PES packet...
+		if(_buffer.length > 5)
+		{
+			// Extract length...
+			var packetLength:uint = ((_buffer[4] << 8) + _buffer[5]);
+
+			// Check against observed payload.
+			if(packetLength > 0)
+			{
+				//trace("looking for length of "  + (packetLength+6) + " and had length of " + _buffer.length);
+				if(_buffer.length >= packetLength + 6)
+				{
+					if(_buffer.length > packetLength + 6)
+						trace("WARNING: Got buffer strictly longer than expected. This is OK when on first packet of stream.");
+					onPacketComplete(onComplete);
+				}				
+			}
 		}
 	}
 	
 	private function onPacketComplete(onComplete:Function):void
 	{
 		if(_buffer.length > 1)
+		{
+			//trace("onPacketComplete -- FLUSH " + _packetID + " length=" + _buffer.length);
 			onComplete(_packetID, _buffer);
+		}
 		
 		_buffer.length = 0;
 	}
@@ -590,6 +667,7 @@ internal class PacketStream
 	private var _bufferLength:uint;
 	private var _packetID:uint;
 	private var _lastContinuity:int;
+	private var _isPayloadNotPsi:Boolean;
 }
 
 /**
