@@ -1550,7 +1550,7 @@ package org.osmf.net.httpstreaming
 							// and then pass through the rest of the segment
 							bytes = new ByteArray();
 							_flvParser.flush(bytes);
-							trace("Flushing " + bytes.length);
+							//trace("Flushing " + bytes.length);
 							_flvParser = null;	
 						}
 					}
@@ -1742,7 +1742,7 @@ package org.osmf.net.httpstreaming
 							bytes = new ByteArray();
 							tag.write(bytes);
 							_flvParserProcessed += bytes.length;
-							trace("[1] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
+							//trace("[1] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
 							attemptAppendBytes(bytes);
 							
 							if (_playForDuration >= 0)
@@ -1763,7 +1763,7 @@ package org.osmf.net.httpstreaming
 					// finally, pass this one on to appendBytes...
 					var bytes:ByteArray = new ByteArray();
 					tag.write(bytes);
-					trace("[2] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
+					//trace("[2] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
 					attemptAppendBytes(bytes);
 					_flvParserProcessed += bytes.length;
 					
