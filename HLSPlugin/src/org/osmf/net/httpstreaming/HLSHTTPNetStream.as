@@ -770,6 +770,17 @@ package org.osmf.net.httpstreaming
 								streamTooSlowTimer = new Timer(_desiredBufferTime_Max * 2000);
 
 								streamTooSlowTimer.addEventListener(TimerEvent.TIMER, function(timerEvent:TimerEvent = null):void {
+
+									// Check we have a valid stream to switch to.
+									if(!(_resource as HLSStreamingResource))
+										return;
+
+									if((_resource as HLSStreamingResource).manifest == null)
+										return;
+
+									if((_resource as HLSStreamingResource).manifest.streams.length < 1)
+										return;
+
 									// If this event is hit, set the quality level to the lowest available quality level
 									trace("Warning: Buffer Time of " + _desiredBufferTime_Max * 2 + " seconds exceeded. Switching to quality 0");
 									changeQualityLevelTo((_resource as HLSStreamingResource).manifest.streams[0].uri);
@@ -1526,7 +1537,7 @@ package org.osmf.net.httpstreaming
 						// we need to parse the initial bytes
 						_flvParserProcessed = 0;
 						inBytes.position = 0;	
-						_flvParser.parse(inBytes, true, onTag);	
+						_flvParser.parse(inBytes, true, onTag);
 						processed += _flvParserProcessed;
 						if(!_flvParserDone)
 						{
@@ -1539,6 +1550,7 @@ package org.osmf.net.httpstreaming
 							// and then pass through the rest of the segment
 							bytes = new ByteArray();
 							_flvParser.flush(bytes);
+							//trace("Flushing " + bytes.length);
 							_flvParser = null;	
 						}
 					}
@@ -1730,6 +1742,7 @@ package org.osmf.net.httpstreaming
 							bytes = new ByteArray();
 							tag.write(bytes);
 							_flvParserProcessed += bytes.length;
+							//trace("[1] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
 							attemptAppendBytes(bytes);
 							
 							if (_playForDuration >= 0)
@@ -1750,6 +1763,7 @@ package org.osmf.net.httpstreaming
 					// finally, pass this one on to appendBytes...
 					var bytes:ByteArray = new ByteArray();
 					tag.write(bytes);
+					//trace("[2] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
 					attemptAppendBytes(bytes);
 					_flvParserProcessed += bytes.length;
 					

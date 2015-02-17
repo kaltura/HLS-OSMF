@@ -198,10 +198,10 @@ package com.kaltura.hls.m2ts
 			// If it's AAC, process it.
 			if(AACParser.probe(tmp))
 			{
-				trace("GOT AAC " + tmp.bytesAvailable);
+				//trace("GOT AAC " + tmp.bytesAvailable);
 				var aac:AACParser = new AACParser();
 				aac.parse(tmp, _fragReadHandler);
-				trace("    - returned " + _fragReadBuffer.length + " bytes!");
+				//trace("    - returned " + _fragReadBuffer.length + " bytes!");
 				_fragReadBuffer.position = 0;
 				return _fragReadBuffer;
 			}
@@ -243,7 +243,9 @@ package com.kaltura.hls.m2ts
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			
 			if(elapsed <= 0.0 && _extendedIndexHandler)
+			{
 				elapsed = _extendedIndexHandler.getTargetSegmentDuration(); // XXX fudge hack!
+			}
 			
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.FRAGMENT_DURATION, false, false, elapsed));
 			
@@ -267,9 +269,13 @@ package com.kaltura.hls.m2ts
 			if(timestamp < _timeOrigin)
 				_timeOrigin = timestamp;
 			
+			//trace("PRE TIMESTAMP " + timestamp + " for " + message[0]);
+
 			timestamp = (timestamp - _timeOrigin) + _firstSeekTime;
 			
 			var timestampSeconds:Number = timestamp / 1000.0;
+
+			//trace("ENCODED TIMESTAMP " + timestampSeconds);
 
 			// Encode the timestamp.
 			message[6] = (timestamp      ) & 0xff;

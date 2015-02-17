@@ -316,7 +316,7 @@ package com.kaltura.hls
 			if(lastSegmentIndex < 0)
 				return true;
 
-			var matchSegment:HLSManifestSegment = lastQualitySegments[lastSegmentIndex];
+			var matchSegment:HLSManifestSegment = lastQualitySegments[lastSegmentIndex < lastQualitySegments.length ? lastSegmentIndex : lastQualitySegments.length -1];
 			
 			// Add the new manifest segments to the targetManifest
 			// Tasks: (in order)
