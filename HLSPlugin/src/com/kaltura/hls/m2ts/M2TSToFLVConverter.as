@@ -138,7 +138,7 @@ package com.kaltura.hls.m2ts
 		
 		public function onAACPacket(timestamp:Number, bytes:ByteArray, cursor:uint, length:uint):void
 		{
-			trace("ENTER onAACPacket " + timestamp + "," + cursor + "," + length );
+			//trace("ENTER onAACPacket " + timestamp + "," + cursor + "," + length );
 
 			var timeAccumulation:Number = 0.0;
 			var limit:uint;
@@ -248,7 +248,7 @@ package com.kaltura.hls.m2ts
 					var flvts:uint = convertFLVTimestamp(timestamp + timeAccumulation);
 					
 					sendAACConfigFLVTag(flvts, profile, sampleRateIndex, channelConfig);
-					trace("Sending AAC");
+					//trace("Sending AAC");
 					sendFLVTag(flvts, FLVTags.TYPE_AUDIO, FLVTags.AUDIO_CODEC_AAC, FLVTags.AAC_MODE_FRAME, stream, cursor + FLVTags.ADTS_FRAME_HEADER_LENGTH, frameLength - FLVTags.ADTS_FRAME_HEADER_LENGTH);
 					
 					timeAccumulation += (1024.0 / sampleRate) * 90000.0; // account for the duration of this frame
@@ -265,11 +265,11 @@ package com.kaltura.hls.m2ts
 			
 			if(cursor < limit)
 			{
-				trace("AAC timestamp was " + _aacTimestamp);
+				//trace("AAC timestamp was " + _aacTimestamp);
 				_aacRemainder = new ByteArray();
 				_aacRemainder.writeBytes(stream, cursor, limit - cursor);
 				_aacTimestamp = timestamp + timeAccumulation;
-				trace("AAC timestamp now " + _aacTimestamp);
+				//trace("AAC timestamp now " + _aacTimestamp);
 			}
 		}
 		
@@ -388,7 +388,7 @@ package com.kaltura.hls.m2ts
 			tag[cursor++] = (msgLength      ) & 0xff;
 
 
-			
+// Useful filtering/debug code.			
 if(false) {
 			if(type != FLVTags.TYPE_AUDIO)
 			{
@@ -418,7 +418,7 @@ if(false) {
 			}
 			return;
 }
-			trace("FLV Emit " + flvts);
+			//trace("FLV Emit " + flvts);
 
 			_handler(flvts, tag);
 		}
@@ -467,7 +467,7 @@ if(false) {
 		
 		private function sendCompleteAVCFLVTag(pts:Number, dts:Number):void
 		{
-			trace("pts = " + pts + " dts = " + dts + " V");
+			//trace("pts = " + pts + " dts = " + dts + " V");
 			
 			var flvts:uint = convertFLVTimestamp(dts);
 			var tsu:uint = convertFLVTimestamp(pts - dts);

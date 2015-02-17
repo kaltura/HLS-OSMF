@@ -133,7 +133,7 @@ package com.kaltura.hls.m2ts
 				}
 
 				if(scanCount > 0)
-					trace("appendBytes - skipped " + scanCount + " bytes to sync point.");
+					trace("WARNING: appendBytes - skipped " + scanCount + " bytes to sync point.");
 				
 				if(cursor + 188 > len)
 					break;
@@ -190,11 +190,8 @@ package com.kaltura.hls.m2ts
 				case 0x1fff:
 					break; // padding
 				default:
-					if(packetID != 291)
-					{
-						trace("parseTSPacket - Saw packet ID " + packetID + " at "  + cursor + " start " + payloadStart + " headerLen=" + headerLength + " payloadLen=" + payloadLength);
-						parseTSPayload(packetID, payloadStart, continuityCounter, discontinuity, cursor + headerLength, payloadLength);
-					}
+					//trace("parseTSPacket - Saw packet ID " + packetID + " at "  + cursor + " start " + payloadStart + " headerLen=" + headerLength + " payloadLen=" + payloadLength);
+					parseTSPayload(packetID, payloadStart, continuityCounter, discontinuity, cursor + headerLength, payloadLength);
 					break;
 			}
 		}
@@ -296,7 +293,7 @@ package com.kaltura.hls.m2ts
 				return cursor;
 			}
 			
-			trace("pts = " + pts + " dts = " + dts + " A");
+			//trace("pts = " + pts + " dts = " + dts + " A");
 
 			_callbacks.onAACPacket(pts, bytes, cursor, bytes.length - cursor);
 
@@ -322,7 +319,7 @@ package com.kaltura.hls.m2ts
 					naluLength = bytes.length - start;
 				else
 				{
-					trace("Exiting due to no NALU before end");
+					//trace("parseAVCPAcket - Exiting due to no NALU before end");
 					break;
 				}
 				
@@ -345,7 +342,7 @@ package com.kaltura.hls.m2ts
 			var pts:Number = pes._pts;
 			var dts:Number = pes._dts;
 			
-			trace("parsePESPacketStreamComplete - pts=" + pts + ", dst=" + dts + ", type=" + _types[packetID] + ", bufferLength=" + bytes.length);
+			//trace("parsePESPacketStreamComplete - pts=" + pts + ", dst=" + dts + ", type=" + _types[packetID] + ", bufferLength=" + bytes.length);
 
 			switch(_types[packetID])
 			{
@@ -363,13 +360,13 @@ package com.kaltura.hls.m2ts
 					break;
 					
 				default:
-					trace("Handling other type");
+					//trace("Handling other type");
 					_callbacks.onOtherElementaryPacket(packetID, _types[packetID], pts, dts, cursor, bytes);
 					cursor = bytes.length;
 					break;
 			}
 			
-			trace("Consumed " + cursor + " bytes");
+			//trace("Consumed " + cursor + " bytes");
 			pes.shiftLeft(cursor);
 		}
 		
@@ -488,11 +485,11 @@ package com.kaltura.hls.m2ts
 				pes = _pesPackets[packetID];
 			}
 			
-			trace("Appending " + bytes.length + ", cursor=" + cursor);
+			//trace("Appending " + bytes.length + ", cursor=" + cursor);
 			pes._buffer.position = pes._buffer.length; // - 1 > 0 ? pes._buffer.length - 1 : 0;
 			pes._buffer.writeBytes(bytes, cursor);
 
-			trace("TRIGGERING COMPLETE PES STREAM");
+			//trace("TRIGGERING COMPLETE PES STREAM");
 			pes._pts = pts;
 			pes._dts = dts;
 			parsePESPacketStreamComplete(pes, packetID, false);
@@ -528,14 +525,14 @@ package com.kaltura.hls.m2ts
 			 || (bytes[cursor] != 0x02)
 			 || ((bytes[cursor + 1] & 0xfc)) != 0xb0)
 			{
-				trace("handlePacketComplete - Firing other callback for " + remaining + " bytes.");
+				//trace("handlePacketComplete - Firing other callback for " + remaining + " bytes.");
 				_callbacks.onOtherPacket(packetID, bytes);
 			}
 		}
 		
 		private function onPacketProgress(packetID:uint, bytes:ByteArray):Boolean
 		{
-			trace("packet progress " + packetID + " len=" + bytes.length);
+			//trace("packet progress " + packetID + " len=" + bytes.length);
 
 			// Too short?
 			if(bytes.length < 3)
@@ -630,7 +627,7 @@ internal class PacketStream
 		 && (_buffer.length > 1)
 		 && (onProgress(_packetID, _buffer)))
 		{
-			trace("RESETTING BUFFER FOR " + _packetID +", tossing " + _buffer.length + " bytes");
+			//trace("RESETTING BUFFER FOR " + _packetID +", tossing " + _buffer.length + " bytes");
 			_buffer.length = 0;
 			_lastContinuity = -1;
 		}
@@ -644,7 +641,7 @@ internal class PacketStream
 			// Check against observed payload.
 			if(packetLength > 0)
 			{
-				trace("looking for length of "  + (packetLength+6) + " and had length of " + _buffer.length);
+				//trace("looking for length of "  + (packetLength+6) + " and had length of " + _buffer.length);
 				if(_buffer.length >= packetLength + 6)
 				{
 					if(_buffer.length > packetLength + 6)
@@ -659,7 +656,7 @@ internal class PacketStream
 	{
 		if(_buffer.length > 1)
 		{
-			trace("onPacketComplete -- FLUSH " + _packetID + " length=" + _buffer.length);
+			//trace("onPacketComplete -- FLUSH " + _packetID + " length=" + _buffer.length);
 			onComplete(_packetID, _buffer);
 		}
 		
