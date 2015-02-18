@@ -292,6 +292,7 @@ package com.kaltura.hls.m2ts
 			_lastFLVMessageTime = timestampSeconds;
 			
 			// If timer was reset due to seek, reset last subtitle time
+
 			if(timestampSeconds < _lastInjectedSubtitleTime)
 			{
 				trace("Bumping back on subtitle threshold.")
