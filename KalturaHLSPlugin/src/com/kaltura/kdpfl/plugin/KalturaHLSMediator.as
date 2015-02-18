@@ -54,12 +54,12 @@ package com.kaltura.kdpfl.plugin
 			}
 			
 			if ( notification.getName() == NotificationType.MEDIA_ELEMENT_READY ) {
-				_mediaProxy.vo.media.addEventListener(MediaElementEvent.TRAIT_ADD, getSubtitleTrait);
+				_mediaProxy.vo.media.addEventListener(MediaElementEvent.TRAIT_ADD, getSubtitleTrait); // catch and save SubtitleTrait the moment video object is ready
 			}
 			
-			if ( notification.getName() == HLS_TRACK_SWITCH ) {
+			if ( notification.getName() == HLS_TRACK_SWITCH ) { //trigered by JS changeEmbeddedTextTrack helper in order to change language
 				if ( _subtitleTrait && notification.getBody() && notification.getBody().hasOwnProperty("textIndex"))
-					_subtitleTrait.language = _subtitleTrait.languages[ notification.getBody().textIndex ];
+					_subtitleTrait.language = _subtitleTrait.languages[ notification.getBody().textIndex ]; // change the language index inside subtitleTrait reference of video object
 				else
 					KTrace.getInstance().log("KalturaHLSMediator :: doTextTrackSwitch >> subtitleTrait or textIndex error.");
 			}
@@ -70,16 +70,16 @@ package com.kaltura.kdpfl.plugin
 		{
 			if(event.traitType == SubtitleTrait.TYPE){
 				_mediaProxy.vo.media.removeEventListener(MediaElementEvent.TRAIT_ADD, getSubtitleTrait);
-				_subtitleTrait = _mediaProxy.vo.media.getTrait( SubtitleTrait.TYPE ) as SubtitleTrait;
+				_subtitleTrait = _mediaProxy.vo.media.getTrait( SubtitleTrait.TYPE ) as SubtitleTrait; // save SubtitleTrait in order to read languages
 				if ( _subtitleTrait && _subtitleTrait.languages.length > 0 )
 				{
 					var langArray:Array = new Array();
 					var i:int = 0;
 					while (i < _subtitleTrait.languages.length){
-						langArray.push({"label":_subtitleTrait.languages[0], "index": i++});
+						langArray.push({"label":_subtitleTrait.languages[0], "index": i++}); // build languages array in a format that JS expects to receive
 					}
 					
-					sendNotification("textTracksReceived", {languages:langArray});
+					sendNotification("textTracksReceived", {languages:langArray}); //will triger ClosedCaptions textTracksReceived function, through kplayer onTextTracksReceived listener
 				}	
 			}
 		}		
