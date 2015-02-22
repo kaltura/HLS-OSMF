@@ -101,6 +101,8 @@ package org.osmf.net.httpstreaming
 		 */	
 		public class HLSHTTPNetStream extends NetStream
 		{
+			public static var _masterBuffer:ByteArray = new ByteArray();
+
 			/**
 			 * Constructor.
 			 * 
@@ -173,12 +175,12 @@ package org.osmf.net.httpstreaming
 			{			
 				processPlayParameters(args);
 				CONFIG::LOGGING
-					{
-						logger.debug("Play initiated for [" + _playStreamName +"] with parameters ( start = " + _playStart.toString() + ", duration = " + _playForDuration.toString() +" ).");
-					}
-					
-					// Signal to the base class that we're entering Data Generation Mode.
-					super.play(null);
+				{
+					logger.debug("Play initiated for [" + _playStreamName +"] with parameters ( start = " + _playStart.toString() + ", duration = " + _playForDuration.toString() +" ).");
+				}
+				
+				// Signal to the base class that we're entering Data Generation Mode.
+				super.play(null);
 				
 				// Before we feed any TCMessages to the Flash Player, we must feed
 				// an FLV header first.
@@ -396,13 +398,13 @@ package org.osmf.net.httpstreaming
 				_state = value;
 				
 				CONFIG::LOGGING
+				{
+					if (_state != previouslyLoggedState)
 					{
-						if (_state != previouslyLoggedState)
-						{
-							logger.debug("State = " + _state);
-							previouslyLoggedState = _state;
-						}
+						logger.debug("State = " + _state);
+						previouslyLoggedState = _state;
 					}
+				}
 			}
 			
 			/**
@@ -462,10 +464,10 @@ package org.osmf.net.httpstreaming
 				)
 				{
 					CONFIG::LOGGING
-						{
-							logger.debug("Stream source is ready so we can initiate change quality to [" + _desiredQualityStreamName + "]");
-						}
-						_videoHandler.changeQualityLevel(_desiredQualityStreamName);
+					{
+						logger.debug("Stream source is ready so we can initiate change quality to [" + _desiredQualityStreamName + "]");
+					}
+					_videoHandler.changeQualityLevel(_desiredQualityStreamName);
 					_qualityLevelNeedsChanging = false;
 					_desiredQualityStreamName = null;
 				}
@@ -505,9 +507,9 @@ package org.osmf.net.httpstreaming
 					{
 						// If more than one item is tagged as default, ignore it and make a note in the log
 						CONFIG::LOGGING
-							{
-								logger.debug("More than one audio stream marked as default. Ignoring \"" + currentInfo.name + "\"");
-							}
+						{
+							logger.debug("More than one audio stream marked as default. Ignoring \"" + currentInfo.name + "\"");
+						}
 					}
 				}
 				// If we didn't find a default, and we have alternate audio sources available, just use the first one
@@ -601,78 +603,78 @@ package org.osmf.net.httpstreaming
 			private function onNetStatus(event:NetStatusEvent):void
 			{
 				CONFIG::LOGGING
-					{
-						logger.debug("NetStatus event:" + event.info.code);
-					}
-					
-					switch(event.info.code)
-					{
-						case NetStreamCodes.NETSTREAM_BUFFER_EMPTY:
-							emptyBufferInterruptionSinceLastQoSUpdate = true;
-							_wasBufferEmptied = true;
-							CONFIG::LOGGING
-								{
-									logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
-								}
-							if  (_state == HTTPStreamingState.HALT) 
+				{
+					logger.debug("NetStatus event:" + event.info.code);
+				}
+				
+				switch(event.info.code)
+				{
+					case NetStreamCodes.NETSTREAM_BUFFER_EMPTY:
+						emptyBufferInterruptionSinceLastQoSUpdate = true;
+						_wasBufferEmptied = true;
+						CONFIG::LOGGING
 							{
-								if (_notifyPlayUnpublishPending)
-								{
-									notifyPlayUnpublish();
-									_notifyPlayUnpublishPending = false; 
-								}
+								logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
 							}
-							break;
-						
-						case NetStreamCodes.NETSTREAM_BUFFER_FULL:
-							_wasBufferEmptied = false;
-							CONFIG::LOGGING
+						if  (_state == HTTPStreamingState.HALT) 
 						{
-							logger.debug("Received NETSTREAM_BUFFER_FULL. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
-						}
-							break;
-						
-						case NetStreamCodes.NETSTREAM_BUFFER_FLUSH:
-							_wasBufferEmptied = false;
-							CONFIG::LOGGING
-						{
-							logger.debug("Received NETSTREAM_BUFFER_FLUSH. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
-						}
-							break;
-						
-						case NetStreamCodes.NETSTREAM_PLAY_STREAMNOTFOUND:
-							// if we have received a stream not found error
-							// then we close all data
-							close();
-							break;
-						
-						case NetStreamCodes.NETSTREAM_SEEK_NOTIFY:
-							if (! event.info.hasOwnProperty("sentFromHTTPNetStream") )
+							if (_notifyPlayUnpublishPending)
 							{
-								// we actually haven't finished seeking, so we stop the propagation of the event
-								event.stopImmediatePropagation();
-								
-								CONFIG::LOGGING
-									{
-										logger.debug("Seek notify caught and stopped");
-									}
-							}					
-							break;
-					}
+								notifyPlayUnpublish();
+								_notifyPlayUnpublishPending = false; 
+							}
+						}
+						break;
 					
-					CONFIG::FLASH_10_1
+					case NetStreamCodes.NETSTREAM_BUFFER_FULL:
+						_wasBufferEmptied = false;
+						CONFIG::LOGGING
 					{
-						if( event.info.code == NetStreamCodes.NETSTREAM_DRM_UPDATE)
+						logger.debug("Received NETSTREAM_BUFFER_FULL. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
+					}
+						break;
+					
+					case NetStreamCodes.NETSTREAM_BUFFER_FLUSH:
+						_wasBufferEmptied = false;
+						CONFIG::LOGGING
+					{
+						logger.debug("Received NETSTREAM_BUFFER_FLUSH. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
+					}
+						break;
+					
+					case NetStreamCodes.NETSTREAM_PLAY_STREAMNOTFOUND:
+						// if we have received a stream not found error
+						// then we close all data
+						close();
+						break;
+					
+					case NetStreamCodes.NETSTREAM_SEEK_NOTIFY:
+						if (! event.info.hasOwnProperty("sentFromHTTPNetStream") )
 						{
-							// if a DRM Update is needed, then we block further data processing
-							// as reloading of current media will be required
+							// we actually haven't finished seeking, so we stop the propagation of the event
+							event.stopImmediatePropagation();
+							
 							CONFIG::LOGGING
 								{
-									logger.debug("DRM library needs to be updated. Waiting until DRM state is updated."); 
+									logger.debug("Seek notify caught and stopped");
 								}
-								_waitForDRM = true;
-						}
+						}					
+						break;
+				}
+				
+				CONFIG::FLASH_10_1
+				{
+					if( event.info.code == NetStreamCodes.NETSTREAM_DRM_UPDATE)
+					{
+						// if a DRM Update is needed, then we block further data processing
+						// as reloading of current media will be required
+						CONFIG::LOGGING
+							{
+								logger.debug("DRM library needs to be updated. Waiting until DRM state is updated."); 
+							}
+							_waitForDRM = true;
 					}
+				}
 					
 			}
 			
@@ -722,23 +724,23 @@ package org.osmf.net.httpstreaming
 						timeBeforeSeek = Number.NaN;
 						
 						CONFIG::LOGGING
-							{
-								logger.debug("Seek complete and time updated to: " + time + ". Dispatching HTTPNetStatusEvent.NET_STATUS - Seek.Notify");
-							}
-							
-							dispatchEvent(
-								new NetStatusEvent(
-									NetStatusEvent.NET_STATUS, 
-									false, 
-									false, 
-									{
-										code:NetStreamCodes.NETSTREAM_SEEK_NOTIFY, 
-										level:"status", 
-										seekPoint:time,
-										sentFromHTTPNetStream:true
-									}
-								)
-							);				
+						{
+							logger.debug("Seek complete and time updated to: " + time + ". Dispatching HTTPNetStatusEvent.NET_STATUS - Seek.Notify");
+						}
+						
+						dispatchEvent(
+							new NetStatusEvent(
+								NetStatusEvent.NET_STATUS, 
+								false, 
+								false, 
+								{
+									code:NetStreamCodes.NETSTREAM_SEEK_NOTIFY, 
+									level:"status", 
+									seekPoint:time,
+									sentFromHTTPNetStream:true
+								}
+							)
+						);
 					}
 					
 					if (currentFPS > maxFPS)
@@ -783,7 +785,7 @@ package org.osmf.net.httpstreaming
 
 									// If this event is hit, set the quality level to the lowest available quality level
 									trace("Warning: Buffer Time of " + _desiredBufferTime_Max * 2 + " seconds exceeded. Switching to quality 0");
-									changeQualityLevelTo((_resource as HLSStreamingResource).manifest.streams[0].uri);
+									changeQualityLevelTo((_videoHandler as HTTPStreamSource)._streamNames[0]);
 								});
 							}
 							streamTooSlowTimer.reset();
@@ -820,9 +822,9 @@ package org.osmf.net.httpstreaming
 								super.seek(0);
 								
 								CONFIG::FLASH_10_1
-									{
-										appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-									}
+								{
+									appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+								}
 									
 								_wasBufferEmptied = true;
 								
@@ -831,9 +833,9 @@ package org.osmf.net.httpstreaming
 									if (playbackDetailsRecorder.playingIndex != lastTransitionIndex)
 									{
 										CONFIG::LOGGING
-											{
-												logger.debug("Seeking before the last transition completed. Inserting TRANSITION_COMPLETE message in stream.");
-											}
+										{
+											logger.debug("Seeking before the last transition completed. Inserting TRANSITION_COMPLETE message in stream.");
+										}
 											
 										var info:Object = new Object();
 										info.code = NetStreamCodes.NETSTREAM_PLAY_TRANSITION_COMPLETE;
@@ -924,9 +926,9 @@ package org.osmf.net.httpstreaming
 								if (processed > 0)
 								{
 									CONFIG::LOGGING
-										{
-											logger.debug("Processed " + processed + " bytes ( buffer = " + this.bufferLength + ", bufferTime = " + this.bufferTime+", wasBufferEmptied = "+_wasBufferEmptied+" )" ); 
-										}
+									{
+										logger.debug("Processed " + processed + " bytes ( buffer = " + this.bufferLength + ", bufferTime = " + this.bufferTime+", wasBufferEmptied = "+_wasBufferEmptied+" )" ); 
+									}
 										
 									gotBytes = true;
 										
@@ -975,10 +977,10 @@ package org.osmf.net.httpstreaming
 						
 						case HTTPStreamingState.STOP:
 							CONFIG::FLASH_10_1
-						{
-							appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
-							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-						}
+							{
+								appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
+								appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+							}
 							
 							var playCompleteInfo:Object = new Object();
 							playCompleteInfo.code = NetStreamCodes.NETSTREAM_PLAY_COMPLETE;
@@ -992,9 +994,9 @@ package org.osmf.net.httpstreaming
 							attemptAppendBytes(tagBytes);
 							
 							CONFIG::FLASH_10_1
-								{
-									appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
-								}
+							{
+								appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
+							}
 							
 							setState(HTTPStreamingState.HALT);
 							break;
@@ -1039,9 +1041,9 @@ package org.osmf.net.httpstreaming
 					}
 					
 					CONFIG::LOGGING
-						{
-							logger.debug("Performing extra buffering because the player is probably stuck. bufferLength = "+this.bufferLength+" bufferTime = "+bufferTime);
-						}
+					{
+						logger.debug("Performing extra buffering because the player is probably stuck. bufferLength = "+this.bufferLength+" bufferTime = "+bufferTime);
+					}
 					return true;
 				}
 				
@@ -1316,6 +1318,23 @@ package org.osmf.net.httpstreaming
 						recoveryDelayTimer.delay = bufferLength * 1000 < reloadDelayTime ? reloadDelayTime : bufferLength * 1000;
 						recoveryDelayTimer.start();
 						
+						// Process any quality level change requests.
+						if(event.url == "[no request]")
+						{
+							// Stuff index handler down a quality level.
+							trace("TRYING BITRATE DOWNSHIFT");
+
+							_videoHandler.changeQualityLevel( (_videoHandler as HTTPStreamSource)._streamNames[0] );
+
+							// Never die due to bandwidth, just keep trying.
+							if(errorSurrenderTimer.currentCount > 5)
+								errorSurrenderTimer.reset();
+
+							//seekToRecoverStream();
+							//return;
+						}
+
+
 						attemptStreamRecovery();
 						
 						return;
@@ -1335,7 +1354,7 @@ package org.osmf.net.httpstreaming
 				{
 					if (!errorSurrenderTimer.running)
 						errorSurrenderTimer.start();
-					
+
 					// Switch to a backup stream if available
 					if (currentStream)
 					{
@@ -1396,10 +1415,10 @@ package org.osmf.net.httpstreaming
 				private function onDownloadComplete(event:HTTPStreamingEvent):void
 				{
 					CONFIG::LOGGING
-						{
-							logger.debug("Download complete: " + event.url + " (" + event.bytesDownloaded + " bytes)"); 
-						}
-						_bytesLoaded += event.bytesDownloaded;
+					{
+						logger.debug("Download complete: " + event.url + " (" + event.bytesDownloaded + " bytes)"); 
+					}
+					_bytesLoaded += event.bytesDownloaded;
 				}
 				
 				/**
@@ -1661,8 +1680,8 @@ package org.osmf.net.httpstreaming
 								
 								_enhancedSeekTags.push(tag);
 							} 
-								//else is a data tag, which we are simply saving for later, or a 
-								//FLVTagAudio, which we discard unless is a configuration tag
+							//else is a data tag, which we are simply saving for later, or a 
+							//FLVTagAudio, which we discard unless is a configuration tag
 							else if ((tag is FLVTagScriptDataObject) || 
 								(tag is FLVTagAudio && FLVTagAudio(tag).isCodecConfiguration))						                                                                   
 							{
@@ -1814,39 +1833,39 @@ package org.osmf.net.httpstreaming
 					}
 					
 					CONFIG::LOGGING
-						{
-							logger.debug("onScriptData called with mode [" + event.scriptDataMode + "].");
-						}
+					{
+						logger.debug("onScriptData called with mode [" + event.scriptDataMode + "].");
+					}
+					
+					switch (event.scriptDataMode)
+					{
+						case FLVTagScriptDataMode.NORMAL:
+							insertScriptDataTag(event.scriptDataObject, false);
+							break;
 						
-						switch (event.scriptDataMode)
-						{
-							case FLVTagScriptDataMode.NORMAL:
-								insertScriptDataTag(event.scriptDataObject, false);
-								break;
-							
-							case FLVTagScriptDataMode.FIRST:
-								insertScriptDataTag(event.scriptDataObject, true);
-								break;
-							
-							case FLVTagScriptDataMode.IMMEDIATE:
-								if (client)
+						case FLVTagScriptDataMode.FIRST:
+							insertScriptDataTag(event.scriptDataObject, true);
+							break;
+						
+						case FLVTagScriptDataMode.IMMEDIATE:
+							if (client)
+							{
+								var methodName:* = event.scriptDataObject.objects[0];
+								var methodParameters:* = event.scriptDataObject.objects[1];
+								
+								CONFIG::LOGGING
 								{
-									var methodName:* = event.scriptDataObject.objects[0];
-									var methodParameters:* = event.scriptDataObject.objects[1];
-									
-									CONFIG::LOGGING
-										{
-											logger.debug(methodName + " invoked."); 
-										}
-										
-										if (client.hasOwnProperty(methodName))
-										{
-											// XXX note that we can only support a single argument for immediate dispatch
-											client[methodName](methodParameters);	
-										}
+									logger.debug(methodName + " invoked."); 
 								}
-								break;
-						}
+								
+								if (client.hasOwnProperty(methodName))
+								{
+									// XXX note that we can only support a single argument for immediate dispatch
+									client[methodName](methodParameters);	
+								}
+							}
+							break;
+					}
 				}
 				
 				/**
@@ -1861,18 +1880,18 @@ package org.osmf.net.httpstreaming
 					if (_mixer != null)
 					{	
 						CONFIG::LOGGING
-							{
-								logger.debug("We need to to an appendBytesAction in order to reset NetStream internal state");
-							}
-							
-							CONFIG::FLASH_10_1
-							{
-								appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
-							}
-							
-							// Before we feed any TCMessages to the Flash Player, we must feed
-							// an FLV header first.
-							var header:FLVHeader = new FLVHeader();
+						{
+							logger.debug("We need to to an appendBytesAction in order to reset NetStream internal state");
+						}
+						
+						CONFIG::FLASH_10_1
+						{
+							appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
+						}
+						
+						// Before we feed any TCMessages to the Flash Player, we must feed
+						// an FLV header first.
+						var header:FLVHeader = new FLVHeader();
 						var headerBytes:ByteArray = new ByteArray();
 						header.write(headerBytes);
 						attemptAppendBytes(headerBytes);
@@ -1887,10 +1906,11 @@ package org.osmf.net.httpstreaming
 				 */
 				private function attemptAppendBytes(bytes:ByteArray):void
 				{
+					_masterBuffer.writeBytes(bytes);
 					CONFIG::FLASH_10_1
-						{
-							appendBytes(bytes);
-						}
+					{
+						appendBytes(bytes);
+					}
 				}
 				
 				/**

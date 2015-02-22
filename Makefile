@@ -11,6 +11,19 @@ flexlib="/Applications/Adobe Flash Builder 4.7/sdks/4.6.0/"
 # First time, run make disabled all
 # Then only need to run disable if you change OSMF or OSMFUtils
 all:
+	@echo ============= OSMF ========================
+	cd OSMF && ${COMPC} \
+		-load-config+=OSMF-build-config.xml \
+		-swf-version 20 \
+		-debug=true \
+		-output osmf.swc -include-sources . 
+	@echo ============= OSMFUtils ========================
+	cd OSMFUtils && ${COMPC} \
+		-load-config+=OSMFUtils-build-config.xml \
+		-swf-version 20 \
+		-debug=true \
+		-library-path+=../OSMF/osmf.swc \
+		-output osmfutils.swc -include-sources src 
 	@echo ============= HLSPlugin ========================
 	cd HLSPlugin && ${COMPC} \
 		-load-config+=HLS-build-config.xml \
@@ -34,18 +47,4 @@ all:
 		-output html-template/TestPlayer.swf -source-path+=src src/DashTest.mxml
 		#-debug=true \
 
-disabled:
-	@echo ============= OSMF ========================
-	cd OSMF && ${COMPC} \
-		-load-config+=OSMF-build-config.xml \
-		-swf-version 20 \
-		-debug=true \
-		-output osmf.swc -include-sources . 
-	@echo ============= OSMFUtils ========================
-	cd OSMFUtils && ${COMPC} \
-		-load-config+=OSMFUtils-build-config.xml \
-		-swf-version 20 \
-		-debug=true \
-		-library-path+=../OSMF/osmf.swc \
-		-output osmfutils.swc -include-sources src 
 

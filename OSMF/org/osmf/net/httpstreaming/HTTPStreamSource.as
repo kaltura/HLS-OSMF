@@ -327,7 +327,7 @@ package org.osmf.net.httpstreaming
 			
 			if (level == -1)
 			{
-				throw new Error("Quality level cannot be set at this time.");
+				throw new Error("Quality level cannot be set at this time (goal='" + streamName + "')");
 			}
 			else
 			{
@@ -960,7 +960,7 @@ package org.osmf.net.httpstreaming
 		private var _didBeginSeek:Boolean = false;
 		private var _didCompleteSeek:Boolean = false;
 		
-		private var _streamNames:Array = null;
+		public var _streamNames:Array = null;
 		private var _qualityRates:Array = null; 	
 		private var _numQualityLevels:int = 0;
 		

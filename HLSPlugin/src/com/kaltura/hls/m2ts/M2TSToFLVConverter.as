@@ -10,7 +10,9 @@ package com.kaltura.hls.m2ts
 	 * Accept data from a M2TS and emit a valid FLV stream.
 	 */
 	public class M2TSToFLVConverter implements IM2TSCallbacks
-	{		
+	{	
+		public static var _masterBuffer:ByteArray = new ByteArray();	
+
 		private var _aacConfig:ByteArray;
 		private var _aacRemainder:ByteArray;
 		private var _aacTimestamp:Number;
@@ -418,9 +420,11 @@ if(false) {
 			}
 			return;
 }
-			//trace("FLV Emit " + flvts);
+			trace("FLV Emit " + flvts);
 
 			_handler(flvts, tag);
+
+			_masterBuffer.writeBytes(tag);
 		}
 		
 		private function makeAVCC():ByteArray
@@ -448,6 +452,11 @@ if(false) {
 			avcc.position = cursor;
 			avcc.writeBytes(_sps);
 			
+			// Debug dump the SPS
+			trace("SPS profile " + _sps[1]);
+			trace("SPS compat  " + _sps[2]);
+			trace("SPS level   " + _sps[3]);
+
 			cursor += spsLength;
 			
 			avcc[cursor++] = 1; // one PPS
@@ -455,7 +464,9 @@ if(false) {
 			avcc[cursor++] = (ppsLength     ) & 0xff;
 			avcc.position = cursor;
 			avcc.writeBytes(_pps);
-			
+
+			trace("PPS length is " + ppsLength);
+
 			return avcc;
 		}
 		
@@ -465,27 +476,33 @@ if(false) {
 			_avcPacket.writeBytes(bytes, cursor, length);
 		}
 		
+		private static var neverAvcc:Boolean = false;
+
 		private function sendCompleteAVCFLVTag(pts:Number, dts:Number):void
 		{
-			//trace("pts = " + pts + " dts = " + dts + " V");
 			
 			var flvts:uint = convertFLVTimestamp(dts);
 			var tsu:uint = convertFLVTimestamp(pts - dts);
 			var tmp:ByteArray = new ByteArray;
 			
+			trace("pts = " + pts + " dts = " + dts + " tsu = " + tsu + " V");
+
 			if( pts < 0 || dts < 0 || 0 == _avcPacket.length)
 				return;
 			
-			if(_sendAVCC)
+			if(_sendAVCC && !neverAvcc)
 			{
+				neverAvcc = true;
+
+				trace("Attempting to send AVCC");
 				var avcc:ByteArray = makeAVCC();
 				
 				if(null != avcc)
 				{
+					trace("SENDING AVCC");
 					sendFLVTag(flvts, FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);
+					_sendAVCC = false;
 				}
-				
-				_sendAVCC = false;
 			}
 			
 			var codec:uint;
@@ -724,6 +741,7 @@ if(false) {
 				case  7: // SPS
 				case  8: // PPS
 				case  9: // Access Unit Delimiter
+				case 12: // filler
 				case 13: // reserved, triggers access unit start
 				case 14: // reserved, triggers access unit start
 				case 15: // reserved, triggers access unit start
@@ -771,10 +789,13 @@ if(false) {
 
 				case 0x07: // SPS
 					setAVCSPS(bytes, cursor, length);
+					appendAVCNALU(bytes, cursor + 3, length - 3);
 					break;
 				
 				case 0x08: // PPS
+					trace("Grabbing AVC PPS length=" + length);
 					setAVCPPS(bytes, cursor, length);
+					appendAVCNALU(bytes, cursor + 3, length - 3);
 					break;
 								
 				case 0x09: // "access unit delimiter"
@@ -790,7 +811,6 @@ if(false) {
 							break;
 					}
 				default:
-					
 					// Infer keyframe state.
 					if(naluType == 5)
 						_keyFrame = true;
@@ -808,7 +828,7 @@ if(false) {
 			sendPendingOnCaptionInfos(true);
 			_avcVCL = false;
 			_avcAccessUnitStarted = false;
-			sendCompleteAVCFLVTag(pts, dts);
+			sendCompleteAVCFLVTag(_avcPTS, _avcDTS);
 		}
 		
 		private function _nullMessageHandler(timestamp:uint, message:ByteArray):void 

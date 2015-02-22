@@ -437,7 +437,7 @@ package org.osmf.net.httpstreaming
 			_desiredQualityStreamName = streamName;
 			
 			if (
-					_source.isReady 
+				_source.isReady 
 				&& (_videoHandler != null && _videoHandler.streamName != _desiredQualityStreamName)
 			)
 			{

@@ -56,7 +56,6 @@ package com.kaltura.hls
 			private var previouslyLoggedState:String = null;
 		}
 
-		
 		public function HLSIndexHandler(_resource:MediaResourceBase, _fileHandler:HTTPStreamingFileHandlerBase)
 		{
 			resource = _resource as HLSStreamingResource;
@@ -105,7 +104,7 @@ package com.kaltura.hls
 		}
 		
 		// Here a quality of -1 indicates that we are attempting to load a backup manifest
-		private function reload(quality:int, manifest:HLSManifestParser = null):void
+		public function reload(quality:int, manifest:HLSManifestParser = null):void
 		{
 			if (reloadTimer)
 				reloadTimer.stop(); // In case the timer is active - don't want to do another reload in the middle of it
@@ -161,8 +160,11 @@ package com.kaltura.hls
 			var quality:int = targetQuality != lastQuality ? targetQuality : lastQuality;
 			backupStreamNumber = backupStreamNumber >= manifest.streams.length - 1 ? 0 : backupStreamNumber + 1;
 			
-			if (!swapBackupStream(quality, backupStreamNumber))
+			if (!swapBackupStream(quality, targetQuality != lastQuality, backupStreamNumber))
+			{
+				trace("Simply reloading new quality: " + targetQuality + " (old=" + lastQuality + ")");
 				reload(quality);
+			}
 		}
 		
 		/**
@@ -177,7 +179,7 @@ package com.kaltura.hls
 		 * 
 		 * @returns Returns whether or not a backup could be found for the requested stream
 		 */
-		private function swapBackupStream(stream:*, backupOffset:int = 0):Boolean
+		private function swapBackupStream(stream:*, forceQualityChange:Boolean, backupOffset:int = 0):Boolean
 		{
 			// If the requested stream has a backup, switch to it
 			if (stream is int)
@@ -752,7 +754,7 @@ package com.kaltura.hls
 		public function switchToBackup(stream:HLSManifestStream):void
 		{			
 			// Swap the stream to its backup if possible
-			if(!swapBackupStream(stream))
+			if(!swapBackupStream(stream, false))
 				HLSHTTPNetStream.hasGottenManifest = true;
 		}
 		

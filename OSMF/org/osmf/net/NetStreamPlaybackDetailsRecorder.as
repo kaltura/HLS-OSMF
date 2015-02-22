@@ -229,8 +229,10 @@ package org.osmf.net
 			CONFIG::LOGGING
 			{
 				logger.debug("onNetStatus() - event.info.code=" + event.info.code);
+				logger.debug("onNetStatus() - event.info=" + JSON.stringify(event.info));
 			}
-			
+
+
 			switch (event.info.code) 
 			{
 				case NetStreamCodes.NETSTREAM_SEEK_START:
