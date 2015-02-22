@@ -50,6 +50,68 @@ package com.kaltura.hls
 		private var isRecovering:Boolean = false;// If we are currently recovering from a URL error
 		private var lastBadManifestUri:String = "Unknown URI";
 		
+		// We keep a list of witnesses of known PTS start values for segments.
+		// This is indexed by segment URL and returns the PTS start for that
+		// seg if known.  Since all segments are immutable, we can keep this
+		// as a global cache.
+		public static var startTimeWitnesses:Object = {};
+
+		public static function updateSegmentTimes(segments:Vector.<HLSManifestSegment>):Vector.<HLSManifestSegment>
+		{
+			// Using our witnesses, fill in as much knowledge as we can about 
+			// segment start/end times.
+
+			// Keep track of whatever segments we've assigned to.
+			var setSegments:Object = {};
+
+			// First, set any exactly known values.
+			for(var i:int=0; i<segments.length; i++)
+			{
+				// Skip unknowns.
+				if(!startTimeWitnesses.hasOwnProperty(segments[i].uri))
+					continue;
+
+				segments[i].startTime = startTimeWitnesses[segments[i].uri];
+				setSegments[i] = 1;
+			}
+
+			if(segments.length > 1)
+			{
+				// Then fill in any unknowns scanning forward....
+				for(i=1; i<segments.length; i++)
+				{
+					// Skip unknowns.
+					if(!setSegments.hasOwnProperty(i-1))
+						continue;
+
+					segments[i].startTime = segments[i-1].startTime + segments[i-1].duration;
+					setSegments[i] = 1;
+				}
+
+				// And scanning back...
+				for(i=segments.length-2; i>=0; i--)
+				{
+					// Skip unknowns.
+					if(!setSegments.hasOwnProperty(i+1))
+						continue;
+
+					segments[i].startTime = segments[i+1].startTime - segments[i+1].duration;
+					setSegments[i] = 1;
+				}
+			}
+
+			// Dump results:
+			trace("Completed manifest time reconstruction");
+			for(i=0; i<segments.length; i++)
+			{
+				trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + " uri=" + segments[i].uri);
+			}
+
+			// Done!
+			return segments;
+		}
+
+
 		CONFIG::LOGGING
 		{
 			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HTTPNetStream");
@@ -301,8 +363,8 @@ package com.kaltura.hls
 				return false;
 			}
 			
-			var lastQualitySegments:Vector.<HLSManifestSegment> = lastQualityManifest.segments;
-			var targetSegments:Vector.<HLSManifestSegment> = targetManifest.segments;
+			var lastQualitySegments:Vector.<HLSManifestSegment> = updateSegmentTimes(lastQualityManifest.segments);
+			var targetSegments:Vector.<HLSManifestSegment> = updateSegmentTimes(targetManifest.segments);
 			
 			/* Handle Buffered Segments */
 			var numBuffered:int = targetManifest.bufferSegments.length;
@@ -310,7 +372,7 @@ package com.kaltura.hls
 			lastQualitySegments.concat(lastQualityManifest.bufferSegments);
 			targetSegments.concat(targetManifest.bufferSegments);
 			
-			var newSegments:Vector.<HLSManifestSegment> = newManifest.segments;
+			var newSegments:Vector.<HLSManifestSegment> = updateSegmentTimes(newManifest.segments);
 			
 			if(lastSegmentIndex >= lastQualitySegments.length)
 				lastSegmentIndex = lastQualitySegments.length - 1;
@@ -338,11 +400,11 @@ package com.kaltura.hls
 						matchIndex = i;
 						break;
 					}
-				}				
+				}
 			}
 			catch(e:Error)
 			{
-				trace("Error handling target segment lookup.");
+				trace("Error handling target segment lookup: " + e.toString());
 				return true;
 			}
 			
@@ -428,6 +490,9 @@ package com.kaltura.hls
 			// Re-create the segment buffer
 			targetManifest.bufferSegments = targetSegments.splice(targetSegments.length - numBuffered, numBuffered);
 			
+			// Refresh timing.
+			updateSegmentTimes(targetManifest.bufferSegments);
+
 			// This is now where our new playlist starts
 			lastKnownPlaylistStartTime = matchStartTime;
 			
@@ -647,6 +712,7 @@ package com.kaltura.hls
 					lastSegmentIndex = i;
 					fileHandler.segmentId = lastSegmentIndex;
 					fileHandler.key = getKeyForIndex( i );
+					fileHandler.segmentUri = segments[i].uri;
 					trace("Getting Segment[" + lastSegmentIndex + "] StartTime: " + segments[i].startTime + " Continuity: " + segments[i].continuityEra + " URI: " + segments[i].uri); 
 					return createHTTPStreamRequest( segments[ lastSegmentIndex ] ); 
 				}
@@ -659,7 +725,7 @@ package com.kaltura.hls
 			
 			fileHandler.segmentId = lastSegmentIndex;
 			fileHandler.key = getKeyForIndex( i );
-			
+
 			if (!resource.manifest.streamEnds)
 				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL);
 			
@@ -699,6 +765,7 @@ package com.kaltura.hls
 			
 			fileHandler.segmentId = lastSegmentIndex;
 			fileHandler.key = getKeyForIndex( lastSegmentIndex );
+			fileHandler.segmentUri = segments[lastSegmentIndex].uri;
 
 			if ( lastSegmentIndex < segments.length) 
 			{
@@ -795,7 +862,7 @@ package com.kaltura.hls
 				return -1;
 			
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( lastQuality );
-			
+
 			for (var i:int = segments.length - 1; i >= 0; --i)
 			{
 				if (segments[i].startTime < time)
@@ -859,9 +926,12 @@ package com.kaltura.hls
 		private function getSegmentsForQuality( quality:int ):Vector.<HLSManifestSegment>
 		{
 			if ( !manifest ) return new Vector.<HLSManifestSegment>;
-			if ( manifest.streams.length < 1 || manifest.streams[0].manifest == null ) return manifest.segments;
-			else if ( quality >= manifest.streams.length ) return manifest.streams[0].manifest.segments;
-			else return manifest.streams[quality].manifest.segments;
+			if ( manifest.streams.length < 1 || manifest.streams[0].manifest == null )
+			{
+				return updateSegmentTimes(manifest.segments);
+			}
+			else if ( quality >= manifest.streams.length ) return updateSegmentTimes(manifest.streams[0].manifest.segments);
+			else return updateSegmentTimes(manifest.streams[quality].manifest.segments);
 		}
 		
 		private function getManifestForQuality( quality:int):HLSManifestParser
@@ -872,7 +942,7 @@ package com.kaltura.hls
 
 			// We give the HLSHTTPNetStream the stream for the quality we are currently using to help it recover after a URL error
 			HLSHTTPNetStream.currentStream = manifest.streams[quality];
-			
+
 			// Also give HLSHTTPNetStream a reference to ourselves so it can call postRatesReady()
 			HLSHTTPNetStream.indexHandler = this;
 			return manifest.streams[quality].manifest;

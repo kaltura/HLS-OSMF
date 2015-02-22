@@ -6,6 +6,7 @@ package com.kaltura.hls.m2ts
 	import com.kaltura.hls.muxing.AACParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	import com.kaltura.hls.subtitles.TextTrackCue;
+	import com.kaltura.hls.HLSIndexHandler;
 	
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
@@ -24,6 +25,7 @@ package com.kaltura.hls.m2ts
 		public var key:HLSManifestEncryptionKey;
 		public var segmentId:uint = 0;
 		public var resource:HLSStreamingResource;
+		public var segmentUri:String;
 		
 		private var _converter:M2TSToFLVConverter;
 		private var _curTimeOffset:uint;
@@ -284,7 +286,11 @@ package com.kaltura.hls.m2ts
 			message[7] = (timestamp >> 24) & 0xff;
 			
 			if(_segmentBeginSeconds < 0)
+			{
 				_segmentBeginSeconds = timestampSeconds;
+				trace("Noting segment start time for " + segmentUri + " of " + timestampSeconds);
+				HLSIndexHandler.startTimeWitnesses[segmentUri] = timestampSeconds;
+			}
 			if(timestampSeconds > _segmentLastSeconds)
 				_segmentLastSeconds = timestampSeconds;
 			
