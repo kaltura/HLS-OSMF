@@ -420,7 +420,7 @@ if(false) {
 			}
 			return;
 }
-			trace("FLV Emit " + flvts);
+			//trace("FLV Emit " + flvts);
 
 			_handler(flvts, tag);
 
@@ -485,7 +485,7 @@ if(false) {
 			var tsu:uint = convertFLVTimestamp(pts - dts);
 			var tmp:ByteArray = new ByteArray;
 			
-			trace("pts = " + pts + " dts = " + dts + " tsu = " + tsu + " V");
+			//trace("pts = " + pts + " dts = " + dts + " tsu = " + tsu + " V");
 
 			if( pts < 0 || dts < 0 || 0 == _avcPacket.length)
 				return;

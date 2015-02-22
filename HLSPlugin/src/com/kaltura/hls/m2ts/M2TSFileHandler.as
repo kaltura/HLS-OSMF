@@ -66,6 +66,13 @@ package com.kaltura.hls.m2ts
 			_lastContinuityToken = null;
 		}
 
+		public function get duration():Number
+		{
+			if(_segmentLastSeconds > _segmentBeginSeconds)
+				return _segmentLastSeconds - _segmentBeginSeconds;
+			return -1;
+		}
+
 		public function set extendedIndexHandler(handler:IExtraIndexHandlerState):void
 		{
 			_extendedIndexHandler = handler;
@@ -271,13 +278,13 @@ package com.kaltura.hls.m2ts
 			if(timestamp < _timeOrigin)
 				_timeOrigin = timestamp;
 			
-			trace("PRE TIMESTAMP " + timestamp + " for " + message[0]);
+			//trace("PRE TIMESTAMP " + timestamp + " for " + message[0]);
 
 			//timestamp = (timestamp - _timeOrigin) + _firstSeekTime;
 			
 			var timestampSeconds:Number = timestamp / 1000.0;
 
-			trace("ENCODED TIMESTAMP " + timestampSeconds);
+			//trace("ENCODED TIMESTAMP " + timestampSeconds);
 
 			// Encode the timestamp.
 			message[6] = (timestamp      ) & 0xff;

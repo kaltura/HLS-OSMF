@@ -171,7 +171,7 @@ package com.kaltura.hls.m2ts
 				case 0x1fff:
 					break; // padding
 				default:
-					trace("parseTSPacket - Saw packet ID " + packetID + " at "  + cursor + " start " + payloadStart + " headerLen=" + headerLength + " payloadLen=" + payloadLength + " continuityCounter=" + continuityCounter + " discontinuity=" + discontinuity);
+					//trace("parseTSPacket - Saw packet ID " + packetID + " at "  + cursor + " start " + payloadStart + " headerLen=" + headerLength + " payloadLen=" + payloadLength + " continuityCounter=" + continuityCounter + " discontinuity=" + discontinuity);
 					parseTSPayload(packetID, payloadStart, continuityCounter, discontinuity, cursor + headerLength, payloadLength);
 					break;
 			}
@@ -307,7 +307,7 @@ package com.kaltura.hls.m2ts
 				cursor = start + naluLength;
 				start = scanForNALUStart(start + naluLength, bytes);
 
-				trace("SAW NALU at " + (_totalh264.length + (cursor - originalStart) + 3) + " naluLength=" + (naluLength - 3));
+				//trace("SAW NALU at " + (_totalh264.length + (cursor - originalStart) + 3) + " naluLength=" + (naluLength - 3));
 			}
 			
 			if(flushing)
@@ -316,7 +316,7 @@ package com.kaltura.hls.m2ts
 			// Save consumed bytes into the master buffer.
 			_totalh264.writeBytes(bytes, originalStart, cursor - originalStart);
 
-			trace("Total buffer size " + _totalh264.length);
+			//trace("Total buffer size " + _totalh264.length);
 
 			return cursor;
 		}
@@ -328,7 +328,7 @@ package com.kaltura.hls.m2ts
 			var pts:Number = pes._pts;
 			var dts:Number = pes._dts;
 			
-			trace("parsePESPacketStreamComplete - pts=" + pts + ", dst=" + dts + ", type=" + _types[packetID] + ", bufferLength=" + bytes.length);
+			//trace("parsePESPacketStreamComplete - pts=" + pts + ", dst=" + dts + ", type=" + _types[packetID] + ", bufferLength=" + bytes.length);
 
 			switch(_types[packetID])
 			{
@@ -352,7 +352,7 @@ package com.kaltura.hls.m2ts
 					break;
 			}
 			
-			trace("Consumed " + cursor + " bytes");
+			//trace("Consumed " + cursor + " bytes");
 			pes.shiftLeft(cursor);
 		}
 		
@@ -471,11 +471,11 @@ package com.kaltura.hls.m2ts
 				pes = _pesPackets[packetID];
 			}
 			
-			trace("Appending " + bytes.length + ", cursor=" + cursor);
+			//trace("Appending " + bytes.length + ", cursor=" + cursor);
 			pes._buffer.position = pes._buffer.length; // - 1 > 0 ? pes._buffer.length - 1 : 0;
 			pes._buffer.writeBytes(bytes, cursor);
 
-			trace("TRIGGERING COMPLETE PES STREAM");
+			//trace("TRIGGERING COMPLETE PES STREAM");
 			pes._pts = pts;
 			pes._dts = dts;
 			parsePESPacketStreamComplete(pes, packetID, false);
@@ -627,7 +627,7 @@ internal class PacketStream
 			// Check against observed payload.
 			if(packetLength > 0)
 			{
-				trace("looking for length of "  + (packetLength+6) + " and had length of " + _buffer.length);
+				//trace("looking for length of "  + (packetLength+6) + " and had length of " + _buffer.length);
 				if(_buffer.length >= packetLength + 6)
 				{
 					if(_buffer.length > packetLength + 6)

@@ -8,16 +8,22 @@ package com.kaltura.hls
 	import com.kaltura.hls.manifest.HLSManifestStream;
 	
 	import flash.events.Event;
+	import flash.events.EventDispatcher;
+	import flash.events.IEventDispatcher;
 	import flash.events.IOErrorEvent;
 	import flash.events.TimerEvent;
 	import flash.utils.Timer;
+	import flash.utils.ByteArray;
+	import flash.utils.IDataInput;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.events.HTTPStreamingIndexHandlerEvent;
+	import org.osmf.events.HTTPStreamingEventReason;
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.net.DynamicStreamingItem;
 	import org.osmf.net.httpstreaming.HLSHTTPNetStream;
+	import org.osmf.net.httpstreaming.HTTPStreamDownloader;
 	import org.osmf.net.httpstreaming.HTTPStreamRequest;
 	import org.osmf.net.httpstreaming.HTTPStreamRequestKind;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
@@ -50,6 +56,34 @@ package com.kaltura.hls
 		private var isRecovering:Boolean = false;// If we are currently recovering from a URL error
 		private var lastBadManifestUri:String = "Unknown URI";
 		
+		// _bestEffortState values
+		private static const BEST_EFFORT_STATE_OFF:String = "off"; 											// not performing best effort fetch
+		private static const BEST_EFFORT_STATE_PLAY:String = "play"; 										// doing best effort for liveness or dropout
+		private static const BEST_EFFORT_STATE_SEEK_BACKWARD:String = "seekBackward";						// in the backward fetch phase of best effort seek
+		private static const BEST_EFFORT_STATE_SEEK_FORWARD:String = "seekForward";							// in the forward fetch phase of best effort seek
+		
+		private var _bestEffortInited:Boolean = false;														// did we initialize _bestEffortEnabled?
+		private var _bestEffortEnabled:Boolean = false;														// is BEF enabled at all?
+		private var _bestEffortState:String =  BEST_EFFORT_STATE_OFF;										// the current state of best effort
+		private var _bestEffortSeekTime:Number = 0;															// the time we're seeking to
+		private var _bestEffortDownloaderMonitor:EventDispatcher = null; 									// Special dispatcher to handler the results of best-effort downloads.
+		private var _bestEffortFailedFetches:uint = 0; 														// The number of fetches that have failed so far.
+		private var _bestEffortDownloadReply:String = null;													// After initiating a download, this is the DOWNLOAD_CONTINUE or DOWNLOAD_SKIP reply that we sent
+		private var _bestEffortNeedsToFireFragmentDuration:Boolean = false;									// Do we need to fire the FRAGMENT_DURATION event for the next fragment?
+		private var _bestEffortF4FHandler:M2TSFileHandler = new M2TSFileHandler();							// used to pre-parse backward seeks
+		private var _bestEffortSeekBuffer:ByteArray = new ByteArray();										// buffer for saving bytes when pre-parsing backward seek
+		private var _bestEffortNotifyBootstrapBoxInfo:Object = null;										// hacky way to pass arguments to helper functions
+		private var _bestEffortLivenessRestartPoint:uint = 0;												// if we have to restart BEF for liveness, the fragment number of the first BEF - 1
+		private var _bestEffortLastGoodFragmentDownloadTime:Date = null;
+		
+		private var _pendingBestEffortRequest:HTTPStreamRequest = null;
+
+		// constants used by getNextRequestForBestEffortPlay:
+		private static const BEST_EFFORT_PLAY_SITUAUTION_NORMAL:String = "normal";
+		private static const BEST_EFFORT_PLAY_SITUAUTION_DROPOUT:String = "dropout";
+		private static const BEST_EFFORT_PLAY_SITUAUTION_LIVENESS:String = "liveness";
+		private static const BEST_EFFORT_PLAY_SITUAUTION_DONE:String = "done";
+
 		// We keep a list of witnesses of known PTS start values for segments.
 		// This is indexed by segment URL and returns the PTS start for that
 		// seg if known.  Since all segments are immutable, we can keep this
@@ -101,14 +135,31 @@ package com.kaltura.hls
 			}
 
 			// Dump results:
-			trace("Completed manifest time reconstruction");
-			for(i=0; i<segments.length; i++)
+			trace("Last 10 manifest time reconstruction");
+			for(i=Math.max(0, segments.length - 10); i<segments.length; i++)
 			{
 				trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + " uri=" + segments[i].uri);
 			}
 
 			// Done!
 			return segments;
+		}
+
+		/**
+		 * Return true if we have encountered any segments from this list of segments. Useful for
+		 * determining if we need to do a best effort based seek and/or if the estimates are any good.
+		 */
+		public function checkAnySegmentKnowledge(segments:Vector.<HLSManifestSegment>):Boolean
+		{
+			// First, set any exactly known values.
+			for(var i:int=segments.length-1; i>=0; i--)
+			{
+				// Skip unknowns.
+				if(startTimeWitnesses.hasOwnProperty(segments[i].uri))
+					return true;
+			}
+
+			return false;
 		}
 
 
@@ -125,6 +176,8 @@ package com.kaltura.hls
 			baseUrl = manifest.baseUrl;
 			fileHandler = _fileHandler as M2TSFileHandler;
 			fileHandler.extendedIndexHandler = this;
+
+			_bestEffortF4FHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onBestEffortParsed);
 		}
 		
 		public override function initialize(indexInfo:Object):void
@@ -338,6 +391,14 @@ package com.kaltura.hls
 				}
 				else if (reloadingQuality == targetQuality || reloadingQuality == -1)
 				{
+					// If this is non-VOD and we are going to a quality level we don't know about, go ahead
+					// and best-effort-fetch a segment from it to establish the timebase.
+					if(newManifest.streamEnds == false && checkAnySegmentKnowledge(newManifest.segments) == false)
+					{
+						trace("Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path.");
+						_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, reloadingQuality);
+					}
+
 					if (!updateNewManifestSegments(newManifest, reloadingQuality) && reloadTimer)
 						reloadTimer.delay = timerOnErrorDelay;	
 				}
@@ -513,7 +574,7 @@ package com.kaltura.hls
 			if (!found && targetSegments[targetSegments.length-1].startTime < matchSegment.startTime)
 			{
 				trace("***STALL*** Target Start Time: " + targetSegments[targetSegments.length-1].startTime + "Match Start Time: " + matchSegment.startTime);
-					
+
 				stalled = true; // We want to stall because we don't know what the index should be as our new playlist is not quite caught up
 				return found; // Returning early so that we don't change lastQuality (we still need that value around)
 			}
@@ -745,6 +806,14 @@ package com.kaltura.hls
 		
 		public override function getNextFile(quality:int):HTTPStreamRequest
 		{
+			if(_pendingBestEffortRequest)
+			{
+				trace("Firing pending best effort request: " + _pendingBestEffortRequest);
+				var pber:HTTPStreamRequest = _pendingBestEffortRequest;
+				_pendingBestEffortRequest = null;
+				return pber;
+			}
+
 			if (stalled)
 			{
 				trace("Stalling -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
@@ -1005,6 +1074,326 @@ package com.kaltura.hls
 		public function getTargetSegmentDuration():Number
 		{
 			return getManifestForQuality(lastQuality).targetDuration;
+		}
+
+
+		/**
+		 * @private
+		 * 
+		 * Initiates a best effort request (from getNextFile or getFileForTime) and constructs an HTTPStreamRequest.
+		 * 
+		 * @return the action to take, expressed as an HTTPStreamRequest
+		 **/
+		private function initiateBestEffortRequest(nextFragmentId:uint, quality:int):HTTPStreamRequest
+		{
+			// if we had a pending BEF download, invalidate it
+			stopListeningToBestEffortDownload();
+			
+			// clean up best effort state
+			_bestEffortDownloadReply = null;
+			_bestEffortNeedsToFireFragmentDuration = false;
+			
+			// recreate the best effort download monitor
+			// this protects us against overlapping best effort downloads
+			_bestEffortDownloaderMonitor = new EventDispatcher();
+			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
+			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
+			
+			// Get the URL.
+			var newMan:HLSManifestParser = getManifestForQuality(quality);
+			if(newMan == null)
+			{
+				trace("No manifest found to best effort request quality level " + quality);
+				return null;
+			}
+
+			var newSegments:Vector.<HLSManifestSegment> = newMan.segments;
+			if(nextFragmentId > newSegments.length - 1)
+				nextFragmentId = newSegments.length - 1;
+
+			_bestEffortF4FHandler.segmentUri = newSegments[nextFragmentId].uri;
+
+			var streamRequest:HTTPStreamRequest =  new HTTPStreamRequest(
+				HTTPStreamRequestKind.BEST_EFFORT_DOWNLOAD,
+				newSegments[nextFragmentId].uri, // url
+				-1, // retryAfter
+				_bestEffortDownloaderMonitor); // bestEffortDownloaderMonitor
+			
+			trace("Requesting best effort download: " + streamRequest.toString());
+
+			return streamRequest;
+		}
+		
+		/**
+		 * @private
+		 *
+		 * if we had a pending BEF download, invalid it
+		 **/
+		private function stopListeningToBestEffortDownload():void
+		{
+			if(_bestEffortDownloaderMonitor != null)
+			{
+				_bestEffortDownloaderMonitor.removeEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
+				_bestEffortDownloaderMonitor.removeEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
+				_bestEffortDownloaderMonitor = null;
+			}
+		}
+		
+		/**
+		 * @private
+		 * 
+		 * Best effort backward seek needs to pre-parse the fragment in order to determine if the
+		 * downloaded fragment actually contains the desired seek time. This method performs that parse.
+		 **/
+		private function bufferAndParseDownloadedBestEffortBytes(url:String, downloader:HTTPStreamDownloader):void
+		{
+			if(_bestEffortDownloadReply != null)
+			{
+				// if we already decided to skip or continue, don't parse new bytes
+				return;
+			}
+
+			try
+			{
+				var downloaderAvailableBytes:uint = downloader.totalAvailableBytes;
+				if(downloaderAvailableBytes > 0)
+				{
+					// buffer the downloaded bytes
+					var downloadInput:IDataInput = downloader.getBytes(downloaderAvailableBytes);
+					if(downloadInput != null)
+					{
+						downloadInput.readBytes(_bestEffortSeekBuffer, _bestEffortSeekBuffer.length, downloaderAvailableBytes);
+					}
+					
+					// feed the bytes to our f4f handler in order to parse out the bootstrap box.
+					while(_bestEffortF4FHandler.inputBytesNeeded > 0 &&
+						_bestEffortF4FHandler.inputBytesNeeded <= _bestEffortSeekBuffer.bytesAvailable &&
+						_bestEffortDownloadReply == null) // changes to non-null once we parse out the bootstrap box
+					{
+						_bestEffortF4FHandler.processFileSegment(_bestEffortSeekBuffer); 
+					}
+
+					if(_bestEffortDownloadReply == HTTPStreamingEvent.DOWNLOAD_CONTINUE)
+					{
+						// we're done parsing and the HTTPStreamSource is going to process the file,
+						// restore the contents of the downloader
+						downloader.clearSavedBytes();
+						_bestEffortSeekBuffer.position = 0;
+						downloader.appendToSavedBytes(_bestEffortSeekBuffer, _bestEffortSeekBuffer.length);
+						_bestEffortSeekBuffer.length = 0; // release the buffer
+					}
+				}
+			}
+			finally
+			{
+				_bestEffortNotifyBootstrapBoxInfo = null;
+			}
+		}
+
+		protected function onBestEffortParsed(e:Event):void
+		{
+			// Currently a nop.
+			trace("Got duration from best effort segment: " + _bestEffortF4FHandler.segmentUri);
+
+			// Try again.
+			stalled = false;
+		}
+		
+		
+		/**
+		 * @private
+		 * 
+		 * Invoked on HTTPStreamingEvent.DOWNLOAD_COMPLETE for best effort downloads
+		 */
+		private function onBestEffortDownloadComplete(event:HTTPStreamingEvent):void
+		{
+			if(_bestEffortDownloaderMonitor == null ||
+				_bestEffortDownloaderMonitor != event.target as IEventDispatcher)
+			{
+				// we're receiving an event for a download we abandoned
+				return;
+			}
+			bestEffortLog("Best effort download complete");
+			
+			// unregister the listeners
+			stopListeningToBestEffortDownload();
+			
+			// forward the DOWNLOAD_COMPLETE to HTTPStreamSource, but change the reason
+			var clone:HTTPStreamingEvent = new HTTPStreamingEvent(
+				event.type,
+				event.bubbles,
+				event.cancelable,
+				event.fragmentDuration,
+				event.scriptDataObject,
+				event.scriptDataMode,
+				event.url,
+				event.bytesDownloaded,
+				HTTPStreamingEventReason.BEST_EFFORT,
+				event.downloader);
+			dispatchEvent(clone);
+
+			bufferAndParseDownloadedBestEffortBytes(event.url, event.downloader);
+
+			// Always skip for now.
+			skipBestEffortFetch(_bestEffortF4FHandler.segmentUri, event.downloader);
+			
+		}
+		
+		/**
+		 * @private
+		 * 
+		 * Invoked on HTTPStreamingEvent.DOWNLOAD_ERROR for best effort downloads
+		 */
+		private function onBestEffortDownloadError(event:HTTPStreamingEvent):void
+		{
+			if(_bestEffortDownloaderMonitor == null ||
+				_bestEffortDownloaderMonitor != event.target as IEventDispatcher)
+			{
+				// we're receiving an event for a download we abandoned
+				return;
+			}
+			// unregister our listeners
+			stopListeningToBestEffortDownload();
+			
+			if(_bestEffortDownloadReply != null)
+			{
+				// special case: if we received some bytes and said "continue", but then the download failed.
+				// there means there was a connection problem mid-download
+				bestEffortLog("Best effort download error after we already decided to skip or continue.");
+				dispatchEvent(event); // this stops playback
+			}
+			else if(event.reason == HTTPStreamingEventReason.TIMEOUT)
+			{
+				// special case: the download took too long and all the retries failed
+				bestEffortLog("Best effort download timed out");
+				dispatchEvent(event); // this stops playback
+			}
+			else
+			{
+				// failure due to http status code, or some other reason. resume best effort fetch
+				bestEffortLog("Best effort download error.");
+				++_bestEffortFailedFetches;
+				skipBestEffortFetch(event.url, event.downloader);
+			}
+		}
+		
+		/**
+		 * @private
+		 * 
+		 * After initiating a best effort fetch, call this function to tell the
+		 * HTTPStreamSource that it should not continue processing the downloaded
+		 * fragment.
+		 * 
+		 **/
+		private function skipBestEffortFetch(url:String, downloader:HTTPStreamDownloader):void
+		{
+			if(_bestEffortDownloadReply != null)
+			{
+				bestEffortLog("Best effort wanted to skip fragment, but we already replied with "+_bestEffortDownloadReply);
+				return;
+			}
+
+			bestEffortLog("Best effort skipping fragment.");
+			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_SKIP,
+				false, // bubbles
+				false, // cancelable
+				0, // fragmentDuration
+				null, // scriptDataObject
+				FLVTagScriptDataMode.NORMAL, // scriptDataMode 
+				url, // url
+				0, // bytesDownloaded
+				HTTPStreamingEventReason.BEST_EFFORT, // reason
+				downloader); // downloader
+			dispatchEvent(event);
+			
+			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_SKIP;
+			_bestEffortNeedsToFireFragmentDuration = false;
+		}
+		
+		/**
+		 * @private
+		 * 
+		 * After initiating a best effort fetch, call this function to tell the
+		 * HTTPStreamSource that it may continue processing the downloaded fragment.
+		 * A continue event is assumed to mean that best effort fetch is complete.
+		 **/
+		private function continueBestEffortFetch(url:String, downloader:HTTPStreamDownloader):void
+		{
+			if(_bestEffortDownloadReply != null)
+			{
+				bestEffortLog("Best effort wanted to continue, but we're already replied with "+_bestEffortDownloadReply);
+				return;
+			}
+			bestEffortLog("Best effort received a desirable fragment.");
+			
+			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_CONTINUE,
+				false, // bubbles
+				false, // cancelable
+				0, // fragmentDuration
+				null, // scriptDataObject
+				FLVTagScriptDataMode.NORMAL, // scriptDataMode 
+				url, // url
+				0, // bytesDownloaded
+				HTTPStreamingEventReason.BEST_EFFORT, // reason
+				downloader); // downloader
+			
+			CONFIG::LOGGING
+			{
+				logger.debug("Setting _bestEffortLivenessRestartPoint to "+_bestEffortLivenessRestartPoint+" because of successful BEF download.");
+			}
+			
+			// remember that we started a download now
+			_bestEffortLastGoodFragmentDownloadTime = new Date();
+			
+			dispatchEvent(event);
+			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_CONTINUE;
+			_bestEffortNeedsToFireFragmentDuration = true;
+			_bestEffortState = BEST_EFFORT_STATE_OFF;
+		}
+		
+		/**
+		 * @private
+		 * 
+		 * After initiating a best effort fetch, call this function to tell the
+		 * HTTPStreamSource that a bad download error occurred. This causes HTTPStreamSource
+		 * to stop playback with an error.
+		 **/
+		private function errorBestEffortFetch(url:String, downloader:HTTPStreamDownloader):void
+		{
+			bestEffortLog("Best effort fetch error.");
+			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_ERROR,
+				false, // bubbles
+				false, // cancelable
+				0, // fragmentDuration
+				null, // scriptDataObject
+				FLVTagScriptDataMode.NORMAL, // scriptDataMode 
+				url, // url
+				0, // bytesDownloaded
+				HTTPStreamingEventReason.BEST_EFFORT, // reason
+				downloader); // downloader
+			dispatchEvent(event);
+			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_ERROR;
+			_bestEffortNeedsToFireFragmentDuration = false;
+		}
+		
+		/**
+		 * @private
+		 * logging related to best effort fetch
+		 **/
+		private function bestEffortLog(s:String):void
+		{
+			CONFIG::LOGGING
+			{
+				logger.debug("BEST EFFORT: "+s);
+			}
+		}
+		
+		/**
+		 * @inheritDoc
+		 */	
+		public override function get isBestEffortFetchEnabled():Boolean
+		{
+			return _bestEffortEnabled;
 		}
 	}
 }
