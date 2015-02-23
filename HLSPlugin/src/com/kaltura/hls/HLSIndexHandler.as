@@ -395,7 +395,7 @@ package com.kaltura.hls
 					// and best-effort-fetch a segment from it to establish the timebase.
 					if(newManifest.streamEnds == false && checkAnySegmentKnowledge(newManifest.segments) == false)
 					{
-						trace("Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path.");
+						trace("Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
 						_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, reloadingQuality);
 					}
 
@@ -428,6 +428,7 @@ package com.kaltura.hls
 			var targetSegments:Vector.<HLSManifestSegment> = updateSegmentTimes(targetManifest.segments);
 			
 			/* Handle Buffered Segments */
+			targetManifest.bufferSegments = updateSegmentTimes(targetManifest.bufferSegments);
 			var numBuffered:int = targetManifest.bufferSegments.length;
 			
 			lastQualitySegments.concat(lastQualityManifest.bufferSegments);
@@ -435,6 +436,8 @@ package com.kaltura.hls
 			
 			var newSegments:Vector.<HLSManifestSegment> = updateSegmentTimes(newManifest.segments);
 			
+			updateSegmentTimes(targetSegments);
+
 			if(lastSegmentIndex >= lastQualitySegments.length)
 				lastSegmentIndex = lastQualitySegments.length - 1;
 
@@ -1111,6 +1114,8 @@ package com.kaltura.hls
 			if(nextFragmentId > newSegments.length - 1)
 				nextFragmentId = newSegments.length - 1;
 
+			_bestEffortF4FHandler.segmentId = newSegments[nextFragmentId].id;
+			_bestEffortF4FHandler.key = getKeyForIndex( lastSegmentIndex );
 			_bestEffortF4FHandler.segmentUri = newSegments[nextFragmentId].uri;
 
 			var streamRequest:HTTPStreamRequest =  new HTTPStreamRequest(

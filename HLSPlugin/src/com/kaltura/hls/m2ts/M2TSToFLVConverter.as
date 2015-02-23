@@ -793,7 +793,7 @@ if(false) {
 					break;
 				
 				case 0x08: // PPS
-					trace("Grabbing AVC PPS length=" + length);
+					//trace("Grabbing AVC PPS length=" + length);
 					setAVCPPS(bytes, cursor, length);
 					appendAVCNALU(bytes, cursor + 3, length - 3);
 					break;
