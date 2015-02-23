@@ -137,7 +137,7 @@ package com.kaltura.hls
 			{
 				trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + " uri=" + segments[i].uri);
 			}*/
-			trace("Reconstructed manifest time with knowledge=" + checkAnySegmentKnowledge(segments) + " lastTime=" + (segments.length > 1 ? segments[segments.length-1].startTime : -1);
+			trace("Reconstructed manifest time with knowledge=" + checkAnySegmentKnowledge(segments) + " lastTime=" + (segments.length > 1 ? segments[segments.length-1].startTime : -1));
 
 			// Done!
 			return segments;
@@ -433,6 +433,9 @@ package com.kaltura.hls
 			dispatchDVRStreamInfo();
 			reloadingManifest = null; // don't want to hang on to it
 			if (reloadTimer) reloadTimer.start();
+
+			stalled = false;
+			HLSHTTPNetStream.hasGottenManifest = true;
 		}
 		
 		private function updateNewManifestSegments(newManifest:HLSManifestParser, quality:int):Boolean
@@ -625,12 +628,14 @@ package com.kaltura.hls
 						break;
 					}
 				}
-				HLSHTTPNetStream.hasGottenManifest = true;
 			}
 			else
 			{
 				lastQuality = targetQuality;
 			}
+
+			HLSHTTPNetStream.hasGottenManifest = true;
+
 			stalled = false;
 			return found;
 		}
@@ -782,36 +787,51 @@ package com.kaltura.hls
 			var accum:Number = 0.0;
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
 			
-			if (time < lastKnownPlaylistStartTime) 
+			/*if (time < lastKnownPlaylistStartTime) 
 			{
 				time = lastKnownPlaylistStartTime;  /// TODO: HACK Alert!!! < this should likely be handled by DVRInfo (see dash plugin index handler)
 													/// No longer quite so sure this is a hack, but a requirement
 				++sequenceSkips;
 				trace("::getFileForTime - SequenceSkip - time: " + time + " playlistStartTime: " + lastKnownPlaylistStartTime);
+			}*/
+
+			if(time < segments[0].startTime)
+			{
+				time = segments[0].startTime;  /// TODO: HACK Alert!!! < this should likely be handled by DVRInfo (see dash plugin index handler)
+													/// No longer quite so sure this is a hack, but a requirement
+				++sequenceSkips;
+				trace("::getFileForTime - SequenceSkip - time: " + time + " playlistStartTime: " + segments[0].startTime);				
 			}
 
-			for(var i:int=0; i<segments.length; i++)
+			var idx:int = getSegmentListIndexContainingTime(segments, time);
+			if(idx != -1)
 			{
-				var curSegment:HLSManifestSegment = segments[i];
+				var curSegment:HLSManifestSegment = segments[idx];
 				
-				if(curSegment.duration > time - accum)
-				{
-					lastSegmentIndex = i;
-					fileHandler.segmentId = lastSegmentIndex;
-					fileHandler.key = getKeyForIndex( i );
-					fileHandler.segmentUri = segments[i].uri;
-					trace("Getting Segment[" + lastSegmentIndex + "] StartTime: " + segments[i].startTime + " Continuity: " + segments[i].continuityEra + " URI: " + segments[i].uri); 
-					return createHTTPStreamRequest( segments[ lastSegmentIndex ] ); 
-				}
-				
-				accum += curSegment.duration; 
+				lastSegmentIndex = idx;
+				fileHandler.segmentId = lastSegmentIndex;
+				fileHandler.key = getKeyForIndex( idx );
+				fileHandler.segmentUri = segments[idx].uri;
+				trace("Getting Segment[" + lastSegmentIndex + "] StartTime: " + segments[idx].startTime + " Continuity: " + segments[idx].continuityEra + " URI: " + segments[idx].uri); 
+				return createHTTPStreamRequest( segments[ lastSegmentIndex ] ); 
+			}
+			else
+			{
+				trace("Seeking to unknown location, waiting.");
 			}
 			
 			// TODO: Handle live streaming lists by returning a stall.
-			lastSegmentIndex = i;
+			lastSegmentIndex = idx;
 			
 			fileHandler.segmentId = lastSegmentIndex;
-			fileHandler.key = getKeyForIndex( i );
+			fileHandler.key = getKeyForIndex( idx );
+
+			if(!checkAnySegmentKnowledge(segments) && !_bestEffortDownloaderMonitor)
+			{
+				// We may also need to establish a timebase.
+				trace("Seeking without timebase; initiating request.")
+				return initiateBestEffortRequest(uint.MAX_VALUE, quality);
+			}
 
 			if (!resource.manifest.streamEnds)
 				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL);
