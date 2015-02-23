@@ -1358,6 +1358,7 @@ package org.osmf.net.httpstreaming
 					// Switch to a backup stream if available
 					if (currentStream)
 					{
+						trace("Marking manifest not gotten.");
 						hasGottenManifest = false;
 						indexHandler.switchToBackup(currentStream);
 					}
