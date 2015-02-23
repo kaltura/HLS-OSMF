@@ -490,7 +490,7 @@ if(false) {
 			if( pts < 0 || dts < 0 || 0 == _avcPacket.length)
 				return;
 			
-			if(_sendAVCC && !neverAvcc)
+			if(_sendAVCC /* && !neverAvcc */)
 			{
 				neverAvcc = true;
 
