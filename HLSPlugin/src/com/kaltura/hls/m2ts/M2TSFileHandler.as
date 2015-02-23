@@ -268,7 +268,6 @@ package com.kaltura.hls.m2ts
 				
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
-			
 			if(_timeOriginNeeded)
 			{
 				_timeOrigin = timestamp;
