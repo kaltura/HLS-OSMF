@@ -284,6 +284,11 @@ package com.kaltura.hls
 			trace("Scheduling reload for quality " + quality);
 			reloadingQuality = quality;
 
+			// Make sure we have knowledge of our current stream.
+			if(!checkAnySegmentKnowledge(getManifestForQuality(lastQuality).segments) 
+				&& !_bestEffortDownloaderMonitor)
+				_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, lastQuality);
+
 			// Reload the manifest we were given, if we were given a manifest
 			var manToReload:HLSManifestParser = manifest ? manifest : getManifestForQuality(reloadingQuality);
 			reloadingManifest = new HLSManifestParser();
@@ -291,6 +296,7 @@ package com.kaltura.hls
 			reloadingManifest.addEventListener(Event.COMPLETE, onReloadComplete);
 			reloadingManifest.addEventListener(IOErrorEvent.IO_ERROR, onReloadError);
 			reloadingManifest.reload(manToReload);
+
 		}
 		
 		private function onReloadError(event:Event):void
@@ -475,35 +481,56 @@ package com.kaltura.hls
 				if(!checkAnySegmentKnowledge(newManifest.segments) 
 					&& !_bestEffortDownloaderMonitor)
 				{
-					trace("Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
+					trace("(A) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
 					_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, reloadingQuality);
+				} else if(!checkAnySegmentKnowledge(currentManifest.segments) 
+					&& !_bestEffortDownloaderMonitor)
+				{
+					trace("(A) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
+					_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, reloadingQuality);
+				}
+
+				if(!checkAnySegmentKnowledge(newManifest.segments) && !checkAnySegmentKnowledge(currentManifest.segments))
+				{
+					trace("Bailing on reload due to lack of knowledge!");
+					
+					// re-reload.
+					reloadingManifest = null; // don't want to hang on to it
+					if (reloadTimer) reloadTimer.start();
+
+					return;
+				}
+
+			}
+
+
+			// Remap time.
+			if(reloadingQuality != lastQuality)
+			{
+				updateSegmentTimes(currentManifest.segments);
+				updateSegmentTimes(newManifest.segments);
+
+				const fudgeTime:Number = 1.0;
+				var lastSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, lastSequence);
+				var newSeg:HLSManifestSegment = lastSeg ? getSegmentContainingTime(newManifest.segments, lastSeg.startTime + lastSeg.duration) : null;
+				if(newSeg == null)
+				{
+					trace("Remapping from " + lastSequence);	
+					trace("ERROR: Couldn't remap sequence to new quality level, restarting at sequence " + newManifest.segments[0].id);
+					lastSequence = newManifest.segments[0].id;
+				}
+				else
+				{
+					trace("Remapping from " + lastSequence + " to " + (lastSeg.startTime + lastSeg.duration));
+					trace("===== Remapping to " + lastSequence + " new " + (newSeg.id));
+					lastSequence = newSeg.id;
 				}
 			}
 
 			// Update our manifest for this quality level.
+			trace("Setting quality to " + reloadingQuality);
 			manifest.streams[reloadingQuality].manifest = newManifest;
 			lastQuality = reloadingQuality;
-
-			// Remap time.
-			updateSegmentTimes(currentManifest.segments);
-			updateSegmentTimes(newManifest.segments);
-
-			var lastSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, lastSequence);
-			var newSeg:HLSManifestSegment = lastSeg ? getSegmentContainingTime(newManifest.segments, lastSeg.startTime + 0.2) : null;
-			if(newSeg == null)
-			{
-				trace("Remapping from " + lastSequence);	
-				trace("ERROR: Couldn't remap sequence to new quality level, restarting at sequence " + newManifest.segments[0].id);
-				lastSequence = newManifest.segments[0].id;
-			}
-			else
-			{
-				trace("Remapping from " + lastSequence + " to " + (lastSeg.startTime + 0.2));
-				trace("===== Remapping to " + lastSequence + " new " + (newSeg.id));
-				lastSequence = newSeg.id;
-			}
-
-			trace("Setting quality to " + reloadingQuality);
 
 			// Kick off the next round as appropriate.
 			dispatchDVRStreamInfo();
@@ -632,6 +659,9 @@ package com.kaltura.hls
 				return pber;
 			}
 
+			// Check for a pending reload.
+
+
 			if (stalled)
 			{
 				trace("Stalling -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
@@ -698,6 +728,13 @@ package com.kaltura.hls
 
 
 			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, lastSequence);
+
+			if( segments.length > 0 && lastSequence < segments[0].id)
+			{
+				trace("Resetting too low sequence" + lastSequence + " to " + segments[0].id);
+				lastSequence = segments[0].id;
+			}
+
 			if ( curSegment != null ) 
 			{
 				trace("Getting Next Segment[" + lastSequence + "] StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri);
