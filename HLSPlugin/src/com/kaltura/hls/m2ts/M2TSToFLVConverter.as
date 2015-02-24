@@ -453,9 +453,9 @@ if(false) {
 			avcc.writeBytes(_sps);
 			
 			// Debug dump the SPS
-			trace("SPS profile " + _sps[1]);
-			trace("SPS compat  " + _sps[2]);
-			trace("SPS level   " + _sps[3]);
+			//trace("SPS profile " + _sps[1]);
+			//trace("SPS compat  " + _sps[2]);
+			//trace("SPS level   " + _sps[3]);
 
 			cursor += spsLength;
 			
@@ -465,7 +465,7 @@ if(false) {
 			avcc.position = cursor;
 			avcc.writeBytes(_pps);
 
-			trace("PPS length is " + ppsLength);
+			//trace("PPS length is " + ppsLength);
 
 			return avcc;
 		}
@@ -494,12 +494,12 @@ if(false) {
 			{
 				neverAvcc = true;
 
-				trace("Attempting to send AVCC");
+				//trace("Attempting to send AVCC");
 				var avcc:ByteArray = makeAVCC();
 				
 				if(null != avcc)
 				{
-					trace("SENDING AVCC");
+					//trace("SENDING AVCC");
 					sendFLVTag(flvts, FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);
 					_sendAVCC = false;
 				}
