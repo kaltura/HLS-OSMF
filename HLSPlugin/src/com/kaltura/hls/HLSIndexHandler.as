@@ -529,7 +529,10 @@ package com.kaltura.hls
 
 			// Update our manifest for this quality level.
 			trace("Setting quality to " + reloadingQuality);
-			manifest.streams[reloadingQuality].manifest = newManifest;
+			if(manifest.streams.length)
+				manifest.streams[reloadingQuality].manifest = newManifest;
+			else
+				manifest = newManifest;
 			lastQuality = reloadingQuality;
 
 			// Kick off the next round as appropriate.
