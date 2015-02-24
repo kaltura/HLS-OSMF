@@ -766,7 +766,7 @@ package org.osmf.net.httpstreaming
 							// Reset a timer every time this code is reached. If this code is NOT reached for a significant amount of time, it means
 							// we are attempting to stream a quality level that is too high for the current bandwidth, and should switch to the lowest
 							// quality, as a precaution.
-							if (!streamTooSlowTimer)
+							if (false && !streamTooSlowTimer)
 							{
 								// If the timer doesn't yet exist, create it, setting the delay to twice the maximum desired buffer time
 								streamTooSlowTimer = new Timer(_desiredBufferTime_Max * 2000);
@@ -788,8 +788,12 @@ package org.osmf.net.httpstreaming
 									changeQualityLevelTo((_videoHandler as HTTPStreamSource)._streamNames[0]);
 								});
 							}
-							streamTooSlowTimer.reset();
-							streamTooSlowTimer.start();
+	
+							if(streamTooSlowTimer)
+							{
+								streamTooSlowTimer.reset();
+								streamTooSlowTimer.start();
+							}
 									
 							break;
 						
