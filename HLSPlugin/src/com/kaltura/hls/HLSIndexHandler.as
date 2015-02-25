@@ -465,7 +465,7 @@ package com.kaltura.hls
 				}				
 			}
 
-			var currentManifest:HLSManifestParser = getManifestForQuality(reloadingQuality);
+			var currentManifest:HLSManifestParser = getManifestForQuality(lastQuality);
 			
 			var timerOnErrorDelay:Number = newManifest.targetDuration * 1000  / 2;
 			
@@ -486,11 +486,11 @@ package com.kaltura.hls
 				} else if(!checkAnySegmentKnowledge(currentManifest.segments) 
 					&& !_bestEffortDownloaderMonitor)
 				{
-					trace("(A) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-					_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, reloadingQuality);
+					trace("(B) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
+					_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, lastQuality);
 				}
 
-				if(!checkAnySegmentKnowledge(newManifest.segments) && !checkAnySegmentKnowledge(currentManifest.segments))
+				if(!checkAnySegmentKnowledge(newManifest.segments) || !checkAnySegmentKnowledge(currentManifest.segments))
 				{
 					trace("Bailing on reload due to lack of knowledge!");
 					
