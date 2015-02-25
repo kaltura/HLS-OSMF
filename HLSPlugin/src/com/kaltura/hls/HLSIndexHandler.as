@@ -37,7 +37,6 @@ package com.kaltura.hls
 		// Time in seconds to wait before retrying a LIVE_STALL
 		public static const RETRY_INTERVAL:uint = 3;
 		
-		//public var lastSegmentIndex:int = 0;
 		public var lastSequence:int = 0;
 		public var lastKnownPlaylistStartTime:Number = 0.0;
 		public var lastQuality:int = 0;
@@ -686,6 +685,7 @@ package com.kaltura.hls
 		
 		public override function getNextFile(quality:int):HTTPStreamRequest
 		{
+			// Fire any pending best effort requests.
 			if(_pendingBestEffortRequest)
 			{
 				trace("Firing pending best effort request: " + _pendingBestEffortRequest);
@@ -694,9 +694,7 @@ package com.kaltura.hls
 				return pber;
 			}
 
-			// Check for a pending reload.
-
-
+			// Report stalls.
 			if (stalled)
 			{
 				trace("Stalling -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
@@ -705,10 +703,10 @@ package com.kaltura.hls
 
 			HLSHTTPNetStream.recoveryStateNum = URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED;
 			
-			trace("Pre GWQ " + quality);
+			//trace("Pre GWQ " + quality);
 			var origQuality:int = quality;
 			quality = getWorkingQuality(quality);
-			trace("Post GWQ " + quality);
+			//trace("Post GWQ " + quality);
 
 			var currentManifest:HLSManifestParser = getManifestForQuality ( quality );
 			var segments:Vector.<HLSManifestSegment> = currentManifest.segments;
@@ -717,7 +715,6 @@ package com.kaltura.hls
 			if(!checkAnySegmentKnowledge(segments))
 			{
 				trace("Lack timebase for this manifest...");
-
 				if(!_bestEffortDownloaderMonitor)
 				{
 					trace("Initiating best effort request");
@@ -730,37 +727,11 @@ package com.kaltura.hls
 				}
 			}
 
+			// Recalculate the timebase.
 			updateSegmentTimes(segments);
 
-			if(quality != origQuality && false)
-			{
-				// Redetermine the sequence...
-				trace("==== Redetermine lastSegmentIndex!");
-				trace("origQuality=" + origQuality + " quality=" + quality);
-
-				var oldManifest:HLSManifestParser = manifest.streams[origQuality].manifest;
-				var oldManSegment:HLSManifestSegment = getSegmentBySequence(oldManifest.segments, lastSequence);
-				var oldStartTime:Number = oldManSegment.startTime + 0.25;
-
-				trace("Sequence was " + lastSequence);
-				lastSequence = getSegmentSequenceContainingTime(segments, oldStartTime);
-
-				if(lastSequence < 0)
-				{
-					trace("Failed to locate time " + oldStartTime + ", starting at first in sequence " + segments[0].id);
-					lastSequence = segments[0].id;
-				}
-				//lastQuality = quality;
-
-				lastSequence++;
-
-				trace("Sequence now " + lastSequence + " oldStartTime=" + oldStartTime);
-			}
-			else
-			{
-				lastSequence++;
-			}
-
+			// Advance sequence number.
+			lastSequence++;
 
 			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, lastSequence);
 
@@ -832,9 +803,14 @@ package com.kaltura.hls
 			
 			if(!manifest)
 				return;
-			
+
+
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( lastQuality );
 			var activeManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+
+			if(segments.length > 0)
+				lastKnownPlaylistStartTime = segments[0].startTime;
+
 			var i:int = segments.length - 1;
 			if (i >= 0 && (activeManifest.allowCache || activeManifest.streamEnds))
 			{

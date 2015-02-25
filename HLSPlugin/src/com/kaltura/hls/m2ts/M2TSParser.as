@@ -124,11 +124,6 @@ package com.kaltura.hls.m2ts
 			_buffer.position = 0;
 			_buffer.writeBytes(_buffer, cursor, remainder);
 			_buffer.length = remainder;
-
-/*			var x:uint;
-			for(x = 0; x < remainder; x++)
-				_buffer[x] = _buffer[cursor + x];
-			_buffer.length = remainder;*/
 		}
 		
 		private function parseTSPacket(cursor:uint):void
