@@ -503,7 +503,6 @@ package com.kaltura.hls
 
 			}
 
-
 			// Remap time.
 			if(reloadingQuality != lastQuality)
 			{
@@ -515,9 +514,42 @@ package com.kaltura.hls
 				var newSeg:HLSManifestSegment = lastSeg ? getSegmentContainingTime(newManifest.segments, lastSeg.startTime + lastSeg.duration) : null;
 				if(newSeg == null)
 				{
-					trace("Remapping from " + lastSequence);	
-					trace("ERROR: Couldn't remap sequence to new quality level, restarting at sequence " + newManifest.segments[0].id);
-					lastSequence = newManifest.segments[0].id;
+					trace("Remapping from " + lastSequence);
+
+					if(lastSeg)
+					{
+						// Guess by time....
+						trace("Found last seg with startTime = " + lastSeg.startTime + " duration=" + lastSeg.duration);
+
+						// If the segment is beyond last ID, then jump to end...
+						if(lastSeg.startTime + lastSeg.duration >= newManifest.segments[newManifest.segments.length-1].startTime)
+						{
+							trace("ERROR: Couldn't remap sequence to new quality level, restarting at last time " + newManifest.segments[newManifest.segments.length-1].startTime);
+							lastSequence = newManifest.segments[newManifest.segments.length-1].id;
+						}
+						else
+						{
+							trace("ERROR: Couldn't remap sequence to new quality level, restarting at first time " + newManifest.segments[0].startTime);
+							lastSequence = newManifest.segments[0].id;
+						}
+					}
+					else
+					{
+						// Guess by sequence number...
+						trace("No last seg found");
+	
+						// If the segment is beyond last ID, then jump to end...
+						if(lastSequence >= newManifest.segments[newManifest.segments.length-1].id)
+						{
+							trace("ERROR: Couldn't remap sequence to new quality level, restarting at last sequence " + newManifest.segments[newManifest.segments.length-1].id);
+							lastSequence = newManifest.segments[newManifest.segments.length-1].id;
+						}
+						else
+						{
+							trace("ERROR: Couldn't remap sequence to new quality level, restarting at first sequence " + newManifest.segments[0].id);
+							lastSequence = newManifest.segments[0].id;
+						}
+					}
 				}
 				else
 				{
