@@ -568,6 +568,7 @@ package com.kaltura.hls
 
 			// Kick off the next round as appropriate.
 			dispatchDVRStreamInfo();
+			updateTotalDuration();
 			reloadingManifest = null; // don't want to hang on to it
 			if (reloadTimer) reloadTimer.start();
 
@@ -803,7 +804,6 @@ package com.kaltura.hls
 			
 			if(!manifest)
 				return;
-
 
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( lastQuality );
 			var activeManifest:HLSManifestParser = getManifestForQuality(lastQuality);
