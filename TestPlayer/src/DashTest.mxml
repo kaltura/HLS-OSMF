@@ -19,17 +19,21 @@
 			
 			override protected function get developmentStream():String {
 				
-				//return "http://www.djing.com/tv/live.m3u8";
-				//return "http://abclive.abcnews.com/i/abc_live4@136330/master.m3u8";
-				//return "http://playertest.longtailvideo.com/adaptive/captions/playlist.m3u8";
-				//return "http://cdnbakmi.kaltura.com/p/243342/sp/24334200/playManifest/entryId/0_uka1msg4/flavorIds/1_vqhfu6uy,1_80sohj7p/format/applehttp/protocol/http/a.m3u8"
-
-				//return "http://www.kaltura.com/p/243342/sp/24334200/playManifest/entryId/1_23pqn2nu/flavorIds/1_vy4eeqwx/format/applehttp/protocol/http/a.m3u8";
-				return "http://www.kaltura.com/p/0/playManifest/entryId/1_0i2t7w0i/format/applehttp/a.m3u8"; // Kaltura VOD gradual start
+				return "http://cdnapi.kaltura.com/p/1878761/sp/187876100/playManifest/entryId/0_8s3afdlb/format/applehttp/protocol/http/uiConfId/28013271/a.m3u8";
 				
-				//return "http://dash.edgesuite.net/digitalprimates/sony/DISC1651343080050699_TEST_US_12_28_56_DASH/DASH_vod.mpd";
-				//return "http://origintest.cloudapp.net/media/SintelTrailer_Smooth_from_WAME/sintel_trailer-1080p.ism/manifest(format=mpd-time-csf)";
-				//return "http://origintest.cloudapp.net/media/SintelTrailer_Smooth_from_WAME_720p_Main_Profile/sintel_trailer-720p.ism/manifest(format=mpd-time-csf)";
+				//return "http://www.djing.com/tv/live.m3u8";
+				//return "http://abclive.abcnews.com/i/abc_live4@136330/master.m3u8"; // ABC stream
+
+				//return "http://playertest.longtailvideo.com/adaptive/captions/playlist.m3u8"; // Ad/TV grab
+				//return "http://cdnbakmi.kaltura.com/p/243342/sp/24334200/playManifest/entryId/0_uka1msg4/flavorIds/1_vqhfu6uy,1_80sohj7p/format/applehttp/protocol/http/a.m3u8"; // Folgers
+
+				//return "http://www.kaltura.com/p/243342/sp/24334200/playManifest/entryId/1_23pqn2nu/flavorIds/1_vy4eeqwx/format/applehttp/protocol/http/a.m3u8"; // office sports
+				//return "http://www.kaltura.com/p/0/playManifest/entryId/1_0i2t7w0i/format/applehttp/a.m3u8"; // Kaltura VOD gradual start
+				//return "http://cdnapi.kaltura.com/p/1878761/sp/187876100/playManifest/entryId/0_8s3afdlb/format/applehttp/protocol/http/uiConfId/28013271/a.m3u8"; // Einat test stream
+
+				//return "http://lbd.kaltura.com/d2/new.m3u8"; // Ad stitching example
+
+				
 				//return null;
 			}
 			

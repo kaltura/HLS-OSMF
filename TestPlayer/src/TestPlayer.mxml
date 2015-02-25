@@ -20,6 +20,12 @@
 			import mx.events.ResizeEvent;
 			import mx.managers.PopUpManager;
 			
+			import flash.net.FileReference;
+
+			import org.osmf.net.httpstreaming.HLSHTTPNetStream;
+			import com.kaltura.hls.m2ts.M2TSParser;
+			import com.kaltura.hls.m2ts.M2TSToFLVConverter;
+
 			import net.digitalprimates.osmf.utils.PluginLoader;
 			import net.digitalprimates.osmf.utils.events.PluginLoaderEvent;
 			
@@ -383,6 +389,18 @@
 				videoInput.text = videoSelector.selectedItem.url;
 				liveInput.selected = videoSelector.selectedItem.isLive;
 			}
+
+			private function getH264():void
+			{
+				var fr:FileReference = new FileReference();
+				fr.save(M2TSParser._totalh264);
+			}
+
+			private function getFLV():void
+			{
+				var fr:FileReference = new FileReference();
+				fr.save(HLSHTTPNetStream._masterBuffer);
+			}
 		]]>
 	</fx:Script>
 	
@@ -415,6 +433,14 @@
 				label="Play"
 				click="playStream()"/>
 			
+			<s:Button
+				label="DL H264"
+				click="getH264()"/>
+
+			<s:Button
+				label="DL FLV"
+				click="getFLV()"/>
+
 			<!--<s:Button
 			label="Test"
 			click="MP4Decoder.parsedOnce = true"/>-->

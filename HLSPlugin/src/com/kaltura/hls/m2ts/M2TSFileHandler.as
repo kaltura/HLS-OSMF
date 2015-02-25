@@ -6,6 +6,7 @@ package com.kaltura.hls.m2ts
 	import com.kaltura.hls.muxing.AACParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	import com.kaltura.hls.subtitles.TextTrackCue;
+	import com.kaltura.hls.HLSIndexHandler;
 	
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
@@ -24,6 +25,7 @@ package com.kaltura.hls.m2ts
 		public var key:HLSManifestEncryptionKey;
 		public var segmentId:uint = 0;
 		public var resource:HLSStreamingResource;
+		public var segmentUri:String;
 		
 		private var _converter:M2TSToFLVConverter;
 		private var _curTimeOffset:uint;
@@ -62,6 +64,13 @@ package com.kaltura.hls.m2ts
 			_extendedIndexHandler = null;
 			
 			_lastContinuityToken = null;
+		}
+
+		public function get duration():Number
+		{
+			if(_segmentLastSeconds > _segmentBeginSeconds)
+				return _segmentLastSeconds - _segmentBeginSeconds;
+			return -1;
 		}
 
 		public function set extendedIndexHandler(handler:IExtraIndexHandlerState):void
@@ -242,10 +251,10 @@ package com.kaltura.hls.m2ts
 			
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			
-			if(elapsed <= 0.0 && _extendedIndexHandler)
+			/*if(elapsed <= 0.0 && _extendedIndexHandler)
 			{
 				elapsed = _extendedIndexHandler.getTargetSegmentDuration(); // XXX fudge hack!
-			}
+			}*/
 			
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.FRAGMENT_DURATION, false, false, elapsed));
 			
@@ -259,7 +268,6 @@ package com.kaltura.hls.m2ts
 				
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
-			
 			if(_timeOriginNeeded)
 			{
 				_timeOrigin = timestamp;
@@ -271,7 +279,7 @@ package com.kaltura.hls.m2ts
 			
 			//trace("PRE TIMESTAMP " + timestamp + " for " + message[0]);
 
-			timestamp = (timestamp - _timeOrigin) + _firstSeekTime;
+			//timestamp = (timestamp - _timeOrigin) + _firstSeekTime;
 			
 			var timestampSeconds:Number = timestamp / 1000.0;
 
@@ -284,7 +292,11 @@ package com.kaltura.hls.m2ts
 			message[7] = (timestamp >> 24) & 0xff;
 			
 			if(_segmentBeginSeconds < 0)
+			{
 				_segmentBeginSeconds = timestampSeconds;
+				trace("Noting segment start time for " + segmentUri + " of " + timestampSeconds);
+				HLSIndexHandler.startTimeWitnesses[segmentUri] = timestampSeconds;
+			}
 			if(timestampSeconds > _segmentLastSeconds)
 				_segmentLastSeconds = timestampSeconds;
 			
