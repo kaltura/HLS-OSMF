@@ -313,8 +313,8 @@ package com.kaltura.hls.m2ts
 			if(flushing)
 				_callbacks.onAVCNALUFlush(pts, dts);
 			
-			// Save consumed bytes into the master buffer.
-			_totalh264.writeBytes(bytes, originalStart, cursor - originalStart);
+			// Save consumed bytes into the master buffer. Uncomment to debug NALU/PES/TS parsing.
+			//_totalh264.writeBytes(bytes, originalStart, cursor - originalStart);
 
 			//trace("Total buffer size " + _totalh264.length);
 

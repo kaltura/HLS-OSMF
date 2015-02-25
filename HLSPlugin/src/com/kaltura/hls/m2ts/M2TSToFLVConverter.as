@@ -424,7 +424,8 @@ if(false) {
 
 			_handler(flvts, tag);
 
-			_masterBuffer.writeBytes(tag);
+			// Uncomment to log all FLV for investigation.
+			//_masterBuffer.writeBytes(tag);
 		}
 		
 		private function makeAVCC():ByteArray
