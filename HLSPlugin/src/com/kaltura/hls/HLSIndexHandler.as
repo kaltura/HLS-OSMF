@@ -950,7 +950,8 @@ package com.kaltura.hls
 				lastSequence = segments[segments.length - 1].id;
 			}
 			
-			return "/" + sequenceSkips + "/" + lastQuality + "/" +  getSegmentBySequence(segments, lastSequence).continuityEra;
+			var lastSeg:HLSManifestSegment = getSegmentBySequence(segments, lastSequence);
+			return "/" + sequenceSkips + "/" + lastQuality + "/" +  (lastSeg ? lastSeg.continuityEra : 0);
 		}
 		
 		// returns the time offset into the fragment based on the time
