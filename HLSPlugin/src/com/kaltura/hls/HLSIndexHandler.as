@@ -649,6 +649,27 @@ package com.kaltura.hls
 			}
 
 			var seq:int = getSegmentSequenceContainingTime(segments, time);
+
+			if(seq == -1 && segments.length >= 2)
+			{
+				trace("Got out of bound timestamp. Trying to recover...");
+
+				var lastSeg:HLSManifestSegment = segments[segments.length - 1];
+				if(segments.length >=4 )
+					lastSeg = segments[segments.length - 3];
+
+				if(time < segments[0].startTime)
+				{
+					trace("Fell off oldest segment, going to end #" + segments[0].id)
+					seq = segments[0].id;
+				}
+				else if(time > lastSeg.startTime)
+				{
+					trace("Fell off oldest segment, going to end #" + lastSeg.id)
+					seq = lastSeg.id;
+				}
+			}
+
 			if(seq != -1)
 			{
 				var curSegment:HLSManifestSegment = getSegmentBySequence(segments, seq);
