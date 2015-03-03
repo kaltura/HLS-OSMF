@@ -752,6 +752,8 @@ package org.osmf.net.httpstreaming
 					{
 						case HTTPStreamingState.INIT:
 							// do nothing
+							if(indexHandler)
+								indexHandler.flushPPS();
 							break;
 						
 						case HTTPStreamingState.WAIT:
@@ -829,7 +831,10 @@ package org.osmf.net.httpstreaming
 								{
 									appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 								}
-									
+								
+								if(indexHandler)
+									indexHandler.flushPPS();
+
 								_wasBufferEmptied = true;
 								
 								if (playbackDetailsRecorder != null)
@@ -893,6 +898,7 @@ package org.osmf.net.httpstreaming
 							{
 								_notifyPlayStartPending = false;
 								notifyPlayStart();
+								if(indexHandler) indexHandler.flushPPS();
 							}
 							
 							if (_qualityLevelNeedsChanging)

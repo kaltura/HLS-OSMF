@@ -234,6 +234,12 @@ package com.kaltura.hls
 			fileHandler.extendedIndexHandler = this;
 
 			_bestEffortFileHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onBestEffortParsed);
+			_bestEffortFileHandler.isBestEffort = true;
+		}
+
+		public function flushPPS():void
+		{
+			fileHandler.flushPPS();
 		}
 		
 		public override function initialize(indexInfo:Object):void

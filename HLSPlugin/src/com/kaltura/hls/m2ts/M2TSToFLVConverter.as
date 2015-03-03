@@ -11,6 +11,7 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSToFLVConverter implements IM2TSCallbacks
 	{	
+		public static var _captureFLV:Boolean = true;
 		public static var _masterBuffer:ByteArray = new ByteArray();	
 
 		private var _aacConfig:ByteArray;
@@ -34,7 +35,12 @@ package com.kaltura.hls.m2ts
 	
 		private var _sps:ByteArray;
 		private var _pps:ByteArray;
-		
+
+		public var segmentIndex:int = -1;
+
+		// When true suppress filtering PPS/SPS events.
+		public var isBestEffort:Boolean = false;
+
 		public function M2TSToFLVConverter(messageHandler:Function = null)
 		{
 			_parser = new M2TSParser(this);
@@ -425,7 +431,8 @@ if(false) {
 			_handler(flvts, tag);
 
 			// Uncomment to log all FLV for investigation.
-			//_masterBuffer.writeBytes(tag);
+			if(_captureFLV)
+				_masterBuffer.writeBytes(tag);
 		}
 		
 		private function makeAVCC():ByteArray
@@ -454,9 +461,9 @@ if(false) {
 			avcc.writeBytes(_sps);
 			
 			// Debug dump the SPS
-			//trace("SPS profile " + _sps[1]);
-			//trace("SPS compat  " + _sps[2]);
-			//trace("SPS level   " + _sps[3]);
+			trace("SPS profile " + _sps[1]);
+			trace("SPS compat  " + _sps[2]);
+			trace("SPS level   " + _sps[3]);
 
 			cursor += spsLength;
 			
@@ -466,7 +473,7 @@ if(false) {
 			avcc.position = cursor;
 			avcc.writeBytes(_pps);
 
-			//trace("PPS length is " + ppsLength);
+			trace("PPS length is " + ppsLength);
 
 			return avcc;
 		}
@@ -476,12 +483,17 @@ if(false) {
 			_avcPacket.writeUnsignedInt(length);
 			_avcPacket.writeBytes(bytes, cursor, length);
 		}
-		
-		private static var neverAvcc:Boolean = false;
+
+		private var onlySendFirstSegmentAVCCFlag:Boolean = false;
+
+		public function flushPPS():void
+		{
+			trace("Flushing PPS flag...");
+			onlySendFirstSegmentAVCCFlag = false;
+		}
 
 		private function sendCompleteAVCFLVTag(pts:Number, dts:Number):void
 		{
-			
 			var flvts:uint = convertFLVTimestamp(dts);
 			var tsu:uint = convertFLVTimestamp(pts - dts);
 			var tmp:ByteArray = new ByteArray;
@@ -491,18 +503,19 @@ if(false) {
 			if( pts < 0 || dts < 0 || 0 == _avcPacket.length)
 				return;
 			
-			if(_sendAVCC /* && !neverAvcc */)
+			if(_sendAVCC != null && !isBestEffort && onlySendFirstSegmentAVCCFlag == false)
 			{
-				neverAvcc = true;
-
-				//trace("Attempting to send AVCC");
+				trace("Attempting to send AVCC");
 				var avcc:ByteArray = makeAVCC();
 				
-				if(null != avcc)
+				if(avcc)
 				{
-					//trace("SENDING AVCC");
+					trace("SENDING AVCC");
 					sendFLVTag(flvts, FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);
 					_sendAVCC = false;
+
+					if(!isBestEffort)
+						onlySendFirstSegmentAVCCFlag = true;
 				}
 			}
 			
@@ -794,9 +807,10 @@ if(false) {
 					break;
 				
 				case 0x08: // PPS
-					//trace("Grabbing AVC PPS length=" + length);
+					trace("Grabbing AVC PPS length=" + length);
 					setAVCPPS(bytes, cursor, length);
 					appendAVCNALU(bytes, cursor + 3, length - 3);
+					_keyFrame = true;
 					break;
 								
 				case 0x09: // "access unit delimiter"

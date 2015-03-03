@@ -26,6 +26,7 @@ package com.kaltura.hls.m2ts
 		public var segmentId:uint = 0;
 		public var resource:HLSStreamingResource;
 		public var segmentUri:String;
+		public var isBestEffort:Boolean = false;
 		
 		private var _converter:M2TSToFLVConverter;
 		private var _curTimeOffset:uint;
@@ -83,8 +84,16 @@ package com.kaltura.hls.m2ts
 			return _extendedIndexHandler;
 		}
 		
+		public function flushPPS():void
+		{
+			_converter.flushPPS();
+		}
+
 		public override function beginProcessFile(seek:Boolean, seekTime:Number):void
 		{
+			_converter.segmentIndex = segmentId;
+			_converter.isBestEffort = isBestEffort;
+
 			// Decryption reset
 			if ( key )
 			{
