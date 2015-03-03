@@ -7,7 +7,7 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSParser
 	{
-		public static var _grabH264Output:Boolean = true;
+		public static var _grabH264Output:Boolean = false;
 		public static var _totalh264:ByteArray = new ByteArray();
 
 		private var _buffer:ByteArray;

@@ -101,6 +101,7 @@ package org.osmf.net.httpstreaming
 		 */	
 		public class HLSHTTPNetStream extends NetStream
 		{
+			public static var writeToMasterBuffer:Boolean = false;
 			public static var _masterBuffer:ByteArray = new ByteArray();
 
 			/**
@@ -219,12 +220,9 @@ package org.osmf.net.httpstreaming
 				_isPaused = false;
 				super.resume();
 				
-				// If pausing has caused the current time to be before the DVR window, seek to the earliest possible location
-				if (indexHandler && time < indexHandler.lastKnownPlaylistStartTime)
-				{
-					trace("Resuming outside of DVR window, seeking to the last known playlist start time of " + indexHandler.lastKnownPlaylistStartTime);
-					seek(indexHandler.lastKnownPlaylistStartTime);
-				}
+				// Always seek.
+				seek(time + 1);
+				seek(time - 1);
 			}
 			
 			/**
@@ -613,9 +611,9 @@ package org.osmf.net.httpstreaming
 						emptyBufferInterruptionSinceLastQoSUpdate = true;
 						_wasBufferEmptied = true;
 						CONFIG::LOGGING
-							{
-								logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
-							}
+						{
+							logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
+						}
 						if  (_state == HTTPStreamingState.HALT) 
 						{
 							if (_notifyPlayUnpublishPending)
@@ -655,9 +653,9 @@ package org.osmf.net.httpstreaming
 							event.stopImmediatePropagation();
 							
 							CONFIG::LOGGING
-								{
-									logger.debug("Seek notify caught and stopped");
-								}
+							{
+								logger.debug("Seek notify caught and stopped");
+							}
 						}					
 						break;
 				}
@@ -669,46 +667,46 @@ package org.osmf.net.httpstreaming
 						// if a DRM Update is needed, then we block further data processing
 						// as reloading of current media will be required
 						CONFIG::LOGGING
-							{
-								logger.debug("DRM library needs to be updated. Waiting until DRM state is updated."); 
-							}
-							_waitForDRM = true;
+						{
+							logger.debug("DRM library needs to be updated. Waiting until DRM state is updated."); 
+						}
+						_waitForDRM = true;
 					}
 				}
 					
 			}
 			
 			CONFIG::FLASH_10_1
+			{
+				/**
+				 * @private
+				 * 
+				 * We need to process DRM-related errors in order to prevent downloading
+				 * of unplayable content. 
+				 */ 
+				private function onDRMError(event:DRMErrorEvent):void
 				{
-					/**
-					 * @private
-					 * 
-					 * We need to process DRM-related errors in order to prevent downloading
-					 * of unplayable content. 
-					 */ 
-					private function onDRMError(event:DRMErrorEvent):void
+					CONFIG::LOGGING
+						{
+							logger.debug("Received an DRM error (" + event.toString() + ").");
+							logger.debug("Entering waiting mode until DRM state is updated."); 
+						}
+						_waitForDRM = true;
+					setState(HTTPStreamingState.WAIT);
+				}
+				
+				private function onDRMStatus(event:DRMStatusEvent):void
+				{
+					if (event.voucher != null)
 					{
 						CONFIG::LOGGING
 							{
-								logger.debug("Received an DRM error (" + event.toString() + ").");
-								logger.debug("Entering waiting mode until DRM state is updated."); 
+								logger.debug("DRM state updated. We'll exit waiting mode once the buffer is consumed.");
 							}
-							_waitForDRM = true;
-						setState(HTTPStreamingState.WAIT);
-					}
-					
-					private function onDRMStatus(event:DRMStatusEvent):void
-					{
-						if (event.voucher != null)
-						{
-							CONFIG::LOGGING
-								{
-									logger.debug("DRM state updated. We'll exit waiting mode once the buffer is consumed.");
-								}
-								_waitForDRM = false;
-						}
+							_waitForDRM = false;
 					}
 				}
+			}
 				
 				/**
 				 * @private
@@ -747,6 +745,8 @@ package org.osmf.net.httpstreaming
 					{
 						maxFPS = currentFPS;
 					}
+
+					//trace("HLSHTTPNetStream is in " + _state);
 					
 					switch(_state)
 					{
@@ -898,7 +898,8 @@ package org.osmf.net.httpstreaming
 							{
 								_notifyPlayStartPending = false;
 								notifyPlayStart();
-								if(indexHandler) indexHandler.flushPPS();
+								if(indexHandler) 
+									indexHandler.flushPPS();
 							}
 							
 							if (_qualityLevelNeedsChanging)
@@ -976,9 +977,9 @@ package org.osmf.net.httpstreaming
 									{
 										super.bufferTime = 0.1;
 										CONFIG::LOGGING
-											{
-												logger.debug("End of stream reached. Stopping."); 
-											}
+										{
+											logger.debug("End of stream reached. Stopping."); 
+										}
 										setState(HTTPStreamingState.STOP);
 									}
 								}
@@ -1013,6 +1014,8 @@ package org.osmf.net.httpstreaming
 						
 						case HTTPStreamingState.HALT:
 							// do nothing
+							if(indexHandler) 
+								indexHandler.flushPPS();
 							break;
 					}
 				}
@@ -1070,11 +1073,11 @@ package org.osmf.net.httpstreaming
 						if(!_wasSourceLiveStalled)
 						{
 							CONFIG::LOGGING
-								{
-									logger.debug("stall");
-								}			
-								// remember when we first stalled.
-								_wasSourceLiveStalled = true;
+							{
+								logger.debug("stall");
+							}			
+							// remember when we first stalled.
+							_wasSourceLiveStalled = true;
 							_liveStallStartTime = new Date();
 							_issuedLiveStallNetStatus = false;
 						}
@@ -1082,17 +1085,17 @@ package org.osmf.net.httpstreaming
 						if(shouldIssueLiveStallNetStatus())
 						{
 							CONFIG::LOGGING
-								{
-									logger.debug("issue live stall");
-								}			
-								dispatchEvent( 
-									new NetStatusEvent( 
-										NetStatusEvent.NET_STATUS
-										, false
-										, false
-										, {code:NetStreamCodes.NETSTREAM_PLAY_LIVE_STALL, level:"status"}
-									)
-								);
+							{
+								logger.debug("issue live stall");
+							}			
+							dispatchEvent( 
+								new NetStatusEvent( 
+									NetStatusEvent.NET_STATUS
+									, false
+									, false
+									, {code:NetStreamCodes.NETSTREAM_PLAY_LIVE_STALL, level:"status"}
+								)
+							);
 							_issuedLiveStallNetStatus = true;
 						}
 					}
@@ -1166,32 +1169,32 @@ package org.osmf.net.httpstreaming
 				private function onBeginFragment(event:HTTPStreamingEvent):void
 				{
 					CONFIG::LOGGING
+					{
+						logger.debug("Detected begin fragment for stream [" + event.url + "].");
+						logger.debug("Dropped frames=" + this.info.droppedFrames + ".");
+					}			
+					
+					if (_initialTime < 0 || _seekTime < 0 || _insertScriptDataTags ||  _playForDuration >= 0)
+					{
+						if (_flvParser == null)
 						{
-							logger.debug("Detected begin fragment for stream [" + event.url + "].");
-							logger.debug("Dropped frames=" + this.info.droppedFrames + ".");
-						}			
-						
-						if (_initialTime < 0 || _seekTime < 0 || _insertScriptDataTags ||  _playForDuration >= 0)
-						{
-							if (_flvParser == null)
+							CONFIG::LOGGING
 							{
-								CONFIG::LOGGING
-									{
-										logger.debug("Initialize the FLV Parser ( seekTime = " + _seekTime + ", initialTime = " + _initialTime + ", playForDuration = " + _playForDuration + " ).");
-										if (_insertScriptDataTags != null)
-										{
-											logger.debug("Script tags available (" + _insertScriptDataTags.length + ") for processing." );	
-										}
-									}
-									
-									if (_enhancedSeekTarget >= 0 || _playForDuration >= 0)
-									{
-										_flvParserIsSegmentStart = true;	
-									}
-									_flvParser = new FLVParser(false);
+								logger.debug("Initialize the FLV Parser ( seekTime = " + _seekTime + ", initialTime = " + _initialTime + ", playForDuration = " + _playForDuration + " ).");
+								if (_insertScriptDataTags != null)
+								{
+									logger.debug("Script tags available (" + _insertScriptDataTags.length + ") for processing." );	
+								}
 							}
-							_flvParserDone = false;
+							
+							if (_enhancedSeekTarget >= 0 || _playForDuration >= 0)
+							{
+								_flvParserIsSegmentStart = true;	
+							}
+							_flvParser = new FLVParser(false);
 						}
+						_flvParserDone = false;
+					}
 				}
 				
 				/**
@@ -1203,9 +1206,9 @@ package org.osmf.net.httpstreaming
 				private function onEndFragment(event:HTTPStreamingEvent):void
 				{
 					CONFIG::LOGGING
-						{
-							logger.debug("Reached end fragment for stream [" + event.url + "].");
-						}
+					{
+						logger.debug("Reached end fragment for stream [" + event.url + "].");
+					}
 						
 					if (_videoHandler == null)
 					{
@@ -1917,7 +1920,8 @@ package org.osmf.net.httpstreaming
 				 */
 				private function attemptAppendBytes(bytes:ByteArray):void
 				{
-					_masterBuffer.writeBytes(bytes);
+					if(writeToMasterBuffer)
+						_masterBuffer.writeBytes(bytes);
 					CONFIG::FLASH_10_1
 					{
 						appendBytes(bytes);

@@ -11,7 +11,7 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSToFLVConverter implements IM2TSCallbacks
 	{	
-		public static var _captureFLV:Boolean = true;
+		public static var _captureFLV:Boolean = false;
 		public static var _masterBuffer:ByteArray = new ByteArray();	
 
 		private var _aacConfig:ByteArray;
