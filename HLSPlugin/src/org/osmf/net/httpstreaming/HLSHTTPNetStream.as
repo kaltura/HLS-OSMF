@@ -610,6 +610,13 @@ package org.osmf.net.httpstreaming
 					case NetStreamCodes.NETSTREAM_BUFFER_EMPTY:
 						emptyBufferInterruptionSinceLastQoSUpdate = true;
 						_wasBufferEmptied = true;
+
+						if(bufferTime < 30)
+						{
+							trace("NetStream emptied out, upping buffer time by 5 seconds.");
+							bufferTime += 5.0;							
+						}
+						
 						CONFIG::LOGGING
 						{
 							logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
@@ -768,7 +775,7 @@ package org.osmf.net.httpstreaming
 							// Reset a timer every time this code is reached. If this code is NOT reached for a significant amount of time, it means
 							// we are attempting to stream a quality level that is too high for the current bandwidth, and should switch to the lowest
 							// quality, as a precaution.
-							if (false && !streamTooSlowTimer)
+							if (!streamTooSlowTimer)
 							{
 								// If the timer doesn't yet exist, create it, setting the delay to twice the maximum desired buffer time
 								streamTooSlowTimer = new Timer(_desiredBufferTime_Max * 2000);
