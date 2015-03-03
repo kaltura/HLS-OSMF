@@ -10,8 +10,6 @@
 	<fx:Script>
 		<![CDATA[
 			import com.kaltura.hls.HLSPluginInfo;
-			//import net.digitalprimates.dash.DashPluginInfo;
-			//import net.digitalprimates.dash.elements.DashResource;
 			
 			import org.osmf.media.MediaResourceBase;
 			import org.osmf.media.PluginInfoResource;
@@ -38,7 +36,7 @@
 			}
 			
 			override protected function get videoSourceURL():String {
-				return "http://www.digitalprimates.net/dash/streams/sources.xml";
+				return "sources.xml";
 			}
 
 			private var _plugins:Vector.<PluginInfoResource>;

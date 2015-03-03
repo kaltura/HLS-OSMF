@@ -7,6 +7,7 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSParser
 	{
+		public static var _grabH264Output:Boolean = false;
 		public static var _totalh264:ByteArray = new ByteArray();
 
 		private var _buffer:ByteArray;
@@ -287,10 +288,15 @@ package com.kaltura.hls.m2ts
 			while(start >= 0)
 			{
 				end = scanForNALUEnd(start + 3, bytes);
+
 				if(end >= 0)
+				{
 					naluLength = end - start;
+				}
 				else if(flushing)
+				{
 					naluLength = bytes.length - start;
+				}
 				else
 				{
 					//trace("parseAVCPAcket - Exiting due to no NALU before end");
@@ -308,10 +314,13 @@ package com.kaltura.hls.m2ts
 			if(flushing)
 				_callbacks.onAVCNALUFlush(pts, dts);
 			
-			// Save consumed bytes into the master buffer. Uncomment to debug NALU/PES/TS parsing.
-			//_totalh264.writeBytes(bytes, originalStart, cursor - originalStart);
+			// Save consumed bytes into the master buffer.
+			if(_grabH264Output)
+			{
+				_totalh264.writeBytes(bytes, originalStart, cursor - originalStart);
+				trace("Total buffer size " + _totalh264.length);
+			}
 
-			//trace("Total buffer size " + _totalh264.length);
 
 			return cursor;
 		}
@@ -676,7 +685,6 @@ internal class PESPacketStream
 		tmpBytes = _buffer;
 		_buffer = _shiftBuffer;
 		_shiftBuffer = tmpBytes;
-		
 	}
 	
 	public var _buffer:ByteArray;

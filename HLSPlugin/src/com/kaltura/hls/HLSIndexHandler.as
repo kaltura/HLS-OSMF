@@ -234,6 +234,12 @@ package com.kaltura.hls
 			fileHandler.extendedIndexHandler = this;
 
 			_bestEffortFileHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onBestEffortParsed);
+			_bestEffortFileHandler.isBestEffort = true;
+		}
+
+		public function flushPPS():void
+		{
+			fileHandler.flushPPS();
 		}
 		
 		public override function initialize(indexInfo:Object):void
@@ -481,7 +487,7 @@ package com.kaltura.hls
 					&& !_bestEffortDownloaderMonitor)
 				{
 					trace("(A) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-					_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, reloadingQuality);
+					_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, reloadingQuality, newManifest.segments);
 				} else if(!checkAnySegmentKnowledge(currentManifest.segments) 
 					&& !_bestEffortDownloaderMonitor)
 				{
@@ -755,13 +761,19 @@ package com.kaltura.hls
 			// Advance sequence number.
 			lastSequence++;
 
-			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, lastSequence);
-
 			if( segments.length > 0 && lastSequence < segments[0].id)
 			{
 				trace("Resetting too low sequence" + lastSequence + " to " + segments[0].id);
 				lastSequence = segments[0].id;
 			}
+
+			if (segments.length > 2 && lastSequence > (segments[segments.length-1].id + 3))
+			{
+				trace("Got in a bad state of " + lastSequence + " , resetting to near end of stream " + segments[segments.length-2].id);
+				lastSequence = segments[segments.length-2].id;
+			}
+
+			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, lastSequence);
 
 			if ( curSegment != null ) 
 			{
@@ -776,7 +788,7 @@ package com.kaltura.hls
 			
 			if ( reloadingManifest || !manifest.streamEnds )
 			{
-				trace("Stalling -- requested segment " + lastSequence + " past the end and we're in a live stream");
+				trace("Stalling -- requested segment " + lastSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream");
 				lastSequence--;
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, RETRY_INTERVAL);
 			}
@@ -971,12 +983,15 @@ package com.kaltura.hls
 				return returnString;
 			}
 			
-			if (lastSequence >= segments[segments.length - 1].id || lastSequence < 0)
+			if (lastSequence > segments[segments.length - 1].id || lastSequence < 0)
 			{
 				trace("==WARNING: lastSegmentIndex is greater than number of segments in last quality==");
 				trace("lastSegmentIndex: " + lastSequence + " | max allowed index: " + segments[segments.length - 1].id);
 				trace("Setting lastSegmentIndex to " + segments[segments.length - 1].id);
 				lastSequence = segments[segments.length - 1].id;
+
+				// Back off by one as it will get incremented later.
+				lastSequence--;
 			}
 			
 			var lastSeg:HLSManifestSegment = getSegmentBySequence(segments, lastSequence);
@@ -1013,7 +1028,7 @@ package com.kaltura.hls
 		 * 
 		 * @return the action to take, expressed as an HTTPStreamRequest
 		 **/
-		private function initiateBestEffortRequest(nextFragmentId:uint, quality:int):HTTPStreamRequest
+		private function initiateBestEffortRequest(nextFragmentId:uint, quality:int, segments:Vector.<HLSManifestSegment> = null):HTTPStreamRequest
 		{
 			// if we had a pending BEF download, invalidate it
 			stopListeningToBestEffortDownload();
@@ -1027,28 +1042,38 @@ package com.kaltura.hls
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
 			
-			// Get the URL.
-			var newMan:HLSManifestParser = getManifestForQuality(quality);
-			if(newMan == null)
+			if(!segments)
 			{
-				trace("No manifest found to best effort request quality level " + quality);
+				// Get the URL.
+				var newMan:HLSManifestParser = getManifestForQuality(quality);
+				if(newMan == null)
+				{
+					trace("No manifest found to best effort request quality level " + quality);
+					return null;
+				}
+
+				segments = newMan.segments;
+			}
+
+			if(!segments)
+			{
+				trace("NO SEGMENTS FOUND, ABORTING initiateBestEffortRequest");
 				return null;
 			}
 
-			var newSegments:Vector.<HLSManifestSegment> = newMan.segments;
-			if(nextFragmentId > newSegments.length - 1 || nextFragmentId == uint.MAX_VALUE)
+			if(nextFragmentId > segments.length - 1 || nextFragmentId == uint.MAX_VALUE)
 			{
-				trace("Capping to end of segment list " + (newSegments.length - 1));
-				nextFragmentId = newSegments.length - 1;
-			}
+				trace("Capping to end of segment list " + (segments.length - 1));
+				nextFragmentId = segments.length - 1;
+			}				
 
-			_bestEffortFileHandler.segmentId = newSegments[nextFragmentId].id;
+			_bestEffortFileHandler.segmentId = segments[nextFragmentId].id;
 			_bestEffortFileHandler.key = getKeyForIndex( nextFragmentId );
-			_bestEffortFileHandler.segmentUri = newSegments[nextFragmentId].uri;
+			_bestEffortFileHandler.segmentUri = segments[nextFragmentId].uri;
 
 			var streamRequest:HTTPStreamRequest =  new HTTPStreamRequest(
 				HTTPStreamRequestKind.BEST_EFFORT_DOWNLOAD,
-				newSegments[nextFragmentId].uri, // url
+				segments[nextFragmentId].uri, // url
 				-1, // retryAfter
 				_bestEffortDownloaderMonitor); // bestEffortDownloaderMonitor
 			
