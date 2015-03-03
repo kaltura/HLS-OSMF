@@ -208,6 +208,9 @@ package org.osmf.net.httpstreaming
 			 */
 			override public function pause():void 
 			{
+				// Always seek.
+				seek(time);
+
 				_isPaused = true;
 				super.pause();
 			}
@@ -220,9 +223,6 @@ package org.osmf.net.httpstreaming
 				_isPaused = false;
 				super.resume();
 				
-				// Always seek.
-				seek(time + 1);
-				seek(time - 1);
 			}
 			
 			/**
@@ -528,11 +528,11 @@ package org.osmf.net.httpstreaming
 				if (_mixer == null)
 				{
 					CONFIG::LOGGING
-						{
-							logger.warn("Invalid operation(changeAudioStreamTo) for legacy source. Should been a mixed source.");
-						}
-						
-						_audioStreamNeedsChanging = false;
+					{
+						logger.warn("Invalid operation(changeAudioStreamTo) for legacy source. Should been a mixed source.");
+					}
+					
+					_audioStreamNeedsChanging = false;
 					_desiredAudioStreamName = null;
 					return;
 				}
@@ -540,8 +540,7 @@ package org.osmf.net.httpstreaming
 				_audioStreamNeedsChanging = true;
 				_desiredAudioStreamName = streamName;
 				
-				if (
-					_videoHandler.isOpen
+				if (_videoHandler.isOpen
 					&& (
 						(_mixer.audio == null && _desiredAudioStreamName != null)	
 						||  (_mixer.audio != null && _mixer.audio.streamName != _desiredAudioStreamName)
@@ -549,11 +548,11 @@ package org.osmf.net.httpstreaming
 				)
 				{
 					CONFIG::LOGGING
-						{
-							logger.debug("Initiating change of audio stream to [" + _desiredAudioStreamName + "]");
-						}
-						
-						var audioResource:MediaResourceBase = createAudioResource(_resource, _desiredAudioStreamName);
+					{
+						logger.debug("Initiating change of audio stream to [" + _desiredAudioStreamName + "]");
+					}
+					
+					var audioResource:MediaResourceBase = createAudioResource(_resource, _desiredAudioStreamName);
 					if (audioResource != null)
 					{
 						// audio handler is not dispatching events on the NetStream
@@ -616,7 +615,7 @@ package org.osmf.net.httpstreaming
 							trace("NetStream emptied out, upping buffer time by 5 seconds.");
 							bufferTime += 5.0;							
 						}
-						
+
 						CONFIG::LOGGING
 						{
 							logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
@@ -634,17 +633,17 @@ package org.osmf.net.httpstreaming
 					case NetStreamCodes.NETSTREAM_BUFFER_FULL:
 						_wasBufferEmptied = false;
 						CONFIG::LOGGING
-					{
-						logger.debug("Received NETSTREAM_BUFFER_FULL. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
-					}
+						{
+							logger.debug("Received NETSTREAM_BUFFER_FULL. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
+						}
 						break;
 					
 					case NetStreamCodes.NETSTREAM_BUFFER_FLUSH:
 						_wasBufferEmptied = false;
 						CONFIG::LOGGING
-					{
-						logger.debug("Received NETSTREAM_BUFFER_FLUSH. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
-					}
+						{
+							logger.debug("Received NETSTREAM_BUFFER_FLUSH. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
+						}
 						break;
 					
 					case NetStreamCodes.NETSTREAM_PLAY_STREAMNOTFOUND:
