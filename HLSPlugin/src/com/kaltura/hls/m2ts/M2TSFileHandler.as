@@ -159,6 +159,8 @@ package com.kaltura.hls.m2ts
 			return 0;
 		}
 
+		public static var tmpBuffer:ByteArray = new ByteArray();
+
 		private function basicProcessFileSegment(input:IDataInput, flush:Boolean):ByteArray
 		{
 			if ( key && !key.isLoaded )
@@ -167,20 +169,21 @@ package com.kaltura.hls.m2ts
 				return null;
 			}
 			
-			var tmp:ByteArray = new ByteArray();
+			tmpBuffer.position = 0;
+			tmpBuffer.length = 0;
 			
 			if ( _encryptedDataBuffer.length > 0 )
 			{
 				_encryptedDataBuffer.position = 0;
-				_encryptedDataBuffer.readBytes( tmp );
+				_encryptedDataBuffer.readBytes( tmpBuffer );
 				_encryptedDataBuffer.clear();
 			}
 			
-			input.readBytes( tmp, tmp.length );
+			input.readBytes( tmpBuffer, tmpBuffer.length );
 			
 			if ( key )
 			{
-				var bytesToRead:uint = tmp.length;
+				var bytesToRead:uint = tmpBuffer.length;
 				var leftoverBytes:uint = bytesToRead % 16;
 				bytesToRead -= leftoverBytes;
 				
@@ -190,9 +193,9 @@ package com.kaltura.hls.m2ts
 				{
 					// Place any bytes left over (not divisible by 16) into our encrypted buffer
 					// to decrypt later, when we have more bytes
-					tmp.position = bytesToRead;
-					tmp.readBytes( _encryptedDataBuffer );
-					tmp.length = bytesToRead;
+					tmpBuffer.position = bytesToRead;
+					tmpBuffer.readBytes( _encryptedDataBuffer );
+					tmpBuffer.length = bytesToRead;
 				}
 				else
 				{
@@ -206,31 +209,44 @@ package com.kaltura.hls.m2ts
 				
 				// Set up the IV for our next set of bytes
 				_decryptionIV = new ByteArray();
-				tmp.position = bytesToRead - 16;
-				tmp.readBytes( _decryptionIV );
+				tmpBuffer.position = bytesToRead - 16;
+				tmpBuffer.readBytes( _decryptionIV );
 				
 				// Aaaaand...decrypt!
-				key.decrypt( tmp, currentIV );
+				key.decrypt( tmpBuffer, currentIV );
 			}
 			
 			// If it's AAC, process it.
-			if(AACParser.probe(tmp))
+			if(AACParser.probe(tmpBuffer))
 			{
-				//trace("GOT AAC " + tmp.bytesAvailable);
+				//trace("GOT AAC " + tmpBuffer.bytesAvailable);
 				var aac:AACParser = new AACParser();
-				aac.parse(tmp, _fragReadHandler);
+				aac.parse(tmpBuffer, _fragReadHandler);
 				//trace("    - returned " + _fragReadBuffer.length + " bytes!");
 				_fragReadBuffer.position = 0;
+
+				if(isBestEffort)
+				{
+					trace("Discarding data from best effort.");
+					_fragReadBuffer.length = 0;
+				}
+
 				return _fragReadBuffer;
 			}
 			
 			var buffer:ByteArray = new ByteArray();
 			_buffer = buffer;
-			_converter.appendBytes(tmp);
+			_converter.appendBytes(tmpBuffer);
 			if ( flush ) _converter.flush();
 			_buffer = null;
 			buffer.position = 0;
 			
+			if(isBestEffort)
+			{
+				trace("Discarding data from best effort.");
+				buffer.length = 0;
+			}
+
 			return buffer;
 		}
 		
@@ -260,10 +276,10 @@ package com.kaltura.hls.m2ts
 			
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			
-			/*if(elapsed <= 0.0 && _extendedIndexHandler)
+			if(elapsed <= 0.0 && _extendedIndexHandler)
 			{
 				elapsed = _extendedIndexHandler.getTargetSegmentDuration(); // XXX fudge hack!
-			}*/
+			}
 			
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.FRAGMENT_DURATION, false, false, elapsed));
 			
@@ -277,6 +293,21 @@ package com.kaltura.hls.m2ts
 				
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
+			var timestampSeconds:Number = timestamp / 1000.0;
+			
+			if(_segmentBeginSeconds < 0)
+			{
+				_segmentBeginSeconds = timestampSeconds;
+				trace("Noting segment start time for " + segmentUri + " of " + timestampSeconds);
+				HLSIndexHandler.startTimeWitnesses[segmentUri] = timestampSeconds;
+			}
+
+			if(timestampSeconds > _segmentLastSeconds)
+				_segmentLastSeconds = timestampSeconds;
+
+			if(isBestEffort)
+				return;
+
 			if(_timeOriginNeeded)
 			{
 				_timeOrigin = timestamp;
@@ -286,29 +317,12 @@ package com.kaltura.hls.m2ts
 			if(timestamp < _timeOrigin)
 				_timeOrigin = timestamp;
 			
-			//trace("PRE TIMESTAMP " + timestamp + " for " + message[0]);
-
-			//timestamp = (timestamp - _timeOrigin) + _firstSeekTime;
-			
-			var timestampSeconds:Number = timestamp / 1000.0;
-
-			//trace("ENCODED TIMESTAMP " + timestampSeconds);
-
 			// Encode the timestamp.
 			message[6] = (timestamp      ) & 0xff;
 			message[5] = (timestamp >>  8) & 0xff;
 			message[4] = (timestamp >> 16) & 0xff;
 			message[7] = (timestamp >> 24) & 0xff;
-			
-			if(_segmentBeginSeconds < 0)
-			{
-				_segmentBeginSeconds = timestampSeconds;
-				trace("Noting segment start time for " + segmentUri + " of " + timestampSeconds);
-				HLSIndexHandler.startTimeWitnesses[segmentUri] = timestampSeconds;
-			}
-			if(timestampSeconds > _segmentLastSeconds)
-				_segmentLastSeconds = timestampSeconds;
-			
+
 			var lastMsgTime:Number = _lastFLVMessageTime;
 			_lastFLVMessageTime = timestampSeconds;
 			

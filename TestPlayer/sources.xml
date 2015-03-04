@@ -1,30 +1,40 @@
 <sources>
 	<item>
-		<name>GPAC Main MBR</name>
-		<url>http://www.digitalprimates.net/dash/streams/gpac/mp4-main-multi-mpd-AV-NBS.mpd</url>
+		<name>Kaltura streamer (LeadWithHLSOnFlash) </name>
+		<url>http://apache-testing.dev.kaltura.com/p/1091/sp/109100/playManifest/entryId/0_ue0n7lmw/format/applehttp/protocol/http/uiConfId/15088771/a.m3u8?referrer=aHR0cDovL2V4dGVybmFsdGVzdHMuZGV2LmthbHR1cmEuY29t&responseFormat=m3u8&callback=jQuery111106298717719037086_1425418291289&_=1425418291290</url>
 	</item>
 	<item>
-		<name>GPAC Template MBR</name>
-		<url>http://www.digitalprimates.net/dash/streams/mp4-live-template/mp4-live-mpd-V-BS.mpd</url>
+		<name>Ad Stitching Example</name>
+		<url>http://lbd.kaltura.com/d2/new.m3u8</url>
 	</item>
 	<item>
-		<name>USP A-Team MBR</name>
-		<url>http://demo.unified-streaming.com/video/ateam/ateam.ism/ateam.mpd</url>
+		<name>DJing</name>
+		<url>http://www.djing.com/tv/live.m3u8</url>
 	</item>
 	<item>
-		<name>Bunny 720p</name>
-		<url>http://dash.edgesuite.net/adobe/bbb/bbb.mpd</url>
+		<name>ABC Live</name>
+		<url>http://abclive.abcnews.com/i/abc_live4@136330/master.m3u8</url>
 	</item>
 	<item>
-		<name>Akamai Byte Ranges</name>
-		<url>http://dashdemo.edgesuite.net/digitalprimates/nexus/oops-20120802-manifest.mpd</url>
+		<name>AD/TV Grab</name>
+		<url>http://playertest.longtailvideo.com/adaptive/captions/playlist.m3u8</url>
 	</item>
 	<item>
-		<name>Netflix BaseURL</name>
-		<url>http://dash.edgesuite.net/dash264/TestCases/1a/netflix/exMPD_BIP_TC1.mpd</url>
+		<name>Folgers</name>
+		<url>http://cdnbakmi.kaltura.com/p/243342/sp/24334200/playManifest/entryId/0_uka1msg4/flavorIds/1_vqhfu6uy,1_80sohj7p/format/applehttp/protocol/http/a.m3u8</url>
 	</item>
 	<item>
-		<name>Fraunhofer BaseURL</name>
-		<url>http://dashdemo.edgesuite.net/dash264/TestCases/3b/fraunhofer/elephants_dream_heaac2_0.mpd</url>
+		<name>Office Sports</name>
+		<url>http://www.kaltura.com/p/243342/sp/24334200/playManifest/entryId/1_23pqn2nu/flavorIds/1_vy4eeqwx/format/applehttp/protocol/http/a.m3u8</url>
+	</item>
+	<item>
+		<name>Kaltura VOD</name>
+		<url>http://www.kaltura.com/p/0/playManifest/entryId/1_0i2t7w0i/format/applehttp/a.m3u8</url>
+	</item>
+	<item>
+		<name>Einat Test Stream</name>
+		<url>http://cdnapi.kaltura.com/p/1878761/sp/187876100/playManifest/entryId/0_8s3afdlb/format/applehttp/protocol/http/uiConfId/28013271/a.m3u8</url>
 	</item>
 </sources>
+
+

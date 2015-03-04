@@ -299,7 +299,7 @@ package com.kaltura.hls.m2ts
 				}
 				else
 				{
-					//trace("parseAVCPAcket - Exiting due to no NALU before end");
+					//trace("parseAVCPacket - Exiting due to no NALU before end");
 					break;
 				}
 				
