@@ -796,8 +796,10 @@ package org.osmf.net.httpstreaming
 								if((_resource as HLSStreamingResource).manifest.streams.length < 1)
 									return;
 
-								// If this event is hit, set the quality level to the lowest available quality level
+								if(indexHandler == null)
+									return;
 
+								// If this event is hit, set the quality level to the lowest available quality level
 								var newStream:String = indexHandler.getQualityLevelStreamName(0);
 								if(!newStream)
 								{
