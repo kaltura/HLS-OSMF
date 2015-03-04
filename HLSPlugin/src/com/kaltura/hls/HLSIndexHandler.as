@@ -238,6 +238,9 @@ package com.kaltura.hls
 			return seg.id;
 		}
 
+		/**
+		 * After this is called, next PPS encountered will be passed out as a special FLV tag.
+		 */
 		public function flushPPS():void
 		{
 			fileHandler.flushPPS();
@@ -584,6 +587,17 @@ package com.kaltura.hls
 
 			stalled = false;
 			HLSHTTPNetStream.hasGottenManifest = true;
+		}
+
+		public function getQualityLevelStreamName(index:int):String
+		{
+			if(!resource)
+				return null;
+
+			if(index < 0 || index > resource.streamItems.length)
+				return null;
+
+			return resource.streamItems[index].streamName;
 		}
 		
 		public function postRatesReady():void

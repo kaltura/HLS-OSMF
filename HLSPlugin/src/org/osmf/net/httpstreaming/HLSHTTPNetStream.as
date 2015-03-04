@@ -784,19 +784,34 @@ package org.osmf.net.httpstreaming
 
 						streamTooSlowTimer.addEventListener(TimerEvent.TIMER, function(timerEvent:TimerEvent = null):void {
 
-							// Check we have a valid stream to switch to.
-							if(!(_resource as HLSStreamingResource))
-								return;
+							try
+							{
+								// Check we have a valid stream to switch to.
+								if(!(_resource as HLSStreamingResource))
+									return;
 
-							if((_resource as HLSStreamingResource).manifest == null)
-								return;
+								if((_resource as HLSStreamingResource).manifest == null)
+									return;
 
-							if((_resource as HLSStreamingResource).manifest.streams.length < 1)
-								return;
+								if((_resource as HLSStreamingResource).manifest.streams.length < 1)
+									return;
 
-							// If this event is hit, set the quality level to the lowest available quality level
-							trace("Warning: Buffer Time of " + _desiredBufferTime_Max * 2 + " seconds exceeded. Switching to quality 0");
-							changeQualityLevelTo((_videoHandler as HTTPStreamSource)._streamNames[0]);
+								// If this event is hit, set the quality level to the lowest available quality level
+
+								var newStream:String = indexHandler.getQualityLevelStreamName(0);
+								if(!newStream)
+								{
+									trace("streamTooSlowTimer failed to get stream name for quality level 0");
+									return;
+								}
+
+								trace("Warning: Buffer Time of " + _desiredBufferTime_Max * 2 + " seconds exceeded. Switching to quality 0 " + newStream);
+								changeQualityLevelTo(newStream);
+							}
+							catch(e:Error)
+							{
+								trace("Failure when trying to handle streamTooSlowTimer event: " + e.toString());
+							}
 						});
 					}
 
