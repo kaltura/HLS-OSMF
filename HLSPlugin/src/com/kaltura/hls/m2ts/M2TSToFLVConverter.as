@@ -562,44 +562,6 @@ if(false) {
 			sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
 		}
 		
-		private function parseAVCCCData(bytes:ByteArray, cursor:uint, length:uint):void
-		{
-			var dest:ByteArray = new ByteArray();
-			dest.endian = Endian.BIG_ENDIAN;
-			dest.writeInt(length);
-			if(length)
-				dest.writeBytes(bytes, cursor, length);
-			
-			var tmp:ByteArray = new ByteArray();
-			tmp.endian = Endian.BIG_ENDIAN;
-			tmp.writeBytes(bytes, cursor, length);
-			
-			if(false)
-			{
-				var tmpBuff:String = " Saw ";
-				for(var i:int=0; i<tmp.length; i++)
-					tmpBuff += tmp[i].toString(16);
-				trace(tmpBuff);				
-			}
-			
-			//TeletextParser.processTelxPacket(bytes, 1);
-			
-			var encoder:Base64Encoder = new Base64Encoder();
-			encoder.encodeBytes(dest);
-			var encodedDest:String = encoder.toString();
-			
-			var desiredIndex:uint;
-			for(desiredIndex = 0; 
-				desiredIndex < _pendingCaptionInfos.length && _pendingCaptionInfos[desiredIndex].pts <= _avcPTS; 
-				++desiredIndex) 
-			{
-			}
-			
-			var onCaptionInfo:* = ["onCaptionInfo", { type:"708", data:encodedDest }];
-			_pendingCaptionInfos.splice(desiredIndex, 0, { pts: _avcPTS, onCaptionInfo:onCaptionInfo });
-			sendPendingOnCaptionInfos(false);
-		}
-		
 		private function sendNextPendingOnCaptionInfo(flushing:Boolean):Boolean
 		{
 			if(_pendingCaptionInfos.length == 0)
@@ -626,129 +588,11 @@ if(false) {
 			}
 			while(morePending);
 		}
-		
-		private function parseAndFilterAVCSEI(bytes:ByteArray, cursor:uint, length:uint):void
-		{
-			var limit:uint = cursor + length;
-			var countryCode:uint;
-			var providerCode:uint;
-			var userIdentifier:uint;
-			
-			// Filter by caption/AFD/bar.
-			countryCode = bytes[cursor++];
-			if(countryCode != 0xB5) 
-				return;
-			
-			// Range check.
-			if(cursor + 2 >= limit)
-				return;
-			
-			// Filter by provider code.
-			providerCode = (bytes[cursor] << 8) + bytes[cursor + 1];
-			cursor += 2;
-			if(providerCode != 0x0031)
-				return;
-			
-			// Range check.
-			if(cursor + 4 >= limit)
-				return;
-			
-			// Filter by user type data (ATSC1)
-			userIdentifier  = (bytes[cursor] << 24) + (bytes[cursor + 1] << 16) + (bytes[cursor + 2] << 8) + bytes[cursor + 3];
-			cursor += 4;
-			if(userIdentifier != 0x47413934)
-				return;
-			
-			// Range check.
-			if(cursor + 3 >= limit)
-				return;
-			
-			// And look for cc_data.
-			var userDataTypeCode:uint = bytes[cursor++];
-			if(0x03 != userDataTypeCode)
-				return;
-			
-			// Awesome - we can parse it.
-			parseAVCCCData(bytes, cursor, limit - cursor);
-		}
-		
-		private function parseAVCSEIPayload(payloadType:uint, bytes:ByteArray, cursor:uint, length:uint):void
-		{
-			if(payloadType != 0x04)
-				return;
-			
-			parseAndFilterAVCSEI(bytes, cursor, length);
-		}
-		
-		private function parseAVCSEIRBSP(bytes:ByteArray, cursor:uint, length:uint):void
-		{
-			var limit:uint = cursor + length;
-			var payloadType:uint;
-			var payloadSize:uint;
-			var tmp:uint = 0;
-			
-			while(cursor < limit)
-			{
-				payloadType = 0;
-				payloadSize = 0;
-				
-				do 
-				{
-					tmp = bytes[cursor];
-					cursor++;
-					payloadType += tmp;
-				} while ((0xff == tmp) && (cursor < limit));
-				
-				if(cursor >= limit)
-					break;
-				
-				do {
-					tmp = bytes[cursor];
-					cursor++;
-					payloadSize += tmp;
-				} while ((0xff == tmp) && (cursor < limit));
-				
-				if(cursor + payloadSize > limit)
-					break;
-				
-				parseAVCSEIPayload(payloadType, bytes, cursor, payloadSize);
-				
-				cursor += payloadSize;
-			}
-		}
-		
-		private function parseAVCSEINALU(bytes:ByteArray, cursor:uint, length:uint):void
-		{
-			var limit:uint = cursor + length;
-			
-			cursor++; // move over NALU type
-			
-			_seiRBSPBuffer.position = 0;
-			while(cursor < limit)
-			{
-				if(cursor + 2 < limit &&
-					bytes[cursor] == 0x00 &&
-					bytes[cursor + 1] == 0x00 &&
-					bytes[cursor + 2] == 0x03)
-				{
-					_seiRBSPBuffer.writeByte(bytes[cursor++]);
-					_seiRBSPBuffer.writeByte(bytes[cursor++]);
-					cursor++; // skip network emulation byte
-				}
-				else
-				{
-					_seiRBSPBuffer.writeByte(bytes[cursor++]);
-				}
-			}
-			
-			parseAVCSEIRBSP(_seiRBSPBuffer, 0, _seiRBSPBuffer.position);
-		}
-		
+
 		public function onAVCNALU(pts:Number, dts:Number, bytes:ByteArray, cursor:uint, length:uint):void
 		{
 			// What's the type?
 			var naluType:uint = bytes[cursor + 3] & 0x1f;
-			
 			switch(naluType)
 			{
 				case  6: // SEI
@@ -796,11 +640,6 @@ if(false) {
 			
 			switch(naluType)
 			{
-				case 0x06: // SEI
-					parseAVCSEINALU(bytes, cursor + 3, length - 3); // skip start code
-					appendAVCNALU(bytes, cursor + 3, length - 3); // skip start code
-					break;
-
 				case 0x07: // SPS
 					setAVCSPS(bytes, cursor, length);
 					appendAVCNALU(bytes, cursor + 3, length - 3);
