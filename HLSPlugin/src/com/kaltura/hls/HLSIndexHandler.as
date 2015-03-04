@@ -87,6 +87,26 @@ package com.kaltura.hls
 		// as a global cache.
 		public static var startTimeWitnesses:Object = {};
 
+
+		CONFIG::LOGGING
+		{
+			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HTTPNetStream");
+			private var previouslyLoggedState:String = null;
+		}
+
+		public function HLSIndexHandler(_resource:MediaResourceBase, _fileHandler:HTTPStreamingFileHandlerBase)
+		{
+			resource = _resource as HLSStreamingResource;
+			manifest = resource.manifest;
+			baseUrl = manifest.baseUrl;
+			fileHandler = _fileHandler as M2TSFileHandler;
+			fileHandler.extendedIndexHandler = this;
+
+			_bestEffortFileHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onBestEffortParsed);
+			_bestEffortFileHandler.isBestEffort = true;
+		}
+
+
 		public function updateSegmentTimes(segments:Vector.<HLSManifestSegment>):Vector.<HLSManifestSegment>
 		{
 			// Using our witnesses, fill in as much knowledge as we can about 
@@ -216,25 +236,6 @@ package com.kaltura.hls
 			if(!seg)
 				return -1;
 			return seg.id;
-		}
-
-
-		CONFIG::LOGGING
-		{
-			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HTTPNetStream");
-			private var previouslyLoggedState:String = null;
-		}
-
-		public function HLSIndexHandler(_resource:MediaResourceBase, _fileHandler:HTTPStreamingFileHandlerBase)
-		{
-			resource = _resource as HLSStreamingResource;
-			manifest = resource.manifest;
-			baseUrl = manifest.baseUrl;
-			fileHandler = _fileHandler as M2TSFileHandler;
-			fileHandler.extendedIndexHandler = this;
-
-			_bestEffortFileHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onBestEffortParsed);
-			_bestEffortFileHandler.isBestEffort = true;
 		}
 
 		public function flushPPS():void
@@ -500,7 +501,7 @@ package com.kaltura.hls
 					trace("Bailing on reload due to lack of knowledge!");
 					
 					// re-reload.
-					reloadingManifest = null; // don't want to hang on to it
+					reloadingManifest = null; // don't want to hang on to this one.
 					if (reloadTimer) reloadTimer.start();
 
 					return;
@@ -562,6 +563,9 @@ package com.kaltura.hls
 					trace("===== Remapping to " + lastSequence + " new " + (newSeg.id));
 					lastSequence = newSeg.id;
 				}
+
+				// Dec for next time around.
+				trace("   o Ended at " + lastSequence);
 			}
 
 			// Update our manifest for this quality level.
@@ -636,6 +640,8 @@ package com.kaltura.hls
 		
 		public override function getFileForTime(time:Number, quality:int):HTTPStreamRequest
 		{	
+			trace("getFileForTime - " + time + " quality=" + quality);
+			
 			quality = getWorkingQuality(quality);			
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
 			
@@ -790,6 +796,7 @@ package com.kaltura.hls
 			{
 				trace("Stalling -- requested segment " + lastSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream");
 				lastSequence--;
+				lastSequence--;
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, RETRY_INTERVAL);
 			}
 			
@@ -838,7 +845,7 @@ package com.kaltura.hls
 			if(!manifest)
 				return;
 
-			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( lastQuality );
+			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
 			var activeManifest:HLSManifestParser = getManifestForQuality(lastQuality);
 
 			if(segments.length > 0)
@@ -902,16 +909,15 @@ package com.kaltura.hls
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
 			if (segments.length == 0) return; // No point, I think, in continuing
 			
-			
 			var firstSegment:HLSManifestSegment = segments[ 0 ];
-			var segment:HLSManifestSegment = segments[segments.length - 1];
+			var lastSegment:HLSManifestSegment = segments[segments.length - 1];
 			
 			var dvrInfo:DVRInfo = new DVRInfo();
 			dvrInfo.offline = false;
 			dvrInfo.isRecording = !curManifest.streamEnds;  // TODO: verify that this is what we REALLY want to be doing
 			dvrInfo.startTime = firstSegment.startTime;			
 			dvrInfo.beginOffset = firstSegment.startTime;
-			dvrInfo.endOffset = segment.startTime; // + segment.duration;
+			dvrInfo.endOffset = lastSegment.startTime + lastSegment.duration;
 			dvrInfo.curLength = dvrInfo.endOffset - dvrInfo.beginOffset;
 			dvrInfo.windowDuration = dvrInfo.curLength; // TODO: verify that this is what we want to be putting here
 			
