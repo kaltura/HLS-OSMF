@@ -492,18 +492,22 @@ if(false) {
 			onlySendFirstSegmentAVCCFlag = false;
 		}
 
+		// We can reuse this to save on allocations.
+		public static var flvGenerationBuffer:ByteArray = new ByteArray();
+
 		private function sendCompleteAVCFLVTag(pts:Number, dts:Number):void
 		{
 			var flvts:uint = convertFLVTimestamp(dts);
 			var tsu:uint = convertFLVTimestamp(pts - dts);
-			var tmp:ByteArray = new ByteArray;
+			flvGenerationBuffer.length = 0;
+			flvGenerationBuffer.position = 0;
 			
 			//trace("pts = " + pts + " dts = " + dts + " tsu = " + tsu + " V");
 
-			if( pts < 0 || dts < 0 || 0 == _avcPacket.length)
+			if( pts < 0 || dts < 0)
 				return;
 			
-			if(_sendAVCC != null && !isBestEffort && onlySendFirstSegmentAVCCFlag == false)
+			if(_sendAVCC == true && onlySendFirstSegmentAVCCFlag == false)
 			{
 				trace("Attempting to send AVCC");
 				var avcc:ByteArray = makeAVCC();
@@ -519,21 +523,24 @@ if(false) {
 				}
 			}
 			
+			if(_avcPacket.length == 0)
+				return;
+
 			var codec:uint;
 			if(_keyFrame)
 				codec = FLVTags.VIDEO_CODEC_AVC_KEYFRAME;
 			else
 				codec = FLVTags.VIDEO_CODEC_AVC_PREDICTIVEFRAME;
 			
-			tmp.length = 3 + length;
-			tmp[0] = (tsu >> 16) & 0xff;
-			tmp[1] = (tsu >>  8) & 0xff;
-			tmp[2] = (tsu      ) & 0xff;
-			tmp.position = 3;
-			tmp.writeBytes(_avcPacket);
+			flvGenerationBuffer.length = 3 + length;
+			flvGenerationBuffer[0] = (tsu >> 16) & 0xff;
+			flvGenerationBuffer[1] = (tsu >>  8) & 0xff;
+			flvGenerationBuffer[2] = (tsu      ) & 0xff;
+			flvGenerationBuffer.position = 3;
+			flvGenerationBuffer.writeBytes(_avcPacket);
 			_avcPacket.length = 0;
 			
-			sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, tmp, 0, tmp.length);
+			sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length);
 		}
 		
 		private function setAVCSPS(bytes:ByteArray, cursor:uint, length:uint):void
@@ -649,9 +656,8 @@ if(false) {
 					trace("Grabbing AVC PPS length=" + length);
 					setAVCPPS(bytes, cursor, length);
 					appendAVCNALU(bytes, cursor + 3, length - 3);
-					_keyFrame = true;
 					break;
-								
+				
 				case 0x09: // "access unit delimiter"
 					switch((bytes[cursor + 4] >> 5) & 0x07) // access unit type
 					{
@@ -664,6 +670,8 @@ if(false) {
 							_keyFrame = false;
 							break;
 					}
+					break;
+
 				default:
 					// Infer keyframe state.
 					if(naluType == 5)
