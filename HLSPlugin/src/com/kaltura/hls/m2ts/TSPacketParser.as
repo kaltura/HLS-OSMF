@@ -108,7 +108,7 @@ package com.kaltura.hls.m2ts
                 var adaptationFieldLength:uint = _buffer.readUnsignedByte();
                 if(adaptationFieldLength >= 183)
                 {
-                    trace("Saw only adaptation data, skipping TS packet.");
+                    //trace("Saw only adaptation data, skipping TS packet.");
                     return;
                 }
 

@@ -797,6 +797,14 @@ package org.osmf.net.httpstreaming
 								if(indexHandler == null)
 									return;
 
+								// Check that we have the current index handler.
+								if(HLSHTTPNetStream.indexHandler != indexHandler)
+								{
+									trace("Old streamTooSlowTimer fired; killing.");
+									streamTooSlowTimer.stop();
+									return;
+								}
+
 								// If this event is hit, set the quality level to the lowest available quality level
 								var newStream:String = indexHandler.getQualityLevelStreamName(0);
 								if(!newStream)
