@@ -23,8 +23,6 @@
 			import flash.net.FileReference;
 
 			import org.osmf.net.httpstreaming.HLSHTTPNetStream;
-			import com.kaltura.hls.m2ts.M2TSParser;
-			import com.kaltura.hls.m2ts.M2TSToFLVConverter;
 
 			import net.digitalprimates.osmf.utils.PluginLoader;
 			import net.digitalprimates.osmf.utils.events.PluginLoaderEvent;
@@ -392,14 +390,14 @@
 
 			private function getH264():void
 			{
-				var fr:FileReference = new FileReference();
-				fr.save(M2TSParser._totalh264);
+				//var fr:FileReference = new FileReference();
+				//fr.save(M2TSParser._totalh264);
 			}
 
 			private function getFLV():void
 			{
-				var fr:FileReference = new FileReference();
-				fr.save(HLSHTTPNetStream._masterBuffer);
+				//var fr:FileReference = new FileReference();
+				//fr.save(HLSHTTPNetStream._masterBuffer);
 			}
 		]]>
 	</fx:Script>

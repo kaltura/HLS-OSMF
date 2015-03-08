@@ -101,7 +101,7 @@ package org.osmf.net.httpstreaming
 	 */	
 	public class HLSHTTPNetStream extends NetStream
 	{
-		public static var writeToMasterBuffer:Boolean = false;
+		public static var writeToMasterBuffer:Boolean = true;
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
 		/**
@@ -761,8 +761,6 @@ package org.osmf.net.httpstreaming
 			{
 				case HTTPStreamingState.INIT:
 					// do nothing
-					if(indexHandler)
-						indexHandler.flushPPS();
 					break;
 				
 				case HTTPStreamingState.WAIT:
@@ -784,19 +782,36 @@ package org.osmf.net.httpstreaming
 
 						streamTooSlowTimer.addEventListener(TimerEvent.TIMER, function(timerEvent:TimerEvent = null):void {
 
-							// Check we have a valid stream to switch to.
-							if(!(_resource as HLSStreamingResource))
-								return;
+							try
+							{
+								// Check we have a valid stream to switch to.
+								if(!(_resource as HLSStreamingResource))
+									return;
 
-							if((_resource as HLSStreamingResource).manifest == null)
-								return;
+								if((_resource as HLSStreamingResource).manifest == null)
+									return;
 
-							if((_resource as HLSStreamingResource).manifest.streams.length < 1)
-								return;
+								if((_resource as HLSStreamingResource).manifest.streams.length < 1)
+									return;
 
-							// If this event is hit, set the quality level to the lowest available quality level
-							trace("Warning: Buffer Time of " + _desiredBufferTime_Max * 2 + " seconds exceeded. Switching to quality 0");
-							changeQualityLevelTo((_videoHandler as HTTPStreamSource)._streamNames[0]);
+								if(indexHandler == null)
+									return;
+
+								// If this event is hit, set the quality level to the lowest available quality level
+								var newStream:String = indexHandler.getQualityLevelStreamName(0);
+								if(!newStream)
+								{
+									trace("streamTooSlowTimer failed to get stream name for quality level 0");
+									return;
+								}
+
+								trace("Warning: Buffer Time of " + _desiredBufferTime_Max * 2 + " seconds exceeded. Switching to quality 0 " + newStream);
+								changeQualityLevelTo(newStream);
+							}
+							catch(e:Error)
+							{
+								trace("Failure when trying to handle streamTooSlowTimer event: " + e.toString());
+							}
 						});
 					}
 
@@ -841,9 +856,6 @@ package org.osmf.net.httpstreaming
 							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 						}
 						
-						if(indexHandler)
-							indexHandler.flushPPS();
-
 						_wasBufferEmptied = true;
 						
 						if (playbackDetailsRecorder != null)
@@ -907,8 +919,6 @@ package org.osmf.net.httpstreaming
 					{
 						_notifyPlayStartPending = false;
 						notifyPlayStart();
-						if(indexHandler) 
-							indexHandler.flushPPS();
 					}
 					
 					if (_qualityLevelNeedsChanging)
@@ -1002,9 +1012,6 @@ package org.osmf.net.httpstreaming
 						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 					}
 
-					if(indexHandler)
-						indexHandler.flushPPS();
-					
 					var playCompleteInfo:Object = new Object();
 					playCompleteInfo.code = NetStreamCodes.NETSTREAM_PLAY_COMPLETE;
 					playCompleteInfo.level = "status";
@@ -1026,8 +1033,6 @@ package org.osmf.net.httpstreaming
 				
 				case HTTPStreamingState.HALT:
 					// do nothing
-					if(indexHandler) 
-						indexHandler.flushPPS();
 					break;
 			}
 		}
