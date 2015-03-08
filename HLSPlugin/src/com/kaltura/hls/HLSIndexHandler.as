@@ -754,8 +754,8 @@ package com.kaltura.hls
 				return pber;
 			}
 
-			// Report stalls.
-			if (stalled)
+			// Report stalls and/or wait on timebase establishment.
+			if (stalled || _bestEffortDownloaderMonitor)
 			{
 				trace("Stalling -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);
@@ -768,7 +768,7 @@ package com.kaltura.hls
 			quality = getWorkingQuality(quality);
 			//trace("Post GWQ " + quality);
 
-			var currentManifest:HLSManifestParser = getManifestForQuality ( quality );
+			var currentManifest:HLSManifestParser = getManifestForQuality ( origQuality );
 			var segments:Vector.<HLSManifestSegment> = currentManifest.segments;
 
 			// If no knowledge available, cue up a best effort fetch.
@@ -778,7 +778,7 @@ package com.kaltura.hls
 				if(!_bestEffortDownloaderMonitor)
 				{
 					trace("Initiating best effort request");
-					return initiateBestEffortRequest(uint.MAX_VALUE, quality);
+					return initiateBestEffortRequest(uint.MAX_VALUE, origQuality);
 				}
 				else
 				{
