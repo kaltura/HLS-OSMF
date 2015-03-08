@@ -27,7 +27,7 @@ package com.kaltura.hls.m2ts
         {
             if(clearAACConfig)
                 _aacConfig = null;
-            _aacRemainder = new ByteArray();
+            _aacRemainder = null;
             _aacTimestamp = 0;
         }
 
