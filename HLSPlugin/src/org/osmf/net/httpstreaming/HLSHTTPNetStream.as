@@ -1664,12 +1664,12 @@ package org.osmf.net.httpstreaming
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
 			// We need to take into account that flv tags' timestamps are 32-bit unsigned ints
 			// This means they will roll over, but the bootstrap times won't, since they are 64-bit unsigned ints
-			while (currentTime < _initialTime)
+			/*while (currentTime < _initialTime)
 			{
 				// Add 2^32 (4,294,967,296) milliseconds to the currentTime
 				// currentTime is in seconds so we divide that by 1000
 				currentTime += 4294967.296;
-			}
+			}*/
 			
 			if (_playForDuration >= 0)
 			{
