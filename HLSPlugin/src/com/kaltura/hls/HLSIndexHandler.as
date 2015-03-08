@@ -31,12 +31,20 @@ package com.kaltura.hls
 	import org.osmf.net.httpstreaming.dvr.DVRInfo;
 	import org.osmf.net.httpstreaming.flv.FLVTagScriptDataMode;
 	import org.osmf.net.httpstreaming.flv.FLVTagScriptDataObject;
+
+	import org.osmf.logging.Logger;
+	import org.osmf.logging.Log;
 	
 	public class HLSIndexHandler extends HTTPStreamingIndexHandlerBase implements IExtraIndexHandlerState
 	{
 		// Time in seconds to wait before retrying a LIVE_STALL
 		public static const RETRY_INTERVAL:uint = 3;
 		
+		// Set when we rewrote the current seek target.
+		public var bumpedTime:Boolean = false;
+		// The new current seek target.
+		public var bumpedSeek:Number = 0;
+
 		public var lastSequence:int = 0;
 		public var lastKnownPlaylistStartTime:Number = 0.0;
 		public var lastQuality:int = 0;
@@ -555,7 +563,7 @@ package com.kaltura.hls
 				else
 				{
 					trace("Remapping from " + lastSequence + " to " + (lastSeg.startTime + lastSeg.duration));
-					trace("===== Remapping to " + lastSequence + " new " + (newSeg.id));
+					trace("===== Remapping to " + lastSequence + " newId=" + (newSeg.id) + " newTime=" + newSeg.startTime);
 					lastSequence = newSeg.id;
 				}
 
@@ -651,6 +659,14 @@ package com.kaltura.hls
 			quality = getWorkingQuality(quality);			
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
 			
+			// If it's the initial MAX_VALUE see, we can jump to last segment less 3.
+			if(time == Number.MAX_VALUE && segments.length > 0)
+			{
+				trace("Seeking to end due to MAX_VALUE.");
+				bumpedTime = true;
+				lastSequence = segments[segments.length - 1].id;
+			}
+
 			if(!checkAnySegmentKnowledge(segments) && !_bestEffortDownloaderMonitor)
 			{
 				// We may also need to establish a timebase.
@@ -680,11 +696,13 @@ package com.kaltura.hls
 				{
 					trace("Fell off oldest segment, going to end #" + segments[0].id)
 					seq = segments[0].id;
+					bumpedTime = true;
 				}
 				else if(time > lastSeg.startTime)
 				{
 					trace("Fell off oldest segment, going to end #" + lastSeg.id)
 					seq = lastSeg.id;
+					bumpedTime = true;
 				}
 			}
 
@@ -693,6 +711,8 @@ package com.kaltura.hls
 				var curSegment:HLSManifestSegment = getSegmentBySequence(segments, seq);
 				
 				lastSequence = seq;
+
+				bumpedSeek = curSegment.startTime;
 
 				fileHandler.segmentId = seq;
 				fileHandler.key = getKeyForIndex( seq );
@@ -775,14 +795,16 @@ package com.kaltura.hls
 
 			if( segments.length > 0 && lastSequence < segments[0].id)
 			{
-				trace("Resetting too low sequence" + lastSequence + " to " + segments[0].id);
+				trace("Resetting too low sequence " + lastSequence + " to " + segments[0].id);
 				lastSequence = segments[0].id;
+				bumpedTime = true;
 			}
 
 			if (segments.length > 2 && lastSequence > (segments[segments.length-1].id + 3))
 			{
 				trace("Got in a bad state of " + lastSequence + " , resetting to near end of stream " + segments[segments.length-2].id);
 				lastSequence = segments[segments.length-2].id;
+				bumpedTime = true;
 			}
 
 			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, lastSequence);
@@ -791,6 +813,8 @@ package com.kaltura.hls
 			{
 				trace("Getting Next Segment[" + lastSequence + "] StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri);
 				
+				bumpedSeek = curSegment.startTime;
+
 				fileHandler.segmentId = lastSequence;
 				fileHandler.key = getKeyForIndex( lastSequence );
 				fileHandler.segmentUri = curSegment.uri;
@@ -1331,7 +1355,8 @@ package com.kaltura.hls
 			
 			CONFIG::LOGGING
 			{
-				logger.debug("Setting _bestEffortLivenessRestartPoint to "+_bestEffortLivenessRestartPoint+" because of successful BEF download.");
+				//logger.debug("Setting _bestEffortLivenessRestartPoint to "+_bestEffortLivenessRestartPoint+" because of successful BEF download.");
+				;
 			}
 			
 			// remember that we started a download now

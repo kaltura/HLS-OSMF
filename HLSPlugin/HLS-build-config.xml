@@ -9,7 +9,7 @@
 
     <define>
       <name>CONFIG::LOGGING</name>
-      <value>false</value>
+      <value>true</value>
     </define> 
 
     <define>
