@@ -664,6 +664,7 @@ package com.kaltura.hls
 			{
 				trace("Seeking to end due to MAX_VALUE.");
 				bumpedTime = true;
+				bumpedSeek = segments[segments.length - 1].startTime;
 				lastSequence = segments[segments.length - 1].id;
 			}
 
