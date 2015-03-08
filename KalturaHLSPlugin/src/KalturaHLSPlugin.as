@@ -1,6 +1,7 @@
 package
 {
 	import com.kaltura.hls.HLSPluginInfo;
+	import com.kaltura.hls.manifest.HLSManifestParser;
     import com.kaltura.kdpfl.model.MediaProxy;
     import com.kaltura.kdpfl.plugin.IPlugin;
     import com.kaltura.kdpfl.plugin.IPluginFactory;
@@ -14,6 +15,8 @@ package
     import com.kaltura.kdpfl.plugin.KPluginEvent;
 	import com.kaltura.kdpfl.plugin.KalturaHLSMediator;
 	
+	import com.kaltura.kdpfl.model.ConfigProxy;
+	
 	import flash.display.Sprite;
 	
 	import org.osmf.media.PluginInfo;
@@ -25,6 +28,7 @@ package
         private static const HLS_PLUGIN_INFO:String = "com.kaltura.hls.HLSPluginInfo";
 		private var _pluginResource:MediaResourceBase;
 
+		private var _segmentBuffer:int = -1;
         
         public function KalturaHLSPlugin()
         {
@@ -32,6 +36,16 @@ package
             _pluginInfo = new HLSPluginInfo();	
         }
         
+		public function get segmentBuffer():int
+		{
+			return _segmentBuffer;
+		}
+
+		public function set segmentBuffer(value:int):void
+		{
+			_segmentBuffer = value;
+		}
+
         public function create (pluginName : String =null) : IPlugin
         {
             return this;
@@ -61,6 +75,8 @@ package
         {
 			if ( e.resource && e.resource == _pluginResource ) {
 				e.target.removeEventListener(MediaFactoryEvent.PLUGIN_LOAD, onOSMFPluginLoaded);
+				if (segmentBuffer != -1) 
+					HLSManifestParser.MAX_SEG_BUFFER = segmentBuffer;
 				dispatchEvent( new KPluginEvent (KPluginEvent.KPLUGIN_INIT_COMPLETE) );
 			}
             
