@@ -3,17 +3,13 @@ package com.kaltura.hls.m2ts
 	import flash.net.ObjectEncoding;
 	import flash.utils.ByteArray;
 	import flash.utils.Endian;
-	
-	import mx.utils.Base64Encoder;
+	import com.hurlant.util.Hex;
 	
 	/**
 	 * Accept data from a M2TS and emit a valid FLV stream.
 	 */
 	public class M2TSToFLVConverter implements IM2TSCallbacks
-	{	
-		public static var _captureFLV:Boolean = false;
-		public static var _masterBuffer:ByteArray = new ByteArray();	
-
+	{
 		private var _aacConfig:ByteArray;
 		private var _aacRemainder:ByteArray;
 		private var _aacTimestamp:Number;
@@ -41,6 +37,8 @@ package com.kaltura.hls.m2ts
 		// When true suppress filtering PPS/SPS events.
 		public var isBestEffort:Boolean = false;
 
+		public var accumulateParams:Boolean = false;
+
 		public function M2TSToFLVConverter(messageHandler:Function = null)
 		{
 			_parser = new M2TSParser(this);
@@ -56,27 +54,6 @@ package com.kaltura.hls.m2ts
 			_seiRBSPBuffer = new ByteArray();
 			_pendingCaptionInfos = [];
 			setMessageHandler(messageHandler);
-		}
-		
-		public static function generateFLVHeader(video:Boolean = true, audio:Boolean = true):ByteArray
-		{
-			var header:ByteArray = new ByteArray();
-			
-			header[0] = 0x46; // F
-			header[1] = 0x4c; // L
-			header[2] = 0x56; // V
-			header[3] = 0x01; // version = 1
-			header[4] = (video ? FLVTags.HEADER_VIDEO_FLAG : 0) + (audio ? FLVTags.HEADER_AUDIO_FLAG : 0); // flags
-			header[5] = 0x00; // header length == 9
-			header[6] = 0x00;
-			header[7] = 0x00;
-			header[8] = 0x09; 
-			header[9] = 0x00; // back pointer == 0
-			header[10] = 0x00;
-			header[11] = 0x00;
-			header[12] = 0x00; 
-			
-			return header;
 		}
 		
 		public function setMessageHandler(messageHandler:Function = null):void
@@ -102,6 +79,11 @@ package com.kaltura.hls.m2ts
 			_avcAccessUnitStarted = false;
 			_aacRemainder = null;
 			_aacTimestamp = -1.0;
+		}
+
+		public function finish():void
+		{
+			_parser.finish();	
 		}
 		
 		public function clear(clearACCConfig:Boolean = true):void
@@ -332,7 +314,7 @@ package com.kaltura.hls.m2ts
 			_aacConfig = audioSpecificConfig;
 			sendFLVTag(flvts, FLVTags.TYPE_AUDIO, FLVTags.AUDIO_CODEC_AAC, FLVTags.AAC_MODE_CONFIG, _aacConfig, 0, _aacConfig.length);
 		}
-		
+
 		private function generateScriptData(values:Array):ByteArray
 		{
 			var bytes:ByteArray = new ByteArray();
@@ -426,70 +408,156 @@ if(false) {
 			}
 			return;
 }
-			//trace("FLV Emit " + flvts);
 
+			trace("tag " + flvts);
 			_handler(flvts, tag);
-
-			// Uncomment to log all FLV for investigation.
-			if(_captureFLV)
-				_masterBuffer.writeBytes(tag);
 		}
+
+		private var ppsList:Vector.<ByteArray>;
+		private var spsList:Vector.<ByteArray>;
 		
+		private function sortSPS(a:ByteArray, b:ByteArray):int
+		{
+			var ourEg:ExpGolomb = new ExpGolomb(a);
+			ourEg.readBits(8);
+            ourEg.readBits(20);
+			var Id_a:int = ourEg.readUE();
+
+			ourEg = new ExpGolomb(b);
+			ourEg.readBits(8);
+            ourEg.readBits(20);
+			var Id_b:int = ourEg.readUE();
+
+			return Id_a - Id_b;
+		}
+
+		private function sortPPS(a:ByteArray, b:ByteArray):int
+		{
+			var ourEg:ExpGolomb = new ExpGolomb(a);
+			ourEg.readBits(8);
+			var Id_a:int = ourEg.readUE();
+
+			ourEg = new ExpGolomb(b);
+			ourEg.readBits(8);
+			var Id_b:int = ourEg.readUE();
+
+			return Id_a - Id_b;			
+		}
+
 		private function makeAVCC():ByteArray
 		{
 			if( !_sps || !_pps)
 				return null;
 			
-			var spsLength:uint = _sps.length;
-			var ppsLength:uint = _pps.length;
-			
+			// Some sanity checking, easier than special casing loops.
+			if(ppsList == null)
+				ppsList = new Vector.<ByteArray>();
+			if(spsList == null)
+				spsList = new Vector.<ByteArray>();
+
 			var avcc:ByteArray = new ByteArray();
 			var cursor:uint = 0;
-			
-			avcc[cursor++] = 0;
-			avcc[cursor++] = 0;
-			avcc[cursor++] = 0;
-			avcc[cursor++] = 1; // version
+			   
+			avcc[cursor++] = 0x00; // stream ID
+			avcc[cursor++] = 0x00;
+			avcc[cursor++] = 0x00;
+
+			avcc[cursor++] = 0x01; // version
 			avcc[cursor++] = _sps[1]; // profile
 			avcc[cursor++] = _sps[2]; // compatiblity
 			avcc[cursor++] = _sps[3]; // level
-			avcc[cursor++] = 0xff; // nalu length length = 4 bytes: 111111xx, 00=1, 01=2, 10=3, 11=4
-			avcc[cursor++] = 0x01; // one SPS
-			avcc[cursor++] = (spsLength >> 8) & 0xff;
-			avcc[cursor++] = (spsLength     ) & 0xff;
-			avcc.position = cursor;
-			avcc.writeBytes(_sps);
-			
-			// Debug dump the SPS
-			trace("SPS profile " + _sps[1]);
-			trace("SPS compat  " + _sps[2]);
-			trace("SPS level   " + _sps[3]);
+			avcc[cursor++] = 0xFC | 3; // nalu marker length size - 1, we're using 4 byte ints.
+			avcc[cursor++] = 0xE0 | spsList.length; // reserved bit + SPS count
 
-			cursor += spsLength;
-			
-			avcc[cursor++] = 1; // one PPS
-			avcc[cursor++] = (ppsLength >> 8) & 0xff;
-			avcc[cursor++] = (ppsLength     ) & 0xff;
-			avcc.position = cursor;
-			avcc.writeBytes(_pps);
+			spsList.sort(sortSPS);
 
-			trace("PPS length is " + ppsLength);
+			for(var i:int=0; i<spsList.length; i++)
+			{
+				// Debug dump the SPS
+				var spsLength:uint = spsList[i].length;
+
+				trace("SPS #" + i + " profile " + spsList[i][1] + "   " + Hex.fromArray(spsList[i], true));
+
+				var eg:ExpGolomb = new ExpGolomb(spsList[i]);
+				eg.readBits(8);
+	            eg.readBits(20);
+	            trace("Saw id " + eg.readUE());
+
+				avcc.position = cursor;
+				spsList[i].position = 0;
+				avcc.writeShort(spsLength);
+				avcc.writeBytes(spsList[i], 0, spsLength);
+				cursor += spsLength + 2;
+			}
+			
+			avcc[cursor++] = ppsList.length; // encode PPSes
+
+			ppsList.sort(sortPPS);
+
+			for(i=0; i<ppsList.length; i++)
+			{
+				var ppsLength:uint = ppsList[i].length;
+				trace("PPS length #" + i + " is " + ppsLength + "   " + Hex.fromArray(ppsList[i], true));
+
+				eg = new ExpGolomb(ppsList[i]);
+				eg.readBits(8);
+	            trace("Saw id " + eg.readUE());
+
+				avcc.position = cursor;
+				ppsList[i].position = 0;
+				avcc.writeShort(ppsLength);
+				avcc.writeBytes(ppsList[i], 0, ppsLength);
+				cursor += ppsLength + 2;
+			}
 
 			return avcc;
 		}
 		
-		private function appendAVCNALU(bytes:ByteArray, cursor:uint, length:uint):void
+		private static var avcTemp:ByteArray = new ByteArray();
+
+		/**
+		 * Append AVC data for FLV packet.
+		 *
+		 * @returns NALU data with emulation bytes removed.
+		 */
+		private function appendAVCNALU(bytes:ByteArray, cursor:uint, length:uint):ByteArray
 		{
-			_avcPacket.writeUnsignedInt(length);
-			_avcPacket.writeBytes(bytes, cursor, length);
+			// Copy into a temp buffer excluding any emulation bytes.
+			avcTemp.length = avcTemp.position = 0;
+			for(var i:int=cursor; i<cursor+length; i++)
+			{
+				if(bytes[i] == 0x03 && (i-cursor) >= 3)
+				{
+					if(bytes[i-1] == 0x00 && bytes[i-2] == 0x00)
+					{
+						trace("SKIPPING EMULATION BYTE @ " + i);
+						continue;
+					}
+				}
+
+				avcTemp.writeByte(bytes[i]);
+			}
+
+			if(avcTemp.length != length)
+				trace("Got real length " + avcTemp.length + " vs proposed length " + length);
+
+			if(accumulateParams == false)
+			{
+				_avcPacket.writeUnsignedInt(avcTemp.length);
+				_avcPacket.writeBytes(avcTemp, 0, avcTemp.length);				
+			}
+
+			return avcTemp;
 		}
 
 		private var onlySendFirstSegmentAVCCFlag:Boolean = false;
 
 		public function flushPPS():void
 		{
-			trace("Flushing PPS flag...");
+			trace("Flushing PPS flag and set");
 			onlySendFirstSegmentAVCCFlag = false;
+			ppsList = new Vector.<ByteArray>();
+			spsList = new Vector.<ByteArray>();
 		}
 
 		// We can reuse this to save on allocations.
@@ -511,7 +579,6 @@ if(false) {
 			{
 				trace("Attempting to send AVCC");
 				var avcc:ByteArray = makeAVCC();
-				
 				if(avcc)
 				{
 					trace("SENDING AVCC");
@@ -532,12 +599,13 @@ if(false) {
 			else
 				codec = FLVTags.VIDEO_CODEC_AVC_PREDICTIVEFRAME;
 			
-			flvGenerationBuffer.length = 3 + length;
+			flvGenerationBuffer.length = 3 + _avcPacket.length;
 			flvGenerationBuffer[0] = (tsu >> 16) & 0xff;
 			flvGenerationBuffer[1] = (tsu >>  8) & 0xff;
 			flvGenerationBuffer[2] = (tsu      ) & 0xff;
 			flvGenerationBuffer.position = 3;
 			flvGenerationBuffer.writeBytes(_avcPacket);
+			dumpBytes("[AVC] ", flvGenerationBuffer, 0, flvGenerationBuffer.length);
 			_avcPacket.length = 0;
 			
 			sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length);
@@ -546,15 +614,85 @@ if(false) {
 		private function setAVCSPS(bytes:ByteArray, cursor:uint, length:uint):void
 		{
 			_sps = new ByteArray;
-			_sps.writeBytes(bytes, cursor + 3, length - 3); // skip start code
+			_sps.writeBytes(bytes, cursor, length);
 			_sendAVCC = true;
+
+			var ourEg:ExpGolomb = new ExpGolomb(_sps);
+			ourEg.readBits(8);
+			ourEg.readBits(20);
+			var ourId:int = ourEg.readUE();
+
+			// If not present in list add it!
+			var found:Boolean = false;
+			for(var i:int=0; i<spsList.length; i++)
+			{
+				// If it matches our ID, replace it.
+				var eg:ExpGolomb = new ExpGolomb(spsList[i]);
+				eg.readBits(8);
+				eg.readBits(20);
+				var foundId:int = eg.readUE();
+
+				if(foundId == ourId)
+				{
+					trace("Got SPS match for " + foundId + "!");
+					spsList[i] = _sps;
+					return;
+				}
+
+				if(spsList[i].length != length)
+					continue;
+
+				for(var j:int=0; j<spsList[i].length && j<_sps.length; j++)
+					if(spsList[i][j] != _sps[j])
+						continue;
+
+				found = true;
+				break;
+			}
+
+			if(!found)
+				spsList.push(_sps);
 		}
 		
 		private function setAVCPPS(bytes:ByteArray, cursor:uint, length:uint):void
 		{
 			_pps = new ByteArray;
-			_pps.writeBytes(bytes, cursor + 3 , length - 3); // skip start code
+			_pps.writeBytes(bytes, cursor, length);
 			_sendAVCC = true;
+
+			var ourEg:ExpGolomb = new ExpGolomb(_pps);
+			ourEg.readBits(8);
+			var ourId:int = ourEg.readUE();
+
+			// If not present in list add it!
+			var found:Boolean = false;
+			for(var i:int=0; i<ppsList.length; i++)
+			{
+				// If it matches our ID, replace it.
+				var eg:ExpGolomb = new ExpGolomb(ppsList[i]);
+				eg.readBits(8);
+				var foundId:int = eg.readUE();
+
+				if(foundId == ourId)
+				{
+					trace("Got PPS match for " + foundId + "!");
+					ppsList[i] = _pps;
+					return;
+				}
+
+				if(ppsList[i].length != length)
+					continue;
+
+				for(var j:int=0; j<ppsList[i].length && j<_pps.length; j++)
+					if(ppsList[i][j] != _pps[j])
+						continue;
+
+				found = true;
+				break;
+			}
+
+			if(!found)			
+				ppsList.push(_pps);
 		}
 		
 		public function createAndSendCaptionMessage( timeStamp:Number, captionBuffer:String, lang:String="", textid:Number=99):void
@@ -599,7 +737,10 @@ if(false) {
 		public function onAVCNALU(pts:Number, dts:Number, bytes:ByteArray, cursor:uint, length:uint):void
 		{
 			// What's the type?
-			var naluType:uint = bytes[cursor + 3] & 0x1f;
+			var naluType:uint = bytes[cursor] & 0x1f;
+
+			//trace("nalu length " + length + " type " + naluType);
+
 			switch(naluType)
 			{
 				case  6: // SEI
@@ -618,7 +759,8 @@ if(false) {
 					{
 						_avcVCL = false;
 						_avcAccessUnitStarted = false;
-						sendCompleteAVCFLVTag(_avcPTS, _avcDTS);
+						if(accumulateParams == false)
+							sendCompleteAVCFLVTag(_avcPTS, _avcDTS);
 					}
 
 					if(!_avcAccessUnitStarted)
@@ -644,22 +786,25 @@ if(false) {
 					_avcVCL = true;
 					break;
 			}
+
+			var tmp:ByteArray;
 			
 			switch(naluType)
 			{
 				case 0x07: // SPS
-					setAVCSPS(bytes, cursor, length);
-					appendAVCNALU(bytes, cursor + 3, length - 3);
+					trace("Grabbing AVC SPS length=" + length);
+					tmp = appendAVCNALU(bytes, cursor, length);
+					setAVCSPS(tmp, 0, tmp.length);
 					break;
 				
 				case 0x08: // PPS
 					trace("Grabbing AVC PPS length=" + length);
-					setAVCPPS(bytes, cursor, length);
-					appendAVCNALU(bytes, cursor + 3, length - 3);
+					tmp = appendAVCNALU(bytes, cursor, length);
+					setAVCPPS(tmp, 0, tmp.length);
 					break;
 				
 				case 0x09: // "access unit delimiter"
-					switch((bytes[cursor + 4] >> 5) & 0x07) // access unit type
+					switch((bytes[cursor + 1] >> 5) & 0x07) // access unit type
 					{
 						case 0:
 						case 3:
@@ -680,7 +825,7 @@ if(false) {
 						_keyFrame = false;
 					
 					// Process more NALU; skipping the start code.
-					appendAVCNALU(bytes, cursor + 3, length - 3);
+					appendAVCNALU(bytes, cursor, length);
 					break;
 			}
 		}

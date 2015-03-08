@@ -28,7 +28,7 @@ package com.kaltura.hls.m2ts
 		public var segmentUri:String;
 		public var isBestEffort:Boolean = false;
 		
-		private var _converter:M2TSToFLVConverter;
+		private var _parser:TSPacketParser;
 		private var _curTimeOffset:uint;
 		private var _buffer:ByteArray;
 		private var _fragReadBuffer:ByteArray;
@@ -52,7 +52,8 @@ package com.kaltura.hls.m2ts
 			
 			_encryptedDataBuffer = new ByteArray();
 
-			_converter = new M2TSToFLVConverter(handleFLVMessage);
+			_parser = new TSPacketParser();
+			_parser.callback = handleFLVMessage;
 			
 			_timeOrigin = 0;
 			_timeOriginNeeded = true;
@@ -84,16 +85,8 @@ package com.kaltura.hls.m2ts
 			return _extendedIndexHandler;
 		}
 		
-		public function flushPPS():void
-		{
-			_converter.flushPPS();
-		}
-
 		public override function beginProcessFile(seek:Boolean, seekTime:Number):void
 		{
-			_converter.segmentIndex = segmentId;
-			_converter.isBestEffort = isBestEffort;
-
 			// Decryption reset
 			if ( key )
 			{
@@ -114,7 +107,7 @@ package com.kaltura.hls.m2ts
 			
 			if(seek)
 			{
-				_converter.clear();
+				//_parser.clear();
 				
 				_timeOriginNeeded = true;
 				
@@ -124,7 +117,7 @@ package com.kaltura.hls.m2ts
 			else if(discontinuity)
 			{
 				// Kick the converter state, but try to avoid upsetting the audio stream.
-				_converter.clear(false);
+				//_parser.clear(false);
 				
 				if(_segmentLastSeconds >= 0.0)
 				{
@@ -236,8 +229,8 @@ package com.kaltura.hls.m2ts
 			
 			var buffer:ByteArray = new ByteArray();
 			_buffer = buffer;
-			_converter.appendBytes(tmpBuffer);
-			if ( flush ) _converter.flush();
+			_parser.appendBytes(tmpBuffer);
+			if ( flush ) _parser.flush();
 			_buffer = null;
 			buffer.position = 0;
 			
@@ -280,7 +273,11 @@ package com.kaltura.hls.m2ts
 			{
 				elapsed = _extendedIndexHandler.getTargetSegmentDuration(); // XXX fudge hack!
 			}
-			
+
+			// Consume data from all streams.
+			_parser = new TSPacketParser();
+			_parser.callback = handleFLVMessage;
+
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.FRAGMENT_DURATION, false, false, elapsed));
 			
 			return rv;
@@ -294,7 +291,7 @@ package com.kaltura.hls.m2ts
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
 			var timestampSeconds:Number = timestamp / 1000.0;
-			
+
 			if(_segmentBeginSeconds < 0)
 			{
 				_segmentBeginSeconds = timestampSeconds;
@@ -308,6 +305,8 @@ package com.kaltura.hls.m2ts
 			if(isBestEffort)
 				return;
 
+			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
+
 			if(_timeOriginNeeded)
 			{
 				_timeOrigin = timestamp;
@@ -318,10 +317,10 @@ package com.kaltura.hls.m2ts
 				_timeOrigin = timestamp;
 			
 			// Encode the timestamp.
-			message[6] = (timestamp      ) & 0xff;
-			message[5] = (timestamp >>  8) & 0xff;
-			message[4] = (timestamp >> 16) & 0xff;
-			message[7] = (timestamp >> 24) & 0xff;
+			//message[6] = (timestamp      ) & 0xff;
+			//message[5] = (timestamp >>  8) & 0xff;
+			//message[4] = (timestamp >> 16) & 0xff;
+			//message[7] = (timestamp >> 24) & 0xff;
 
 			var lastMsgTime:Number = _lastFLVMessageTime;
 			_lastFLVMessageTime = timestampSeconds;
@@ -384,7 +383,7 @@ package com.kaltura.hls.m2ts
 					cue = potentials[potentials.length - 1];
 					if(cue != _lastCue)
 					{
-						_converter.createAndSendCaptionMessage( cue.startTime, cue.buffer, subtitleTrait.language );
+						//_parser.createAndSendCaptionMessage( cue.startTime, cue.buffer, subtitleTrait.language );
 						_lastInjectedSubtitleTime = cue.startTime;
 						_lastCue = cue;						
 					}

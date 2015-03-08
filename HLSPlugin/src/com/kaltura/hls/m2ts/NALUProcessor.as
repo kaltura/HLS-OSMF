@@ -21,7 +21,7 @@ package com.kaltura.hls.m2ts
             ourEg.readBits(28);
             var Id_a:int = ourEg.readUE();
 
-            var ourEg:ExpGolomb = new ExpGolomb(b);
+            ourEg = new ExpGolomb(b);
             ourEg.readBits(28);
             var Id_b:int = ourEg.readUE();
 
@@ -34,7 +34,7 @@ package com.kaltura.hls.m2ts
             ourEg.readBits(8);
             var Id_a:int = ourEg.readUE();
 
-            var ourEg:ExpGolomb = new ExpGolomb(b);
+            ourEg = new ExpGolomb(b);
             ourEg.readBits(8);
             var Id_b:int = ourEg.readUE();
 

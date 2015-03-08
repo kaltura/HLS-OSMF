@@ -114,7 +114,7 @@ package com.kaltura.hls.m2ts
             }
 
             // Cook out header to transcoder.
-            transcoder.writeHeader(hasAudio, hasVideo);
+            //transcoder.writeHeader(hasAudio, hasVideo);
             headerSent = true;
             
             return true;

@@ -14,7 +14,8 @@ package com.kaltura.hls.m2ts
     public class FLVTranscoder
     {
         public const MIN_FILE_HEADER_BYTE_COUNT:int = 9;
-        public var output:ByteArray = new ByteArray();
+
+        public var callback:Function;
         
         private var lastTagSize:uint = 0;
 
@@ -22,7 +23,7 @@ package com.kaltura.hls.m2ts
         private var _aacRemainder:ByteArray;
         private var _aacTimestamp:Number;
 
-        public function writeHeader(hasAudio:Boolean, hasVideo:Boolean):void
+        /*public function writeHeader(hasAudio:Boolean, hasVideo:Boolean):void
         {
             output.writeByte(0x46); // 'F'
             output.writeByte(0x4c); // 'L'
@@ -38,7 +39,7 @@ package com.kaltura.hls.m2ts
             output.writeByte(flags);            
             output.writeUnsignedInt(0x09);
             lastTagSize = 0;
-        }
+        } */
 
         private static var tag:ByteArray = new ByteArray();
 
@@ -75,9 +76,13 @@ package com.kaltura.hls.m2ts
             cursor += length;
             msgLength += 11; // account for message header in back pointer
 
+            tag.writeUnsignedInt(lastTagSize);
+
+            if(callback != null)
+                callback(flvts, tag);
+
             // Append tag.
-            output.writeUnsignedInt(lastTagSize);
-            output.writeBytes(tag, 0, tag.length);
+            //output.writeBytes(tag, 0, tag.length);
             lastTagSize = tag.length;
         }
 
@@ -143,7 +148,7 @@ package com.kaltura.hls.m2ts
                 totalAppended += length;
             }, true );
 
-            var flvts:uint = convertFLVTimestamp(unit.dts);
+            var flvts:uint = convertFLVTimestamp(unit.pts);
             var tsu:uint = convertFLVTimestamp(unit.pts - unit.dts);
 
             var codec:uint;
@@ -152,7 +157,7 @@ package com.kaltura.hls.m2ts
             else
                 codec = FLVTags.VIDEO_CODEC_AVC_PREDICTIVEFRAME;
 
-            //trace("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+            trace("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
             
             sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length);
         }
@@ -221,7 +226,7 @@ package com.kaltura.hls.m2ts
             var cursor:int = 0;
             var length:int = pes.buffer.length;
             var bytes:ByteArray = pes.buffer;
-            var timestamp = pes.pts;
+            var timestamp:Number = pes.pts;
             
             if(_aacRemainder)
             {

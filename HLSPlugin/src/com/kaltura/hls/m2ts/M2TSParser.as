@@ -7,7 +7,7 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSParser
 	{
-		public static var _grabH264Output:Boolean = false;
+		public static var _grabH264Output:Boolean = true;
 		public static var _totalh264:ByteArray = new ByteArray();
 
 		private var _buffer:ByteArray;
@@ -35,6 +35,30 @@ package com.kaltura.hls.m2ts
 			
 			clear();
 		}
+
+		public function finish():void
+		{
+			trace("Gathering SPS/PPS");
+			(_callbacks as M2TSToFLVConverter).accumulateParams = true;
+			for(var i:int=0; i<videoNalu.length; i++)
+			{
+				var curNalu:NaluNote = videoNalu[i];
+				_callbacks.onAVCNALU(curNalu.pts, curNalu.dts, naluBuffer, curNalu.start, curNalu.naluLength);
+			}
+
+			trace("Doing real playback");
+			(_callbacks as M2TSToFLVConverter).accumulateParams = false;
+			for(i=0; i<videoNalu.length; i++)
+			{
+				curNalu = videoNalu[i];
+				_callbacks.onAVCNALU(curNalu.pts, curNalu.dts, naluBuffer, curNalu.start, curNalu.naluLength);
+			}
+
+			videoNalu.length = 0;
+			naluBuffer.length = 0;
+			//for (var idx:* in _pesPackets)
+			//	parsePESPacketStreamComplete(_pesPackets[idx], uint(idx), false);			
+		}
 		
 		public function clear():void
 		{
@@ -56,47 +80,17 @@ package com.kaltura.hls.m2ts
 			
 			_callbacks = callbacks;
 		}
-		
-		private function scanForNALUStart(cursor:int, bytes:ByteArray):int
-		{
-			var curPos:int;
-			var length:int = bytes.length - 3;
-			
-			for(curPos = cursor; curPos < length; curPos++)
-			{
-				if((    bytes[curPos    ] == 0x00)
-					&& (bytes[curPos + 1] == 0x00)
-					&& (bytes[curPos + 2] == 0x01))
-					return curPos;
-			}
-			
-			return -1;
-		}
-		
-		private function scanForNALUEnd(cursor:int, bytes:ByteArray):int
-		{
-			var curPos:int;
-			var length:int = bytes.length - 3;
-			
-			for(curPos = cursor; curPos < length; curPos++)
-			{
-				if((     bytes[curPos    ] == 0x00)
-					&&  (bytes[curPos + 1] == 0x00)
-					&& ((bytes[curPos + 2] == 0x01) || (bytes[curPos + 2] == 0x00)))
-					return curPos;
-			}
-			
-			return -1;
-		}
-		
+				
 		public function appendBytes(bytes:ByteArray):void
 		{
+			// Append bytes.
 			_buffer.position = _buffer.length;
 			_buffer.writeBytes(bytes);
 			
 			var cursor:uint = 0;
 			var len:uint = _buffer.length;
 			
+			// Consume TS packets.
 			while(true)
 			{
 				var scanCount:int = 0;
@@ -120,11 +114,13 @@ package com.kaltura.hls.m2ts
 				cursor += 188;
 			}
 			
-			// Snarf remainder into beginning of buffer.
+			// Shift remainder into beginning of buffer.
 			var remainder:uint = _buffer.length - cursor;
 			_buffer.position = 0;
 			_buffer.writeBytes(_buffer, cursor, remainder);
 			_buffer.length = remainder;
+
+			trace("==== Left " + remainder);
 		}
 		
 		private function parseTSPacket(cursor:uint):void
@@ -258,7 +254,7 @@ package com.kaltura.hls.m2ts
 		
 		private function parseMP3Packet(pts:Number, dts:Number, cursor:uint, bytes:ByteArray):uint
 		{
-			_callbacks.onMP3Packet(pts, dts, bytes, cursor, bytes.length - cursor);
+			//_callbacks.onMP3Packet(pts, dts, bytes, cursor, bytes.length - cursor);
 			return bytes.length;
 		}
 		
@@ -272,58 +268,96 @@ package com.kaltura.hls.m2ts
 			
 			//trace("pts = " + pts + " dts = " + dts + " A");
 
-			_callbacks.onAACPacket(pts, bytes, cursor, bytes.length - cursor);
+			//_callbacks.onAACPacket(pts, bytes, cursor, bytes.length - cursor);
 
 			return bytes.length;
 		}
-		
-		private function parseAVCPacket(pts:Number, dts:Number, cursor:uint, bytes:ByteArray, flushing:Boolean):uint
-		{
-			var originalStart:int = int(cursor);
-			var start:int = int(cursor);
-			var end:int;
-			var naluLength:uint;
 
-			start = scanForNALUStart(start, bytes);
-			while(start >= 0)
-			{
-				end = scanForNALUEnd(start + 3, bytes);
+        private function scanForNALUStart(cursor:int, bytes:ByteArray, beginning:Boolean):int
+        {
+            var curPos:int;
+            var length:int = bytes.length - 3;
+            
+            for(curPos = cursor; curPos < length; curPos++)
+            {
+                // First two bytes should be 0.
+                if(bytes[curPos] != 0 || bytes[curPos+1] != 0)
+                    continue;
 
-				if(end >= 0)
-				{
-					naluLength = end - start;
-				}
-				else if(flushing)
-				{
-					naluLength = bytes.length - start;
-				}
-				else
-				{
-					//trace("parseAVCPacket - Exiting due to no NALU before end");
-					break;
-				}
-				
-				_callbacks.onAVCNALU(pts, dts, bytes, uint(start), naluLength);
-				
-				cursor = start + naluLength;
-				start = scanForNALUStart(start + naluLength, bytes);
+                // Three byte marker.
+                if(bytes[curPos + 2] == 0x01)
+                {
+                    trace("3 byte");
+                    return curPos + (beginning ? 0 : 3);
+                }
 
-				//trace("SAW NALU at " + (_totalh264.length + (cursor - originalStart) + 3) + " naluLength=" + (naluLength - 3));
-			}
-			
-			if(flushing)
-				_callbacks.onAVCNALUFlush(pts, dts);
-			
-			// Save consumed bytes into the master buffer.
-			if(_grabH264Output)
-			{
-				_totalh264.writeBytes(bytes, originalStart, cursor - originalStart);
-				trace("Total buffer size " + _totalh264.length);
-			}
+                // Four byte marker (but return from 2nd byte as we assume 3 byte elsewhere)
+                if( curPos + 1 < length
+                    && (bytes[curPos + 2] == 0x00)
+                    && (bytes[curPos + 3] == 0x01))
+                {
+                    trace("4 byte");
+                    return curPos + (beginning ? 0 : 4);
+                }
+            }
+            
+            return -1;
+        }
+
+       	public var naluBuffer:ByteArray = new ByteArray();
+        public var videoNalu:Vector.<NaluNote> = new Vector.<NaluNote>();
+
+        private function parseAVCPacket(pts:Number, dts:Number, cursor:uint, bytes:ByteArray, flushing:Boolean):uint
+        {
+            var originalStart:int = int(cursor);
+            var start:int = int(cursor);
+            var end:int;
+            var naluLength:uint;
+
+            start = scanForNALUStart(start, bytes, false);
+            while(start >= 0)
+            {
+                end = scanForNALUStart(start, bytes, true);
+
+                if(end >= 0)
+                {
+                    naluLength = end - start;
+                }
+                else if(flushing)
+                {
+                    naluLength = bytes.length - start;
+                }
+                else
+                {
+                    trace("parseAVCPacket - Exiting due to no NALU before end");
+                    break;
+                }
+                
+                //_callbacks.onAVCNALU(pts, dts, bytes, uint(start), naluLength);
+                var tmpStart:uint = naluBuffer.position;
+                naluBuffer.writeBytes(bytes, start, naluLength);
+                videoNalu.push(new NaluNote(pts, dts, naluBuffer, tmpStart, naluLength));
+                
+                cursor = start + naluLength;
+
+                start = scanForNALUStart(start + naluLength, bytes, false);
+
+                trace("SAW NALU at " + (_totalh264.length + (cursor - originalStart) + 3) + " naluLength=" + (naluLength - 3));
+            }
+            
+            //if(flushing)
+             //   _callbacks.onAVCNALUFlush(pts, dts);
+            
+            // Save consumed bytes into the master buffer.
+            if(_grabH264Output)
+            {
+                _totalh264.writeBytes(bytes, originalStart, cursor - originalStart);
+                //trace("Total buffer size " + _totalh264.length);
+            }
 
 
-			return cursor;
-		}
+            return cursor;
+        }
 		
 		private function parsePESPacketStreamComplete(pes:PESPacketStream, packetID:uint, flushing:Boolean):void
 		{
@@ -359,166 +393,167 @@ package com.kaltura.hls.m2ts
 			//trace("Consumed " + cursor + " bytes");
 			pes.shiftLeft(cursor);
 		}
-		
-		private function parsePESPacket(packetID:uint, type:uint, bytes:ByteArray):void
-		{
-			var streamID:uint = bytes[3];
-			var packetLength:uint = (bytes[4] << 8) + bytes[5];
-			var cursor:uint = 6;
-			var pts:Number = -1;
-			var dts:Number = -1;
-			var pes:PESPacketStream;
-			
-			switch(streamID)
-			{
-				case 0xbc: // program stream map
-				case 0xbe: // padding stream
-				case 0xbf: // private_stream_2
-				case 0xf0: // ECM_stream
-				case 0xf1: // EMM_stream
-				case 0xff: // program_stream_directory
-				case 0xf2: // DSMCC stream
-				case 0xf8: // H.222.1 type E
-					_callbacks.onOtherPacket(packetID, bytes);
-					return;
-				
-				default:
-					break;
-			}
-			
-			if(packetLength)
-			{
-				if(bytes.length < packetLength )
-				{
-					trace("WARNING: parsePESPacket - not enough bytes, expecting " + (packetLength) + ", but have " + bytes.length);
-					return; // not enough bytes in packet
-				}
-			}
-			
-			if(bytes.length < 9)
-			{
-				trace("WARNING: parsePESPacket - too short");
-				return;
-			}
-			
-			var dataAlignment:Boolean = (bytes[cursor] & 0x04) != 0;
-			cursor++;
-			
-			var ptsDts:uint = (bytes[cursor] & 0xc0) >> 6;
-			cursor++;
-			
-			var pesHeaderDataLength:uint = bytes[cursor];
-			cursor++;
-			
-			if(ptsDts & 0x02)
-			{
-				// has PTS at least
-				if(cursor + 5 > bytes.length)
-					return;
-				
-				pts  = bytes[cursor] & 0x0e;
-				pts *= 128;
-				pts += bytes[cursor + 1];
-				pts *= 256;
-				pts += bytes[cursor + 2] & 0xfe;
-				pts *= 128;
-				pts += bytes[cursor + 3];
-				pts *= 256;
-				pts += bytes[cursor + 4] & 0xfe;
-				pts /= 2;
-				
-				if(ptsDts & 0x01)
-				{
-					if(cursor + 10 > bytes.length)
-						return;
-					
-					dts  = bytes[cursor + 5] & 0x0e;
-					dts *= 128;
-					dts += bytes[cursor + 6];
-					dts *= 256;
-					dts += bytes[cursor + 7] & 0xfe;
-					dts *= 128;
-					dts += bytes[cursor + 8];
-					dts *= 256;
-					dts += bytes[cursor + 9] & 0xfe;
-					dts /= 2;
-				}
-				else
-					dts = pts;
-			}
-			cursor += pesHeaderDataLength;
-			if(cursor > bytes.length)
-			{
-				trace("WARNING: parsePESPacket - out 1");
-				return;
-			}
-			
-			if(_types[packetID] == undefined)
-			{
-				trace("WARNING: parsePESPacket - out 2");
-				return;
-			}
-			
-			if(_pesPackets[packetID] == undefined)
-			{
-				if(dts < 0.0)
-				{
-					trace("WARNING: parsePESPacket - out 3");
-					return;
-				}
-				
-				pes = new PESPacketStream(pts, dts);
-				_pesPackets[packetID] = pes;
-			}
-			else
-			{
-				pes = _pesPackets[packetID];
-			}
-			
-			//trace("Appending " + bytes.length + ", cursor=" + cursor);
-			pes._buffer.position = pes._buffer.length; // - 1 > 0 ? pes._buffer.length - 1 : 0;
-			pes._buffer.writeBytes(bytes, cursor);
 
-			//trace("TRIGGERING COMPLETE PES STREAM");
-			pes._pts = pts;
-			pes._dts = dts;
-			parsePESPacketStreamComplete(pes, packetID, false);
 
-		}
-		
-		private function handlePacketComplete(packetID:uint, bytes:ByteArray):void
-		{
-			if(bytes.length < 3)
-			{
-				trace("WARNING: handlePacketComplete - too short packet");
-				return;
-			}
+        private function parsePESPacket(packetID:uint, type:uint, bytes:ByteArray):void
+        {		
+            var streamID:uint = bytes[3];
+            var packetLength:uint = (bytes[4] << 8) + bytes[5];
+            var cursor:uint = 6;
+            var pts:Number = -1;
+            var dts:Number = -1;
+            var pes:PESPacketStream;
+            
+            switch(streamID)
+            {
+                case 0xbc: // program stream map
+                case 0xbe: // padding stream
+                case 0xbf: // private_stream_2
+                case 0xf0: // ECM_stream
+                case 0xf1: // EMM_stream
+                case 0xff: // program_stream_directory
+                case 0xf2: // DSMCC stream
+                case 0xf8: // H.222.1 type E
+                    _callbacks.onOtherPacket(packetID, bytes);
+                    return;
+                
+                default:
+                    break;
+            }
+            
+            if(packetLength)
+            {
+                if(bytes.length < packetLength )
+                {
+                    trace("WARNING: parsePESPacket - not enough bytes, expecting " + (packetLength) + ", but have " + bytes.length);
+                    return; // not enough bytes in packet
+                }
+            }
+            
+            if(bytes.length < 9)
+            {
+                trace("WARNING: parsePESPacket - too short");
+                return;
+            }
+            
+            var dataAlignment:Boolean = (bytes[cursor] & 0x04) != 0;
+            cursor++;
+            
+            var ptsDts:uint = (bytes[cursor] & 0xc0) >> 6;
+            cursor++;
+            
+            var pesHeaderDataLength:uint = bytes[cursor];
+            cursor++;
+            
+            if(ptsDts & 0x02)
+            {
+                // has PTS at least
+                if(cursor + 5 > bytes.length)
+                    return;
+                
+                pts  = bytes[cursor] & 0x0e;
+                pts *= 128;
+                pts += bytes[cursor + 1];
+                pts *= 256;
+                pts += bytes[cursor + 2] & 0xfe;
+                pts *= 128;
+                pts += bytes[cursor + 3];
+                pts *= 256;
+                pts += bytes[cursor + 4] & 0xfe;
+                pts /= 2;
+                
+                if(ptsDts & 0x01)
+                {
+                    if(cursor + 10 > bytes.length)
+                        return;
+                    
+                    dts  = bytes[cursor + 5] & 0x0e;
+                    dts *= 128;
+                    dts += bytes[cursor + 6];
+                    dts *= 256;
+                    dts += bytes[cursor + 7] & 0xfe;
+                    dts *= 128;
+                    dts += bytes[cursor + 8];
+                    dts *= 256;
+                    dts += bytes[cursor + 9] & 0xfe;
+                    dts /= 2;
+                }
+                else
+                    dts = pts;
+            }
+            cursor += pesHeaderDataLength;
+            if(cursor > bytes.length)
+            {
+                trace("WARNING: parsePESPacket - out 1");
+                return;
+            }
+            
+            if(_types[packetID] == undefined)
+            {
+                trace("WARNING: parsePESPacket - out 2");
+                return;
+            }
+            
+            if(_pesPackets[packetID] == undefined)
+            {
+                if(dts < 0.0)
+                {
+                    trace("WARNING: parsePESPacket - out 3");
+                    return;
+                }
+                
+                pes = new PESPacketStream(pts, dts);
+                _pesPackets[packetID] = pes;
+            }
+            else
+            {
+                pes = _pesPackets[packetID];
+            }
+            
+            //trace("Appending " + bytes.length + ", cursor=" + cursor);
+            pes._buffer.position = pes._buffer.length;
+            pes._buffer.writeBytes(bytes, cursor);
 
-			if( (bytes[0] == 0x00)
-			 && (bytes[1] == 0x00)
-			 && (bytes[2] == 0x01))
-			{
-				// an elementary stream
-				parsePESPacket(packetID, _types[packetID], bytes);
-				return;
-			}
+            //trace("TRIGGERING COMPLETE PES STREAM");
+            pes._pts = pts;
+            pes._dts = dts;
 
-			var cursor:uint = bytes[0] + 1;
-			var remaining:uint;
-			
-			if(cursor > bytes.length)
-				return;
-			
-			remaining = bytes.length - cursor;
-			
-			if( (remaining < 23)
-			 || (bytes[cursor] != 0x02)
-			 || ((bytes[cursor + 1] & 0xfc)) != 0xb0)
-			{
-				trace("handlePacketComplete - Firing other callback for " + remaining + " bytes.");
-				_callbacks.onOtherPacket(packetID, bytes);
-			}
-		}
+            parsePESPacketStreamComplete(pes, packetID, false);
+        }
+        
+        private function handlePacketComplete(packetID:uint, bytes:ByteArray):void
+        {
+            if(bytes.length < 3)
+            {
+                trace("WARNING: handlePacketComplete - too short packet");
+                return;
+            }
+
+            if( (bytes[0] == 0x00)
+             && (bytes[1] == 0x00)
+             && (bytes[2] == 0x01))
+            {
+                // an elementary stream
+                parsePESPacket(packetID, _types[packetID], bytes);
+                return;
+            }
+
+            var cursor:uint = bytes[0] + 1;
+            var remaining:uint;
+            
+            if(cursor > bytes.length)
+                return;
+            
+            remaining = bytes.length - cursor;
+            
+            if( (remaining < 23)
+             || (bytes[cursor] != 0x02)
+             || ((bytes[cursor + 1] & 0xfc)) != 0xb0)
+            {
+                trace("handlePacketComplete - Firing other callback for " + remaining + " bytes.");
+                _callbacks.onOtherPacket(packetID, bytes);
+            }
+        }
 		
 		private function onPacketProgress(packetID:uint, bytes:ByteArray):Boolean
 		{
@@ -673,6 +708,9 @@ internal class PESPacketStream
 		_dts = dts;
 	}
 	
+	/**
+	 * Efficiently drop bytes from the left of the PES packet stream buffer.
+	 */
 	public function shiftLeft(num:int):void
 	{
 		var newLength:int = _buffer.length - num;
@@ -691,7 +729,25 @@ internal class PESPacketStream
 	public var _pts:Number;
 	public var _dts:Number;
 	
+	// We swap back and forth to avoid allocations.
 	private var _shiftBuffer:ByteArray;
+}
+
+internal class NaluNote
+{
+	function NaluNote(_pts:Number, _dts:Number, _bytes:ByteArray, _start:uint, _naluLength:uint)
+	{
+		pts = _pts;
+		dts = _dts;
+		bytes = _bytes;
+		start = _start;
+		naluLength = _naluLength;
+	}
+
+	public var pts:Number;
+	public var dts:Number;
+	public var bytes:ByteArray;
+	public var start:uint, naluLength:uint;
 }
 
 /**

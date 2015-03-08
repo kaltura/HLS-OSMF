@@ -101,7 +101,7 @@ package org.osmf.net.httpstreaming
 	 */	
 	public class HLSHTTPNetStream extends NetStream
 	{
-		public static var writeToMasterBuffer:Boolean = false;
+		public static var writeToMasterBuffer:Boolean = true;
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
 		/**
@@ -761,8 +761,6 @@ package org.osmf.net.httpstreaming
 			{
 				case HTTPStreamingState.INIT:
 					// do nothing
-					if(indexHandler)
-						indexHandler.flushPPS();
 					break;
 				
 				case HTTPStreamingState.WAIT:
@@ -858,9 +856,6 @@ package org.osmf.net.httpstreaming
 							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 						}
 						
-						if(indexHandler)
-							indexHandler.flushPPS();
-
 						_wasBufferEmptied = true;
 						
 						if (playbackDetailsRecorder != null)
@@ -924,8 +919,6 @@ package org.osmf.net.httpstreaming
 					{
 						_notifyPlayStartPending = false;
 						notifyPlayStart();
-						if(indexHandler) 
-							indexHandler.flushPPS();
 					}
 					
 					if (_qualityLevelNeedsChanging)
@@ -1019,9 +1012,6 @@ package org.osmf.net.httpstreaming
 						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 					}
 
-					if(indexHandler)
-						indexHandler.flushPPS();
-					
 					var playCompleteInfo:Object = new Object();
 					playCompleteInfo.code = NetStreamCodes.NETSTREAM_PLAY_COMPLETE;
 					playCompleteInfo.level = "status";
@@ -1043,8 +1033,6 @@ package org.osmf.net.httpstreaming
 				
 				case HTTPStreamingState.HALT:
 					// do nothing
-					if(indexHandler) 
-						indexHandler.flushPPS();
 					break;
 			}
 		}

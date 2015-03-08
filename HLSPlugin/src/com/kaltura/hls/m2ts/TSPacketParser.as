@@ -22,15 +22,15 @@ package com.kaltura.hls.m2ts
         private var _totalConsumed:int = 0;
         public var pesProcessor:PESProcessor = new PESProcessor();
 
-        public function get output():ByteArray
+        public function set callback(value:Function):void
         {
-            return pesProcessor.transcoder.output;
+            pesProcessor.transcoder.callback = value;
         }
 
         /**
          * Accepts arbitrary chunks of bytes and extracts TS packet data.
          */
-        public function appendBytes(bytes:ByteArray)
+        public function appendBytes(bytes:ByteArray):void
         {
             // Append the bytes.
             _buffer.position = _buffer.length;
@@ -211,6 +211,18 @@ package com.kaltura.hls.m2ts
             // Reset stream buffer.
             stream.buffer.position = 0;
             stream.buffer.length = 0;
+        }
+
+        public function flush():void
+        {
+            // 
+            trace("FLUSHING");
+            for (var idx:* in _streams)
+            {
+                trace("Doing " + idx);
+                completeStreamPacket(_streams[idx]);
+            }
+
         }
 
         /**
