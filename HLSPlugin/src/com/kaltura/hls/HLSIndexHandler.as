@@ -218,7 +218,7 @@ package com.kaltura.hls
 			}
 
 			// No match, dump to aid debug.
-			for(var i:int=0; i<segments.length-1; i++)
+			for(i=0; i<segments.length-1; i++)
 			{
 				seg = segments[i];
 				trace("#" + i + " id=" + seg.id + " start=" + seg.startTime + " end=" + (seg.startTime + seg.duration));
@@ -238,11 +238,6 @@ package com.kaltura.hls
 			return seg.id;
 		}
 
-		public function flushPPS():void
-		{
-			fileHandler.flushPPS();
-		}
-		
 		public override function initialize(indexInfo:Object):void
 		{
 			postRatesReady();
@@ -391,7 +386,7 @@ package com.kaltura.hls
 			else if (stream is HLSManifestStream)
 			{
 				// If we were given an HLSManifestStream object, find that stream in our master list and switch to the backup if possible
-				for (var i:int = 0; i <= manifest.streams.length; i++)
+				for (i = 0; i <= manifest.streams.length; i++)
 				{
 					if (i == manifest.streams.length)
 					{
@@ -584,6 +579,17 @@ package com.kaltura.hls
 
 			stalled = false;
 			HLSHTTPNetStream.hasGottenManifest = true;
+		}
+
+		public function getQualityLevelStreamName(index:int):String
+		{
+			if(!resource)
+				return null;
+
+			if(index < 0 || index > resource.streamItems.length)
+				return null;
+
+			return resource.streamItems[index].streamName;
 		}
 		
 		public function postRatesReady():void
@@ -796,7 +802,7 @@ package com.kaltura.hls
 			{
 				trace("Stalling -- requested segment " + lastSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream");
 				lastSequence--;
-				lastSequence--;
+				lastSequence--; // Decrement twice so we eventually catch up.
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, RETRY_INTERVAL);
 			}
 			
@@ -1142,6 +1148,8 @@ package com.kaltura.hls
 					trace("processing segment");
 					_bestEffortFileHandler.processFileSegment(_bestEffortSeekBuffer); 
 
+					_bestEffortFileHandler.endProcessFile(_bestEffortSeekBuffer);
+
 					if(_bestEffortDownloadReply == HTTPStreamingEvent.DOWNLOAD_CONTINUE)
 					{
 						// we're done parsing and the HTTPStreamSource is going to process the file,
@@ -1164,7 +1172,7 @@ package com.kaltura.hls
 			}
 			catch(e:Error)
 			{
-				trace("Failed to parse best effort segment due to " + e.toString());
+				trace("Failed to parse best effort segment due to " + e.toString() + "\n " + e.getStackTrace());
 			}
 		}
 
