@@ -21,25 +21,15 @@ package com.kaltura.hls.m2ts
 
         private var _aacConfig:ByteArray;
         private var _aacRemainder:ByteArray;
-        private var _aacTimestamp:Number;
+        private var _aacTimestamp:Number = 0;
 
-        /*public function writeHeader(hasAudio:Boolean, hasVideo:Boolean):void
+        public function clear(clearAACConfig:Boolean = false):void
         {
-            output.writeByte(0x46); // 'F'
-            output.writeByte(0x4c); // 'L'
-            output.writeByte(0x56); // 'V'
-            output.writeByte(0x01); // version 0x01
-            
-            var flags:uint = 0;
-            if (hasAudio)
-                flags |= 0x04;
-            if (hasVideo)
-                flags |= 0x01;
-            
-            output.writeByte(flags);            
-            output.writeUnsignedInt(0x09);
-            lastTagSize = 0;
-        } */
+            if(clearAACConfig)
+                _aacConfig = null;
+            _aacRemainder = null;
+            _aacTimestamp = 0;
+        }
 
         private static var tag:ByteArray = new ByteArray();
 
@@ -78,11 +68,10 @@ package com.kaltura.hls.m2ts
 
             tag.writeUnsignedInt(lastTagSize);
 
+            // Dispatch tag.
             if(callback != null)
                 callback(flvts, tag);
 
-            // Append tag.
-            //output.writeBytes(tag, 0, tag.length);
             lastTagSize = tag.length;
         }
 
@@ -157,7 +146,7 @@ package com.kaltura.hls.m2ts
             else
                 codec = FLVTags.VIDEO_CODEC_AVC_PREDICTIVEFRAME;
 
-            trace("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+            //trace("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
             
             sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length);
         }
@@ -218,7 +207,7 @@ package com.kaltura.hls.m2ts
          * Convert and amit AAC data.
          */
         public function convertAAC(pes:PESPacket):void
-        {
+        {            
             var timeAccumulation:Number = 0.0;
             var limit:uint;
             var stream:ByteArray;
@@ -363,5 +352,39 @@ package com.kaltura.hls.m2ts
         {
             sendFLVTag(convertFLVTimestamp(pes.pts), FLVTags.TYPE_AUDIO, FLVTags.AUDIO_CODEC_MP3, -1, pes.buffer, 0, pes.buffer.length);
         }
+
+        private function generateScriptData(values:Array):ByteArray
+        {
+            var bytes:ByteArray = new ByteArray();
+            bytes.objectEncoding = ObjectEncoding.AMF0;
+            
+            for each (var object:Object in values)
+                bytes.writeObject(object);
+            
+            return bytes;
+        }
+        
+        private function sendScriptDataFLVTag(flvts:uint, values:Array):void
+        {
+            var bytes:ByteArray = generateScriptData(values);
+            sendFLVTag(flvts, FLVTags.TYPE_SCRIPTDATA, -1, -1, bytes, 0, bytes.length);
+        }
+
+        /**
+         * Fire off a subtitle caption.
+         */
+        public function createAndSendCaptionMessage( timeStamp:Number, captionBuffer:String, lang:String="", textid:Number=99):void
+        {
+            var captionObject:Array = ["onCaptionInfo", { type:"WebVTT", data:captionBuffer }];
+            //sendScriptDataFLVTag( timeStamp * 1000, captionObject);
+
+            // We need to strip the timestamp off of the text data
+            captionBuffer = captionBuffer.slice(captionBuffer.indexOf('\n') + 1);
+
+            var subtitleObject:Array = ["onTextData", { text:captionBuffer, language:lang, trackid:textid }];
+            sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
+        }
+
+
     }
 }

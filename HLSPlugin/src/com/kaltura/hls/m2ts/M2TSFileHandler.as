@@ -107,7 +107,7 @@ package com.kaltura.hls.m2ts
 			
 			if(seek)
 			{
-				//_parser.clear();
+				_parser.clear();
 				
 				_timeOriginNeeded = true;
 				
@@ -117,7 +117,7 @@ package com.kaltura.hls.m2ts
 			else if(discontinuity)
 			{
 				// Kick the converter state, but try to avoid upsetting the audio stream.
-				//_parser.clear(false);
+				_parser.clear(false);
 				
 				if(_segmentLastSeconds >= 0.0)
 				{
@@ -218,9 +218,9 @@ package com.kaltura.hls.m2ts
 				//trace("    - returned " + _fragReadBuffer.length + " bytes!");
 				_fragReadBuffer.position = 0;
 
-				if(isBestEffort)
+				if(isBestEffort && _fragReadBuffer.length > 0)
 				{
-					trace("Discarding data from best effort.");
+					trace("Discarding AAC data from best effort.");
 					_fragReadBuffer.length = 0;
 				}
 
@@ -234,9 +234,9 @@ package com.kaltura.hls.m2ts
 			_buffer = null;
 			buffer.position = 0;
 			
-			if(isBestEffort)
+			if(isBestEffort && buffer.length > 0)
 			{
-				trace("Discarding data from best effort.");
+				trace("Discarding normal data from best effort.");
 				buffer.length = 0;
 			}
 
@@ -273,10 +273,6 @@ package com.kaltura.hls.m2ts
 			{
 				elapsed = _extendedIndexHandler.getTargetSegmentDuration(); // XXX fudge hack!
 			}
-
-			// Consume data from all streams.
-			_parser = new TSPacketParser();
-			_parser.callback = handleFLVMessage;
 
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.FRAGMENT_DURATION, false, false, elapsed));
 			
@@ -317,16 +313,15 @@ package com.kaltura.hls.m2ts
 				_timeOrigin = timestamp;
 			
 			// Encode the timestamp.
-			//message[6] = (timestamp      ) & 0xff;
-			//message[5] = (timestamp >>  8) & 0xff;
-			//message[4] = (timestamp >> 16) & 0xff;
-			//message[7] = (timestamp >> 24) & 0xff;
+			message[6] = (timestamp      ) & 0xff;
+			message[5] = (timestamp >>  8) & 0xff;
+			message[4] = (timestamp >> 16) & 0xff;
+			message[7] = (timestamp >> 24) & 0xff;
 
 			var lastMsgTime:Number = _lastFLVMessageTime;
 			_lastFLVMessageTime = timestampSeconds;
 			
 			// If timer was reset due to seek, reset last subtitle time
-
 			if(timestampSeconds < _lastInjectedSubtitleTime)
 			{
 				trace("Bumping back on subtitle threshold.")
@@ -383,7 +378,7 @@ package com.kaltura.hls.m2ts
 					cue = potentials[potentials.length - 1];
 					if(cue != _lastCue)
 					{
-						//_parser.createAndSendCaptionMessage( cue.startTime, cue.buffer, subtitleTrait.language );
+						_parser.createAndSendCaptionMessage( cue.startTime, cue.buffer, subtitleTrait.language );
 						_lastInjectedSubtitleTime = cue.startTime;
 						_lastCue = cue;						
 					}

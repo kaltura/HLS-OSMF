@@ -104,6 +104,8 @@ package org.osmf.net.httpstreaming
 		public static var writeToMasterBuffer:Boolean = true;
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
+		private var neverPlayed:Boolean = true;
+
 		/**
 		 * Constructor.
 		 * 
@@ -183,7 +185,7 @@ package org.osmf.net.httpstreaming
 			// Signal to the base class that we're entering Data Generation Mode.
 			super.play(null);
 			
-			// Before we feed any TCMessages to the Flash Player, we must feed
+			// Before we feed any messages to the Flash Player, we must feed
 			// an FLV header first.
 			var header:FLVHeader = new FLVHeader();
 			var headerBytes:ByteArray = new ByteArray();
@@ -223,8 +225,8 @@ package org.osmf.net.httpstreaming
 			// Always seek.
 			if(_dvrInfo)
 			{
-				trace("Resuming at " + super.time);
-				seek(super.time);				
+				trace("Resuming at " + time);
+				seek(time);
 			}
 
 		}
@@ -276,10 +278,12 @@ package org.osmf.net.httpstreaming
 			{
 				if(_initialTime < 0)
 				{
+					trace("Setting A to " + offset);
 					_seekTarget = offset + 0;	// this covers the "don't know initial time" case, rare
 				}
 				else
 				{
+					trace("Setting B to " + offset);
 					_seekTarget = offset + _initialTime;
 				}
 				
@@ -445,6 +449,7 @@ package org.osmf.net.httpstreaming
 		private function changeSourceTo(streamName:String, seekTarget:Number):void
 		{
 			_initializeFLVParser = true;
+			trace("Changing source to " + streamName + " , " + seekTarget);
 			_seekTarget = seekTarget;
 			_videoHandler.open(streamName);
 			setState(HTTPStreamingState.SEEK);
@@ -775,7 +780,7 @@ package org.osmf.net.httpstreaming
 					// Reset a timer every time this code is reached. If this code is NOT reached for a significant amount of time, it means
 					// we are attempting to stream a quality level that is too high for the current bandwidth, and should switch to the lowest
 					// quality, as a precaution.
-					if (!streamTooSlowTimer)
+					if (!streamTooSlowTimer && false)
 					{
 						// If the timer doesn't yet exist, create it, setting the delay to twice the maximum desired buffer time
 						streamTooSlowTimer = new Timer(_desiredBufferTime_Max * 2000);
@@ -796,6 +801,14 @@ package org.osmf.net.httpstreaming
 
 								if(indexHandler == null)
 									return;
+
+								// Check that we have the current index handler.
+								if(HLSHTTPNetStream.indexHandler != indexHandler)
+								{
+									trace("Old streamTooSlowTimer fired; killing.");
+									streamTooSlowTimer.stop();
+									return;
+								}
 
 								// If this event is hit, set the quality level to the lowest available quality level
 								var newStream:String = indexHandler.getQualityLevelStreamName(0);
@@ -843,7 +856,15 @@ package org.osmf.net.httpstreaming
 						}
 						
 						_enhancedSeekTarget = _seekTarget;
-						
+
+						if(indexHandler.bumpedTime)
+						{
+							trace("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
+							_seekTarget = indexHandler.bumpedSeek;
+							_enhancedSeekTarget = indexHandler.bumpedSeek;
+							indexHandler.bumpedTime = false;
+						}
+
 						// Netstream seek in data generation mode only clears the buffer.
 						// It does not matter what value you pass to it. However, netstream
 						// apparently doesn't do that if the value given is larger than
@@ -892,6 +913,7 @@ package org.osmf.net.httpstreaming
 							timeBeforeSeek = Number.NaN;// This forces the player to finish the seeking process
 						
 						_seekTime = -1;
+						trace("Seeking to " + _seekTarget);
 						_source.seek(_seekTarget);
 						setState(HTTPStreamingState.WAIT);
 					}
@@ -901,6 +923,15 @@ package org.osmf.net.httpstreaming
 					if (badManifestUrl)
 					{
 						cantLoadManifest(badManifestUrl);
+						break;
+					}
+
+					if(neverPlayed && indexHandler.manifest && (indexHandler.manifest.streamEnds == false))
+					{
+						neverPlayed = false;
+						_seekTarget = Number.MAX_VALUE;
+						trace("Triggered first time seek to live edge!");
+						setState(HTTPStreamingState.SEEK);
 						break;
 					}
 					
@@ -961,7 +992,7 @@ package org.osmf.net.httpstreaming
 							}
 								
 							gotBytes = true;
-								
+							
 							// we can reset the recovery state if we are able to process some bytes and the time has changed since the last error
 							if (time != lastErrorTime && recoveryStateNum == URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED)
 							{	
@@ -1226,7 +1257,7 @@ package org.osmf.net.httpstreaming
 			{
 				logger.debug("Reached end fragment for stream [" + event.url + "].");
 			}
-				
+			
 			if (_videoHandler == null)
 			{
 				return;
@@ -1609,7 +1640,14 @@ package org.osmf.net.httpstreaming
 			if (_state != HTTPStreamingState.STOP)
 			{
 				attemptAppendBytes(bytes);
+
+				if(bufferLength == 0 && processed > 4096)
+				{
+					trace("I think I should reset playback.");
+					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+				}
 			}
+
 			
 			return processed;
 		}
@@ -1641,9 +1679,30 @@ package org.osmf.net.httpstreaming
 		private function onTag(tag:FLVTag):Boolean
 		{
 			var i:int;
-			
+
+			// Apply bump if present.
+			if(indexHandler.bumpedTime 
+				&& (_enhancedSeekTarget > indexHandler.bumpedSeek
+					|| _seekTarget > indexHandler.bumpedSeek))
+			{
+				trace("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
+				_seekTarget = indexHandler.bumpedSeek;
+				_enhancedSeekTarget = indexHandler.bumpedSeek;
+			}
+
+			if(_enhancedSeekTarget == Number.MAX_VALUE)
+			{
+				trace("Left over seek-to-end, aborting.");
+				_enhancedSeekTarget = 0.0;
+				_seekTarget = 0.0;
+			}
+
+			indexHandler.bumpedTime = false;
+
 			var currentTime:Number = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
 			
+			trace("Saw tag @ " + tag.timestamp);
+
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
 			// We need to take into account that flv tags' timestamps are 32-bit unsigned ints
 			// This means they will roll over, but the bootstrap times won't, since they are 64-bit unsigned ints
@@ -1689,6 +1748,7 @@ package org.osmf.net.httpstreaming
 			{
 				if (currentTime < _enhancedSeekTarget)
 				{
+					trace("Skipping FLV tag @ " + currentTime + " until " + _enhancedSeekTarget);
 					if (_enhancedSeekTags == null)
 					{
 						_enhancedSeekTags = new Vector.<FLVTag>();
@@ -1985,6 +2045,7 @@ package org.osmf.net.httpstreaming
 		 */
 		private function seekToRetrySegment(requestedTime:Number):void
 		{
+			trace("Seeking to retry segment " + requestedTime);
 			_seekTarget = requestedTime;
 			setState(HTTPStreamingState.SEEK);
 		}

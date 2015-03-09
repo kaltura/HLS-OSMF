@@ -31,6 +31,14 @@ package com.kaltura.hls.m2ts
             }
         }
 
+        public function clear(clearAACConfig:Boolean = true):void
+        {
+            streams = {};
+            lastVideoNALU = null;
+            transcoder.clear(clearAACConfig);
+        }
+
+
         private function parseProgramMapTable(bytes:ByteArray, cursor:uint):Boolean
         {
             var sectionLength:uint;
