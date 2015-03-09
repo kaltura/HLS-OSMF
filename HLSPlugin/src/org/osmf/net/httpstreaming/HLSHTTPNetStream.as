@@ -225,8 +225,8 @@ package org.osmf.net.httpstreaming
 			// Always seek.
 			if(_dvrInfo)
 			{
-				trace("Resuming at " + super.time);
-				seek(super.time);				
+				trace("Resuming at " + time);
+				seek(time);
 			}
 
 		}
@@ -278,10 +278,12 @@ package org.osmf.net.httpstreaming
 			{
 				if(_initialTime < 0)
 				{
+					trace("Setting A to " + offset);
 					_seekTarget = offset + 0;	// this covers the "don't know initial time" case, rare
 				}
 				else
 				{
+					trace("Setting B to " + offset);
 					_seekTarget = offset + _initialTime;
 				}
 				
@@ -447,6 +449,7 @@ package org.osmf.net.httpstreaming
 		private function changeSourceTo(streamName:String, seekTarget:Number):void
 		{
 			_initializeFLVParser = true;
+			trace("Changing source to " + streamName + " , " + seekTarget);
 			_seekTarget = seekTarget;
 			_videoHandler.open(streamName);
 			setState(HTTPStreamingState.SEEK);
@@ -1637,7 +1640,14 @@ package org.osmf.net.httpstreaming
 			if (_state != HTTPStreamingState.STOP)
 			{
 				attemptAppendBytes(bytes);
+
+				if(bufferLength == 0 && processed > 4096)
+				{
+					trace("I think I should reset playback.");
+					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+				}
 			}
+
 			
 			return processed;
 		}
@@ -1679,10 +1689,20 @@ package org.osmf.net.httpstreaming
 				_seekTarget = indexHandler.bumpedSeek;
 				_enhancedSeekTarget = indexHandler.bumpedSeek;
 			}
+
+			if(_enhancedSeekTarget == Number.MAX_VALUE)
+			{
+				trace("Left over seek-to-end, aborting.");
+				_enhancedSeekTarget = 0.0;
+				_seekTarget = 0.0;
+			}
+
 			indexHandler.bumpedTime = false;
 
 			var currentTime:Number = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
 			
+			trace("Saw tag @ " + tag.timestamp);
+
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
 			// We need to take into account that flv tags' timestamps are 32-bit unsigned ints
 			// This means they will roll over, but the bootstrap times won't, since they are 64-bit unsigned ints
@@ -2025,6 +2045,7 @@ package org.osmf.net.httpstreaming
 		 */
 		private function seekToRetrySegment(requestedTime:Number):void
 		{
+			trace("Seeking to retry segment " + requestedTime);
 			_seekTarget = requestedTime;
 			setState(HTTPStreamingState.SEEK);
 		}

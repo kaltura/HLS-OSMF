@@ -418,7 +418,7 @@ package com.kaltura.hls
 			
 			return true;
 		}
-		
+
 		private function onReloadComplete(event:Event):void
 		{
 			trace ("::onReloadComplete - last/reload/target: " + lastQuality + "/" + reloadingQuality + "/" + targetQuality);
@@ -446,7 +446,7 @@ package com.kaltura.hls
 			if (reloadTimer && newManifest.segments.length > 0)
 			{
 				reloadTimer.delay = newManifest.segments[newManifest.segments.length - 1].duration * 1000;
-			} 
+			}
 			
 			// remove the reload completed listener since this might become the new manifest
 			newManifest.removeEventListener(Event.COMPLETE, onReloadComplete);
@@ -562,8 +562,8 @@ package com.kaltura.hls
 				}
 				else
 				{
-					trace("Remapping from " + lastSequence + " to " + (lastSeg.startTime + lastSeg.duration));
-					trace("===== Remapping to " + lastSequence + " newId=" + (newSeg.id) + " newTime=" + newSeg.startTime);
+					trace("Remapping from " + lastSequence + " to " + lastSeg.startTime + "-" + (lastSeg.startTime + lastSeg.duration));
+					trace("===== Remapping to " + lastSequence + " newId=" + (newSeg.id) + " newTime=" + newSeg.startTime + "-" + (newSeg.startTime + newSeg.duration) );
 					lastSequence = newSeg.id;
 				}
 
@@ -655,8 +655,9 @@ package com.kaltura.hls
 		{	
 			trace("getFileForTime - " + time + " quality=" + quality);
 			
+			var origQuality:int = quality;
 			quality = getWorkingQuality(quality);			
-			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
+			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( origQuality );
 
 			// If it's the initial MAX_VALUE see, we can jump to last segment less 3.
 			if(time == Number.MAX_VALUE && segments.length > 0)
@@ -665,14 +666,12 @@ package com.kaltura.hls
 				lastSequence = int.MAX_VALUE;
 			}
 
-
 			if(!checkAnySegmentKnowledge(segments) && !_bestEffortDownloaderMonitor)
 			{
 				// We may also need to establish a timebase.
 				trace("Seeking without timebase; initiating request.")
-				return initiateBestEffortRequest(uint.MAX_VALUE, quality);
+				return initiateBestEffortRequest(uint.MAX_VALUE, origQuality);
 			}
-
 
 			if(time < segments[0].startTime)
 			{
@@ -681,8 +680,8 @@ package com.kaltura.hls
 												/// No longer quite so sure this is a hack, but a requirement
 				++sequenceSkips;
 
-				bumpedTime = true;
-				bumpedSeek = time;
+				//bumpedTime = true;
+				//bumpedSeek = time;
 			}
 
 			var seq:int = getSegmentSequenceContainingTime(segments, time);
@@ -699,13 +698,13 @@ package com.kaltura.hls
 				{
 					trace("Fell off oldest segment, going to end #" + segments[0].id)
 					seq = segments[0].id;
-					bumpedTime = true;
+					//bumpedTime = true;
 				}
 				else if(time > lastSeg.startTime)
 				{
 					trace("Fell off oldest segment, going to end #" + lastSeg.id)
 					seq = lastSeg.id;
-					bumpedTime = true;
+					//bumpedTime = true;
 				}
 			}
 
@@ -715,7 +714,7 @@ package com.kaltura.hls
 				
 				lastSequence = seq;
 
-				bumpedSeek = curSegment.startTime;
+				//bumpedSeek = curSegment.startTime;
 
 				fileHandler.segmentId = seq;
 				fileHandler.key = getKeyForIndex( seq );
@@ -769,10 +768,12 @@ package com.kaltura.hls
 			//trace("Pre GWQ " + quality);
 			var origQuality:int = quality;
 			quality = getWorkingQuality(quality);
-			//trace("Post GWQ " + quality);
 
 			var currentManifest:HLSManifestParser = getManifestForQuality ( origQuality );
+			var oldManifest:HLSManifestParser = getManifestForQuality ( lastQuality);
+
 			var segments:Vector.<HLSManifestSegment> = currentManifest.segments;
+			var oldSegments:Vector.<HLSManifestSegment> = oldManifest.segments;
 
 			// If no knowledge available, cue up a best effort fetch.
 			if(!checkAnySegmentKnowledge(segments))
@@ -790,14 +791,34 @@ package com.kaltura.hls
 				}
 			}
 
-			// Recalculate the timebase.
-			updateSegmentTimes(segments);
+			if(!checkAnySegmentKnowledge(oldSegments))
+			{
+				trace("Lack timebase for this manifest...");
+				if(!_bestEffortDownloaderMonitor)
+				{
+					trace("Initiating best effort request");
+					return initiateBestEffortRequest(uint.MAX_VALUE, lastQuality);
+				}
+				else
+				{
+					trace("Best effort request pending, so stalling.");
+					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, RETRY_INTERVAL);
+				}
+			}
+
+			// Stall if we aren't ready to go.
+			if(quality != origQuality && manifest.streamEnds == false)
+			{
+				trace("Stalling for manifest -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
+				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);				
+			}
 
 			if(lastSequence == int.MAX_VALUE)
 			{
 				trace("Catching seek-to-end!");
-				lastSequence = segments[segments.length - 1].id;
+				lastSequence = segments[Math.max(0, segments.length - 3)].id;
 				bumpedTime = true;
+				bumpedSeek = segments[Math.max(0, segments.length - 3)].startTime;
 			}
 			else
 			{
@@ -805,28 +826,84 @@ package com.kaltura.hls
 				lastSequence++;				
 			}
 
+			// Remap time immediately if needed and we're not on a DVR.
+			if(origQuality != lastQuality && quality == origQuality)
+			{
+				updateSegmentTimes(segments);
+				updateSegmentTimes(oldSegments);
+
+				const fudgeTime:Number = 1.0;
+				var lastSeg:HLSManifestSegment = getSegmentBySequence(oldSegments, lastSequence);
+				var newSeg:HLSManifestSegment = lastSeg ? getSegmentContainingTime(segments, lastSeg.startTime + lastSeg.duration) : null;
+				if(newSeg == null)
+				{
+					trace("Remapping from " + lastSequence);
+
+					if(lastSeg)
+					{
+						// Guess by time....
+						trace("Found last seg with startTime = " + lastSeg.startTime + " duration=" + lastSeg.duration);
+
+						// If the segment is beyond last ID, then jump to end...
+						if(lastSeg.startTime + lastSeg.duration >= segments[segments.length-1].startTime)
+						{
+							trace("ERROR: Couldn't remap sequence to new quality level, restarting at last time " + segments[segments.length-1].startTime);
+							lastSequence = segments[segments.length-1].id;
+						}
+						else
+						{
+							trace("ERROR: Couldn't remap sequence to new quality level, restarting at first time " + segments[0].startTime);
+							lastSequence = segments[0].id;
+						}
+					}
+					else
+					{
+						// Guess by sequence number...
+						trace("No last seg found");
+	
+						// If the segment is beyond last ID, then jump to end...
+						if(lastSequence >= segments[segments.length-1].id)
+						{
+							trace("ERROR: Couldn't remap sequence to new quality level, restarting at last sequence " + segments[segments.length-1].id);
+							lastSequence = segments[segments.length-1].id;
+						}
+						else
+						{
+							trace("ERROR: Couldn't remap sequence to new quality level, restarting at first sequence " + segments[0].id);
+							lastSequence = segments[0].id;
+						}
+					}
+				}
+				else
+				{
+					trace("Remapping from " + lastSequence + " to " + lastSeg.startTime + "-" + (lastSeg.startTime + lastSeg.duration));
+					trace("===== Remapping to " + lastSequence + " newId=" + (newSeg.id) + " newTime=" + newSeg.startTime + "-" + (newSeg.startTime + newSeg.duration) );
+					lastSequence = newSeg.id;
+				}
+
+				// Dec for next time around.
+				trace("   o Ended at " + lastSequence);
+			}
 
 			if( segments.length > 0 && lastSequence < segments[0].id)
 			{
 				trace("Resetting too low sequence " + lastSequence + " to " + segments[0].id);
 				lastSequence = segments[0].id;
-				bumpedTime = true;
+				//bumpedTime = true;
 			}
 
 			if (segments.length > 2 && lastSequence > (segments[segments.length-1].id + 3))
 			{
 				trace("Got in a bad state of " + lastSequence + " , resetting to near end of stream " + segments[segments.length-2].id);
 				lastSequence = segments[segments.length-2].id;
-				bumpedTime = true;
 			}
 
 			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, lastSequence);
-
 			if ( curSegment != null ) 
 			{
 				trace("Getting Next Segment[" + lastSequence + "] StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri);
 				
-				bumpedSeek = curSegment.startTime;
+				//bumpedSeek = curSegment.startTime;
 
 				fileHandler.segmentId = lastSequence;
 				fileHandler.key = getKeyForIndex( lastSequence );
@@ -839,9 +916,8 @@ package com.kaltura.hls
 			{
 				trace("Stalling -- requested segment " + lastSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream");
 				lastSequence--;
-				lastSequence--; // Decrement twice so we eventually catch up.
 
-				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, RETRY_INTERVAL);
+				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, segments[segments.length-1].duration / 2);
 			}
 			
 			return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
