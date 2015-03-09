@@ -1,0 +1,25 @@
+<flex-config>
+
+   <compiler>
+
+    <define>
+      <name>CONFIG::FLASH_10_1</name>
+      <value>true</value>
+    </define> 
+
+    <define>
+      <name>CONFIG::LOGGING</name>
+      <value>false</value>
+    </define> 
+
+    <define>
+      <name>CONFIG::PLATFORM</name>
+      <value>true</value>
+    </define> 
+
+    <define>
+      <name>CONFIG::MOCK</name>
+      <value>false</value>
+    </define> 
+  </compiler>
+</flex-config>

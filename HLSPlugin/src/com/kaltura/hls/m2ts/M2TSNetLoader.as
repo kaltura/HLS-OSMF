@@ -6,6 +6,7 @@ package com.kaltura.hls.m2ts
 	
 	import flash.net.NetConnection;
 	import flash.net.NetStream;
+	import flash.events.NetStatusEvent;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.media.MediaResourceBase;
@@ -13,6 +14,7 @@ package com.kaltura.hls.m2ts
 	import org.osmf.metadata.Metadata;
 	import org.osmf.metadata.MetadataNamespaces;
 	import org.osmf.net.NetStreamLoadTrait;
+	import org.osmf.net.NetStreamCodes;
 	import org.osmf.net.httpstreaming.HLSHTTPNetStream;
 	import org.osmf.net.httpstreaming.HTTPStreamingFactory;
 	import org.osmf.net.httpstreaming.HTTPStreamingNetLoader;
@@ -24,6 +26,8 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSNetLoader extends HTTPStreamingNetLoader
 	{
+		private var netStream:HLSHTTPNetStream;
+
 		override public function canHandleResource( resource:MediaResourceBase ):Boolean
 		{
 			var metadata:Object = resource.getMetadataValue( HLSMetadataNamespaces.PLAYABLE_RESOURCE_METADATA );
@@ -33,7 +37,7 @@ package com.kaltura.hls.m2ts
 			
 			return false;
 		}
-		
+
 		override protected function createNetStream(connection:NetConnection, resource:URLResource):NetStream
 		{
 			var factory:HTTPStreamingFactory = new M2TSStreamingFactory();
@@ -48,11 +52,10 @@ package com.kaltura.hls.m2ts
 			if (!dvrMetadataPresent(resource))
 			{
 				updateLoadTrait(loadTrait, LoadState.READY);
-				
 				return;
 			}
 			
-			var netStream:HLSHTTPNetStream = loadTrait.netStream as HLSHTTPNetStream;
+			netStream = loadTrait.netStream as HLSHTTPNetStream;
 			netStream.addEventListener(DVRStreamInfoEvent.DVRSTREAMINFO, onDVRStreamInfo);
 			netStream.DVRGetStreamInfo(null);
 			function onDVRStreamInfo(event:DVRStreamInfoEvent):void

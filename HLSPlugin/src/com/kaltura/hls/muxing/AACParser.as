@@ -14,7 +14,7 @@ package com.kaltura.hls.muxing
 	public class AACParser 
 	{
 		// Possible ADIF syncwords (ie A-D of the format). Baked out for 
-		// easier scanning, way simpler as 4 byte int than bit
+		// easier scanning, way simpler as shorts than bit
 		// unpacking.
 		private static const SYNCWORD1:uint = 0xFFF1;
 		private static const SYNCWORD2:uint = 0xFFF9;
@@ -66,7 +66,7 @@ package com.kaltura.hls.muxing
 			// Store output as FLV tags.
 			var audioTags:Vector.<FLVTagAudio> = new Vector.<FLVTagAudio>();
 			
-			// Extract any ID3 header so we can us the timestamp.
+			// Extract any ID3 header so we can use the timestamp.
 			data.position = 0;
 			var id3:ID3Parser = new ID3Parser();
 			id3.parse(data);
@@ -147,7 +147,6 @@ package com.kaltura.hls.muxing
 			adts.position -= 4;
 			return adifHeader;
 		}
-		
 		
 		// Extract AAC frames from an ADTS.
 		public static function getFrameExtents(adts:ByteArray,position:Number=0):Vector.<AudioFrameExtents> 

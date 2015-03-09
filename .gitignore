@@ -3,6 +3,7 @@ bin/
 bin-debug/
 bin-release/
 build-release/
+.metadata/
 
 # Other files and folders
 .settings/

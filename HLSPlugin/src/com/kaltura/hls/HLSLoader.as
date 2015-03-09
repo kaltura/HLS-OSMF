@@ -45,6 +45,7 @@ package com.kaltura.hls
 			super();
 			
 			supportedMimeTypes.push( "application/x-mpegURL" );
+			supportedMimeTypes.push( "application/vnd.apple.mpegURL" );
 			supportedMimeTypes.push( "vnd.apple.mpegURL" );
 			supportedMimeTypes.push( "video/MP2T" );
 		}
@@ -104,7 +105,7 @@ package com.kaltura.hls
 				item = new DynamicStreamingItem(curStream.uri, curStream.bandwidth, curStream.width, curStream.height);
 				curStream.dynamicStream = item;
 				items.push(item);
-				if ( !curStream.manifest.streamEnds ) isDVR = true;
+				if ( !(curStream.manifest ? curStream.manifest.streamEnds : false) ) isDVR = true;
 				
 				// Create dynamic streaming items for the backup streams
 				if (!curStream.backupStream)

@@ -5,11 +5,13 @@
 	xmlns:mx="library://ns.adobe.com/flex/mx"
 	xmlns:local="*"
 	creationComplete="init()"
-	title="Digital Primates Video Player v0.0.7"
+	title="Digital Primates Video Player v0.0.8"
 	width="400" height="450">
 	
 	<fx:Script>
 		<![CDATA[
+			import com.kaltura.hls.SubtitleTrait;
+			
 			import org.osmf.events.DynamicStreamEvent;
 			import org.osmf.events.MediaElementEvent;
 			import org.osmf.events.MediaErrorEvent;
@@ -73,6 +75,19 @@
 				_element = value;
 				
 				initElement();
+			}
+			
+			private var _subtitleTrait:SubtitleTrait;
+			
+			public function get subtitleTrait():SubtitleTrait {
+				return _subtitleTrait;
+			}
+			
+			public function set subtitleTrait(value:SubtitleTrait):void {
+				_subtitleTrait = value;
+				
+				if (value)
+					setSubtitles(subtitleCheckBox.selected);
 			}
 			
 			// INTERNAL METHODS
@@ -216,7 +231,19 @@
 				switchingLbl.text = trait.switching ? "(switch in progress...)" : "";
 			}
 			
+			private function setSubtitles(value:Boolean):void {
+				if (!value)
+					subtitleTrait.language = null;
+				else
+					subtitleTrait.language = subtitleTrait.languages[0];
+			}
+			
 			// UI HANDLERS
+			
+			private function onSubtitleChange(event:Event):void {
+				if (subtitleTrait && subtitleTrait.languages.length > 0)
+					setSubtitles(subtitleCheckBox.selected);
+			}
 			
 			private function onAutoMBRChange(event:Event):void {
 				if (player)
@@ -254,6 +281,14 @@
 	<s:Label text="FPS: {fps}"/>
 	<s:Label text="Average: {avgfps}"/>
 	<s:Label text="Dropped Frames: {droppedFrames}"/>
+	
+	<mx:HRule width="100%"/>
+	
+	<s:CheckBox
+		id="subtitleCheckBox"
+		label="Subtitles"
+		selected="false"
+		change="onSubtitleChange(event)"/>
 	
 	<mx:HRule width="100%"/>
 	

@@ -14,6 +14,11 @@
 			
 			<s:Spacer height="10"/>
 			
+			<s:Label text="v0.0.8" fontWeight="bold"/>
+			<s:Label text="Add support for Subtitle Toggling."/>
+			
+			<s:Spacer height="10"/>
+			
 			<s:Label text="v0.0.6" fontWeight="bold"/>
 			<s:Label text="Add support for BaseURL with no SegmentBase."/>
 			<s:Label text="Add support for SegmentBase with no ranges defined."/>

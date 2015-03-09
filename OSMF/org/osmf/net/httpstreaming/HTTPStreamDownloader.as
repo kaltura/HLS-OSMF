@@ -426,12 +426,28 @@ package org.osmf.net.httpstreaming
 				_currentRetry = 0;
 
 				_downloadBytesCount = event.bytesTotal;
+			}
+
+			//CONFIG::LOGGING
+			//{
+			//	logger.debug("Loaded " + event.bytesLoaded + " bytes from " + _downloadBytesCount + " bytes.");
+			//}
+			
+			// If bitrate is super slow then bail.
+			var curAgeInMs:int = ((new Date()).time - _downloadBeginDate.time)
+			var curAgeInSec:int = curAgeInMs / 1000;
+			var transferRate:int = event.bytesLoaded / curAgeInSec;
+			if((event.bytesTotal / transferRate) > 15 && curAgeInMs > 3000)
+			{
 				CONFIG::LOGGING
 				{
-					logger.debug("Loaded " + event.bytesLoaded + " bytes from " + _downloadBytesCount + " bytes.");
+					logger.debug("Too slow transfer at " + transferRate + " bytes/sec, will not finish within 15 seconds.!");
 				}
+				close();
+				onError(new Event(Event.CANCEL));
+				return;
 			}
-			
+
 			_hasData = true;			
 			
 			if(_dispatcher != null)
@@ -475,7 +491,7 @@ package org.osmf.net.httpstreaming
 
 			CONFIG::LOGGING
 			{
-				logger.error("Loading failed. It took " + _downloadDuration + " sec and " + _currentRetry + " retries to fail while downloading [" + _request.url + "].");
+				logger.error("Loading failed. It took " + _downloadDuration + " sec and " + _currentRetry + " retries to fail while downloading [" + (_request ? _request.url : "[no request]") + "].");
 				logger.error("URLStream error event: " + event);
 			}
 			
@@ -493,7 +509,7 @@ package org.osmf.net.httpstreaming
 					0, // fragment duration
 					null, // scriptDataObject
 					FLVTagScriptDataMode.NORMAL, // scriptDataMode
-					_request.url, // urlString
+					_request ? _request.url : "[no request]", // urlString
 					0, // bytesDownloaded
 					reason, // reason
 					this); // downloader
@@ -551,7 +567,7 @@ package org.osmf.net.httpstreaming
 					OSMFSettings.hdsMaximumRetries == -1 
 				||  (OSMFSettings.hdsMaximumRetries != -1 && _currentRetry < OSMFSettings.hdsMaximumRetries)
 			)
-			{					
+			{
 				open(_request, _dispatcher, _timeoutInterval + OSMFSettings.hdsTimeoutAdjustmentOnRetry);
 			}
 			else

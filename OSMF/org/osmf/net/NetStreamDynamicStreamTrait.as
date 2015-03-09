@@ -224,7 +224,7 @@ package org.osmf.net
 					
 					index = dsResource.indexFromName(event.info.details);
 					
-					if (index >= 0)
+					if (index >= 0 && switchManager)
 					{
 						// Only initiate the switching if the new index is different than the currently downloading one (actual index)
 						// At this moment, RTMP Switch Manager does not provide an actual index. HDS does.
