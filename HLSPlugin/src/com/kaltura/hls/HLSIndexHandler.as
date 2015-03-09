@@ -649,7 +649,6 @@ package com.kaltura.hls
 			trace("::getWorkingQuality Quality Change: " + lastQuality + " --> " + requestedQuality);
 			reload(targetQuality);
 			return lastQuality;
-			
 		}
 		
 		public override function getFileForTime(time:Number, quality:int):HTTPStreamRequest
@@ -658,15 +657,14 @@ package com.kaltura.hls
 			
 			quality = getWorkingQuality(quality);			
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( quality );
-			
+
 			// If it's the initial MAX_VALUE see, we can jump to last segment less 3.
 			if(time == Number.MAX_VALUE && segments.length > 0)
 			{
 				trace("Seeking to end due to MAX_VALUE.");
-				bumpedTime = true;
-				bumpedSeek = segments[segments.length - 1].startTime;
-				lastSequence = segments[segments.length - 1].id;
+				lastSequence = int.MAX_VALUE;
 			}
+
 
 			if(!checkAnySegmentKnowledge(segments) && !_bestEffortDownloaderMonitor)
 			{
@@ -675,12 +673,16 @@ package com.kaltura.hls
 				return initiateBestEffortRequest(uint.MAX_VALUE, quality);
 			}
 
+
 			if(time < segments[0].startTime)
 			{
 				trace("::getFileForTime - SequenceSkip - time: " + time + " playlistStartTime: " + segments[0].startTime);				
 				time = segments[0].startTime;   /// TODO: HACK Alert!!! < this should likely be handled by DVRInfo (see dash plugin index handler)
 												/// No longer quite so sure this is a hack, but a requirement
 				++sequenceSkips;
+
+				bumpedTime = true;
+				bumpedSeek = time;
 			}
 
 			var seq:int = getSegmentSequenceContainingTime(segments, time);
@@ -791,8 +793,18 @@ package com.kaltura.hls
 			// Recalculate the timebase.
 			updateSegmentTimes(segments);
 
-			// Advance sequence number.
-			lastSequence++;
+			if(lastSequence == int.MAX_VALUE)
+			{
+				trace("Catching seek-to-end!");
+				lastSequence = segments[segments.length - 1].id;
+				bumpedTime = true;
+			}
+			else
+			{
+				// Advance sequence number.
+				lastSequence++;				
+			}
+
 
 			if( segments.length > 0 && lastSequence < segments[0].id)
 			{
@@ -828,6 +840,7 @@ package com.kaltura.hls
 				trace("Stalling -- requested segment " + lastSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream");
 				lastSequence--;
 				lastSequence--; // Decrement twice so we eventually catch up.
+
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, RETRY_INTERVAL);
 			}
 			

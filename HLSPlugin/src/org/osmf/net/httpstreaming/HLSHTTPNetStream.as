@@ -104,6 +104,8 @@ package org.osmf.net.httpstreaming
 		public static var writeToMasterBuffer:Boolean = true;
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
+		private var neverPlayed:Boolean = true;
+
 		/**
 		 * Constructor.
 		 * 
@@ -854,7 +856,7 @@ package org.osmf.net.httpstreaming
 
 						if(indexHandler.bumpedTime)
 						{
-							trace("INDEX HANDLER REQUESTED TIME BUMP");
+							trace("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
 							_seekTarget = indexHandler.bumpedSeek;
 							_enhancedSeekTarget = indexHandler.bumpedSeek;
 							indexHandler.bumpedTime = false;
@@ -918,6 +920,15 @@ package org.osmf.net.httpstreaming
 					if (badManifestUrl)
 					{
 						cantLoadManifest(badManifestUrl);
+						break;
+					}
+
+					if(neverPlayed && indexHandler.manifest && (indexHandler.manifest.streamEnds == false))
+					{
+						neverPlayed = false;
+						_seekTarget = Number.MAX_VALUE;
+						trace("Triggered first time seek to live edge!");
+						setState(HTTPStreamingState.SEEK);
 						break;
 					}
 					
@@ -1659,6 +1670,17 @@ package org.osmf.net.httpstreaming
 		{
 			var i:int;
 
+			// Apply bump if present.
+			if(indexHandler.bumpedTime 
+				&& (_enhancedSeekTarget > indexHandler.bumpedSeek
+					|| _seekTarget > indexHandler.bumpedSeek))
+			{
+				trace("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
+				_seekTarget = indexHandler.bumpedSeek;
+				_enhancedSeekTarget = indexHandler.bumpedSeek;
+			}
+			indexHandler.bumpedTime = false;
+
 			var currentTime:Number = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
 			
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
@@ -1706,6 +1728,7 @@ package org.osmf.net.httpstreaming
 			{
 				if (currentTime < _enhancedSeekTarget)
 				{
+					trace("Skipping FLV tag @ " + currentTime + " until " + _enhancedSeekTarget);
 					if (_enhancedSeekTags == null)
 					{
 						_enhancedSeekTags = new Vector.<FLVTag>();
