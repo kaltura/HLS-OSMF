@@ -108,7 +108,7 @@ package com.kaltura.hls.m2ts
                 var adaptationFieldLength:uint = _buffer.readUnsignedByte();
                 if(adaptationFieldLength >= 183)
                 {
-                    trace("Saw only adaptation data, skipping TS packet.");
+                    //trace("Saw only adaptation data, skipping TS packet.");
                     return;
                 }
 
@@ -219,10 +219,23 @@ package com.kaltura.hls.m2ts
             trace("FLUSHING");
             for (var idx:* in _streams)
             {
-                trace("Doing " + idx);
+                trace("Flushing stream id " + idx);
                 completeStreamPacket(_streams[idx]);
             }
+        }
 
+        public function clear(clearAACConfig:Boolean = true):void
+        {
+            _streams = {};
+            pesProcessor.clear(clearAACConfig);
+        }
+
+        /**
+         * Fire off a subtitle caption.
+         */
+        public function createAndSendCaptionMessage( timestamp:Number, captionBuffer:String, lang:String="", textid:Number=99):void
+        {
+            pesProcessor.transcoder.createAndSendCaptionMessage( timestamp, captionBuffer, lang, textid);
         }
 
         /**

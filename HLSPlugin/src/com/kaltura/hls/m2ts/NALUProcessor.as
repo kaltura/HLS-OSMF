@@ -249,7 +249,7 @@ package com.kaltura.hls.m2ts
                 {
                     if(buffer[i-1] == 0x00 && buffer[i-2] == 0x00)
                     {
-                        trace("SKIPPING EMULATION BYTE @ " + i);
+                        //trace("SKIPPING EMULATION BYTE @ " + i);
                         continue;
                     }
                 }
