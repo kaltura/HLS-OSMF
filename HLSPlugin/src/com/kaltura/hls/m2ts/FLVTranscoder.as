@@ -31,10 +31,9 @@ package com.kaltura.hls.m2ts
             _aacTimestamp = 0;
         }
 
-        private static var tag:ByteArray = new ByteArray();
-
         private function sendFLVTag(flvts:uint, type:uint, codec:int, mode:int, bytes:ByteArray, offset:uint, length:uint):void
         {
+            var tag:ByteArray = new ByteArray();
             tag.position = 0;
             var msgLength:uint = length + ((codec >= 0) ? 1 : 0) + ((mode >= 0) ? 1 : 0);
             var cursor:uint = 0;
@@ -68,11 +67,12 @@ package com.kaltura.hls.m2ts
 
             tag.writeUnsignedInt(lastTagSize);
 
+            lastTagSize = tag.length;
+
             // Dispatch tag.
             if(callback != null)
                 callback(flvts, tag);
 
-            lastTagSize = tag.length;
         }
 
         public function convertFLVTimestamp(pts:Number):Number 
@@ -375,7 +375,7 @@ package com.kaltura.hls.m2ts
          */
         public function createAndSendCaptionMessage( timeStamp:Number, captionBuffer:String, lang:String="", textid:Number=99):void
         {
-            var captionObject:Array = ["onCaptionInfo", { type:"WebVTT", data:captionBuffer }];
+            //var captionObject:Array = ["onCaptionInfo", { type:"WebVTT", data:captionBuffer }];
             //sendScriptDataFLVTag( timeStamp * 1000, captionObject);
 
             // We need to strip the timestamp off of the text data
