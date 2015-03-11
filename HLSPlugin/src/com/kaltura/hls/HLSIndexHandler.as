@@ -79,19 +79,6 @@ package com.kaltura.hls
 			fileHandler = _fileHandler as M2TSFileHandler;
 			fileHandler.extendedIndexHandler = this;
 		}
-		
-		/**
-		 * Returns whether or not the times of a specific manifest has been initialized 
-		 */
-		private function getManifestTimeInitialized(quality:int):Boolean
-		{
-			if ( manifest.streams.length < 1 || manifest.streams[0].manifest == null )
-			{
-				return manifest.timeInitialized;
-			}
-			
-			return manifest.streams[quality].manifest.timeInitialized;
-		}
 
 		public static function getSegmentBySequence(segments:Vector.<HLSManifestSegment>, id:int):HLSManifestSegment
 		{
@@ -848,13 +835,17 @@ package com.kaltura.hls
 		
 		private function getSegmentsForQuality( quality:int ):Vector.<HLSManifestSegment>
 		{
+			var returningSegments:Vector.<HLSManifestSegment>;
 			if ( !manifest ) return new Vector.<HLSManifestSegment>;
 			if ( manifest.streams.length < 1 || manifest.streams[0].manifest == null )
 			{
-				return changeHandler.updateSegmentTimes(manifest.segments); // There is one quality, that is implicitly 0
+				returningSegments = manifest.segments;
 			}
-			else if ( quality >= manifest.streams.length ) return changeHandler.updateSegmentTimes(manifest.streams[0].manifest.segments);
-			else return changeHandler.updateSegmentTimes(manifest.streams[quality].manifest.segments);
+			else if ( quality >= manifest.streams.length )returningSegments = manifest.streams[0].manifest.segments;
+			else returningSegments = manifest.streams[quality].manifest.segments; 
+			
+			changeHandler.updateSegmentTimes(returningSegments);
+			return returningSegments;
 		}
 		
 		private function getManifestForQuality( quality:int):HLSManifestParser

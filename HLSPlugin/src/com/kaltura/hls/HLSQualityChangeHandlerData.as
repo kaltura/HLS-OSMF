@@ -6,14 +6,13 @@ package com.kaltura.hls
 		// removed from this object as they moved to the latestKnownTimes vector
 		public var startTimeWitnesses:Object = {};
 		
+		// NOT CURRENTLY USED: Commented code is kept because it may be useful later when implementing more clever timing
 		// A collection of the latest known times for each quality level, organized by quality level.
-		// Each object contains to elements, a 'uri' and 'time;
-		private var lastestKnownTimes:Vector.<Object>;
-		
-		/**** Non-property accessors ****/
+		// Each object contains two elements, a 'uri' and 'time;
+		// private var latestKnownTimes:Vector.<Object>;
 		
 		// Takes a quality, uri, and time and adds it to the lastestKnownTime vector (overriding the previous item)
-		public function setLastestKnownTimes(quality:int, uri:String, time:Number):void
+		/* public function setLastestKnownTimes(quality:int, uri:String, time:Number):void
 		{
 			lastestKnownTimes[quality] = { "uri": uri, "time": time };
 			
@@ -26,6 +25,6 @@ package com.kaltura.hls
 		public function findLatestTime(quality:int, uri:String):Object
 		{
 			return lastestKnownTimes[quality].hasOwnProperty(uri) ? lastestKnownTimes[quality][uri] : 0;
-		}
+		}*/
 	}
 }

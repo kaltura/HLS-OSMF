@@ -48,10 +48,10 @@ package com.kaltura.hls
 		private var _bestEffortLastGoodFragmentDownloadTime:Date = null;
 		
 		// constants used by getNextRequestForBestEffortPlay:
-		private static const BEST_EFFORT_PLAY_SITUAUTION_NORMAL:String = "normal";
-		private static const BEST_EFFORT_PLAY_SITUAUTION_DROPOUT:String = "dropout";
-		private static const BEST_EFFORT_PLAY_SITUAUTION_LIVENESS:String = "liveness";
-		private static const BEST_EFFORT_PLAY_SITUAUTION_DONE:String = "done";
+		private static const BEST_EFFORT_PLAY_SITUATION_NORMAL:String = "normal";
+		private static const BEST_EFFORT_PLAY_SITUATION_DROPOUT:String = "dropout";
+		private static const BEST_EFFORT_PLAY_SITUATION_LIVENESS:String = "liveness";
+		private static const BEST_EFFORT_PLAY_SITUATION_DONE:String = "done";
 		
 		/***** Public API *****/
 		
@@ -67,7 +67,7 @@ package com.kaltura.hls
 		 * Takes a set of segments and updates their times using the existing index timing data, then returns
 		 * the altered segments
 		 */
-		public function updateSegmentTimes(segments:Vector.<HLSManifestSegment>):Vector.<HLSManifestSegment>
+		public function updateSegmentTimes(segments:Vector.<HLSManifestSegment>):void
 		{
 			// Using our witnesses, fill in as much knowledge as we can about 
 			// segment start/end times.
@@ -515,14 +515,14 @@ package com.kaltura.hls
 				downloader); // downloader
 			
 			CONFIG::LOGGING
-				{
-					//logger.debug("Setting _bestEffortLivenessRestartPoint to "+_bestEffortLivenessRestartPoint+" because of successful BEF download.");
-					;
-				}
-				
-				// remember that we started a download now
-				_bestEffortLastGoodFragmentDownloadTime = new Date();
+			{
+				//logger.debug("Setting _bestEffortLivenessRestartPoint to "+_bestEffortLivenessRestartPoint+" because of successful BEF download.");
+				;
+			}
 			
+			// remember that we started a download now
+			_bestEffortLastGoodFragmentDownloadTime = new Date();
+		
 			dispatchEvent(event);
 			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_CONTINUE;
 			_bestEffortState = BEST_EFFORT_STATE_OFF;
