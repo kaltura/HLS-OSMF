@@ -6,7 +6,7 @@ package com.kaltura.hls.m2ts
 	import com.kaltura.hls.muxing.AACParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	import com.kaltura.hls.subtitles.TextTrackCue;
-	import com.kaltura.hls.HLSIndexHandler;
+	import com.kaltura.hls.HLSQualityChangeHandler;
 	
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
@@ -292,7 +292,7 @@ package com.kaltura.hls.m2ts
 			{
 				_segmentBeginSeconds = timestampSeconds;
 				trace("Noting segment start time for " + segmentUri + " of " + timestampSeconds);
-				HLSIndexHandler.startTimeWitnesses[segmentUri] = timestampSeconds;
+				HLSQualityChangeHandler.indexTimingData.startTimeWitnesses[segmentUri] = timestampSeconds;
 			}
 
 			if(timestampSeconds > _segmentLastSeconds)
