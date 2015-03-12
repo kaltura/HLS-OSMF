@@ -971,12 +971,12 @@ package org.osmf.net.httpstreaming
 						issueLivenessEventsIfNeeded();
 						if (bytes != null)
 						{
+							trace("processed " + bytes.length);
 							processed += processAndAppend(bytes);	
 						}
 						
-						if (
-							(_state != HTTPStreamingState.PLAY) 	// we are no longer in play mode
-							|| (bytes == null) 						// or we don't have any additional data
+						if ((_state != HTTPStreamingState.PLAY) 	// we are no longer in play mode
+							|| (getTimer() - startTime > 25) // or we are out of time and got something
 							|| (processed >= OSMFSettings.hdsBytesProcessingLimit) 	// or we have processed enough data  
 						)
 						{
@@ -984,7 +984,7 @@ package org.osmf.net.httpstreaming
 						}
 					}
 					var totalTime:int = getTimer() - startTime;
-					if(totalTime > 15)
+					if(totalTime > 30)
 						trace("******* spent " + totalTime + "ms processing bytes *********");
 					
 					if (_state == HTTPStreamingState.PLAY)
