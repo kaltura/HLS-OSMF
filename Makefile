@@ -7,6 +7,8 @@ MXMLC="/Applications/Adobe Flash Builder 4.7/sdks/4.6.0/bin/mxmlc"
 COMPC="/Applications/Adobe Flash Builder 4.7/sdks/4.6.0/bin/compc"
 flexlib="/Applications/Adobe Flash Builder 4.7/sdks/4.6.0/"
 
+DEBUG_FLAG=false
+OPTIMIZE_FLAG=true
 
 # First time, run make disabled all
 # Then only need to run disable if you change OSMF or OSMFUtils	
@@ -22,9 +24,9 @@ TestPlayer/html-template/TestPlayer.swf: $(shell find TestPlayer -name \*.as) HL
 		-library-path+=../hlsPlugin/hlsPlugin.swc \
 		-swf-version 20 \
 		-use-network=true \
-		-debug=true \
+		-debug=${DEBUG_FLAG} \
+		-optimize=${OPTIMIZE_FLAG} \
 		-output html-template/TestPlayer.swf -source-path+=src src/DashTest.mxml
-		#-debug=true \
 
 HLSPlugin/hlsPlugin.swc: $(shell find HLSPlugin/ -name \*.as) OSMFUtils/osmfutils.swc
 	@echo ============= HLSPlugin ========================
@@ -34,16 +36,17 @@ HLSPlugin/hlsPlugin.swc: $(shell find HLSPlugin/ -name \*.as) OSMFUtils/osmfutil
 		-library-path+=libs/aes-decrypt.swc \
 		-swf-version 20 \
 		-use-network=true \
-		-debug=true \
+		-debug=${DEBUG_FLAG} \
+		-optimize=${OPTIMIZE_FLAG} \
 		-output hlsPlugin.swc -include-sources src
-#		-debug=true \
 
 OSMFUtils/osmfutils.swc: $(shell find OSMFUtils/ -name \*.as) OSMF/osmf.swc
 	@echo ============= OSMFUtils ========================
 	cd OSMFUtils && ${COMPC} \
 		-load-config+=OSMFUtils-build-config.xml \
 		-swf-version 20 \
-		-debug=true \
+		-debug=${DEBUG_FLAG} \
+		-optimize=${OPTIMIZE_FLAG} \
 		-library-path+=../OSMF/osmf.swc \
 		-output osmfutils.swc -include-sources src 
 
@@ -52,6 +55,7 @@ OSMF/osmf.swc: $(shell find OSMF/ -name \*.as)
 	cd OSMF && ${COMPC} \
 		-load-config+=OSMF-build-config.xml \
 		-swf-version 20 \
-		-debug=true \
+		-debug=${DEBUG_FLAG} \
+		-optimize=${OPTIMIZE_FLAG} \
 		-output osmf.swc -include-sources . 
 
