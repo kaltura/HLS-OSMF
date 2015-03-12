@@ -740,26 +740,27 @@ package com.kaltura.hls
 			trace("getFileForTime - " + time + " quality=" + quality);
 			
 			var origQuality:int = quality;
-			quality = getWorkingQuality(quality);			
-			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( origQuality );
+			quality = getWorkingQuality(quality);
 
+			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( origQuality );
 			if(!checkAnySegmentKnowledge(segments))
 			{
 				if(!isBestEffortActive())
 				{
 					// We may also need to establish a timebase.
-					trace("Seeking without timebase; initiating request.")
+					trace("getFileForTime - Seeking without timebase; initiating request.");
 					return initiateBestEffortRequest(uint.MAX_VALUE, origQuality);
 				}
 				else 
 				{
+					trace("getFileForTime - Waiting on knowledge!");
 					return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL);
 				}
 			}
 
 			if(time < segments[0].startTime)
 			{
-				trace("::getFileForTime - SequenceSkip - time: " + time + " playlistStartTime: " + segments[0].startTime);				
+				trace("getFileForTime - SequenceSkip - time: " + time + " playlistStartTime: " + segments[0].startTime);				
 				time = segments[0].startTime;   /// TODO: HACK Alert!!! < this should likely be handled by DVRInfo (see dash plugin index handler)
 												/// No longer quite so sure this is a hack, but a requirement
 				++sequenceSkips;
@@ -772,19 +773,19 @@ package com.kaltura.hls
 
 			if(seq == -1 && segments.length >= 2)
 			{
-				trace("Got out of bound timestamp. Trying to recover...");
+				trace("getFileForTime - Got out of bound timestamp. Trying to recover...");
 
 				var lastSeg:HLSManifestSegment = segments[Math.max(0, segments.length - 3)];
 
 				if(time < segments[0].startTime)
 				{
-					trace("Fell off oldest segment, going to start #" + segments[0].id)
+					trace("getFileForTime - Fell off oldest segment, going to start #" + segments[0].id)
 					seq = segments[0].id;
 					//bumpedTime = true;
 				}
 				else if(time > lastSeg.startTime)
 				{
-					trace("Fell off oldest segment, going to end #" + lastSeg.id)
+					trace("getFileForTime - Fell off oldest segment, going to end #" + lastSeg.id)
 					seq = lastSeg.id;
 					//bumpedTime = true;
 				}
@@ -798,18 +799,22 @@ package com.kaltura.hls
 				fileHandler.segmentId = seq;
 				fileHandler.key = getKeyForIndex( seq );
 				fileHandler.segmentUri = curSegment.uri;
-				trace("Getting Segment[" + seq + "] StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri); 
+				trace("Getting Segment [" + seq + "] for StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri); 
 				return createHTTPStreamRequest( curSegment );
 			}
 			else
 			{
-				trace("Seeking to unknown location " + time + ", waiting.");
+				trace("getFileForTime - Seeking to unknown location " + time + ", waiting.");
 			}
 			
 			// TODO: Handle live streaming lists by returning a stall.			
 			if (!resource.manifest.streamEnds)
+			{
+				trace("getFileForTime - stalling.");
 				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL);
+			}
 			
+			trace("getFileForTime - end of stream.s");
 			return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 		}
 		
@@ -984,18 +989,21 @@ package com.kaltura.hls
 			if(!manifest)
 				return;
 
-			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
+			// Fetch active data.
 			var activeManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+			var segments:Vector.<HLSManifestSegment> = activeManifest.segments;
 
 			if(segments.length > 0)
-				lastKnownPlaylistStartTime = segments[0].startTime;
-
-			var i:int = segments.length - 1;
-			if (i >= 0 && (activeManifest.allowCache || activeManifest.streamEnds))
 			{
+				lastKnownPlaylistStartTime = segments[0].startTime;
+				var i:int = segments.length - 1;
+				if (i >= 0 && (activeManifest.allowCache || activeManifest.streamEnds))
+				{
 					accum = (segments[i].startTime + segments[i].duration) - lastKnownPlaylistStartTime;
+				}
 			}
-			
+
+			// Push the metadata out.
 			var metadata:Object = new Object();
 			metadata.duration = accum;
 			var tag:FLVTagScriptDataObject = new FLVTagScriptDataObject();
@@ -1045,16 +1053,22 @@ package com.kaltura.hls
 		private function dispatchDVRStreamInfo():void
 		{
 			var curManifest:HLSManifestParser = getManifestForQuality(lastQuality);
-			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
-			if (segments.length == 0) return; // No point, I think, in continuing
-			
-			var firstSegment:HLSManifestSegment = segments[ 0 ];
-			var lastSegment:HLSManifestSegment = segments[segments.length - 1];
-			
+			var segments:Vector.<HLSManifestSegment> = curManifest.segments;
+			if (segments.length == 0) 
+			{
+				trace("Failed to dispatch DVR info, no segments!");
+				return;
+			}
+
+			updateSegmentTimes(segments);
+
+			var firstSegment:HLSManifestSegment = segments[0];
+			var lastSegment:HLSManifestSegment  = segments[segments.length - 1];
+
 			var dvrInfo:DVRInfo = new DVRInfo();
 			dvrInfo.offline = false;
 			dvrInfo.isRecording = !curManifest.streamEnds;  // TODO: verify that this is what we REALLY want to be doing
-			dvrInfo.startTime = firstSegment.startTime;			
+			dvrInfo.startTime = firstSegment.startTime;
 			dvrInfo.beginOffset = firstSegment.startTime;
 			dvrInfo.endOffset = lastSegment.startTime + lastSegment.duration;
 			dvrInfo.curLength = dvrInfo.endOffset - dvrInfo.beginOffset;
@@ -1320,6 +1334,9 @@ package com.kaltura.hls
 
 			// Try again.
 			stalled = false;
+
+			// Update DVR info in case we gained knowledge.
+			dispatchDVRStreamInfo();
 		}
 		
 		
