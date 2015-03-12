@@ -256,14 +256,27 @@ package com.kaltura.hls
 			return -1;
 		}
 
-		public static function getSegmentContainingTime(segments:Vector.<HLSManifestSegment>, time:Number):HLSManifestSegment
+		public static function getSegmentContainingTime(segments:Vector.<HLSManifestSegment>, time:Number, biasBackward:Boolean = false):HLSManifestSegment
 		{
-			// Find matches.
-			for(var i:int=0; i<segments.length; i++)
+			if(biasBackward)
+			{			
+				// Find matches.
+				for(var i:int=0; i<segments.length; i++)
+				{
+					var seg:HLSManifestSegment = segments[i];
+					if(seg.startTime <= time && time < (seg.startTime + seg.duration))
+						return seg;
+				}
+			}
+			else
 			{
-				var seg:HLSManifestSegment = segments[i];
-				if(seg.startTime <= time && time < (seg.startTime + seg.duration))
-					return seg;
+				// Find matches.
+				for(var i:int=0; i<segments.length; i++)
+				{
+					var seg:HLSManifestSegment = segments[i];
+					if(seg.startTime <= time && time <= (seg.startTime + seg.duration))
+						return seg;
+				}				
 			}
 
 			// No match, dump to aid debug.
@@ -518,7 +531,7 @@ package com.kaltura.hls
 
 			const fudgeTime:Number = 1.0;
 			var currentSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, currentSequence);
-			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration : 0)) : null;
+			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration : 0), !end) : null;
 			if(newSeg == null)
 			{
 				trace("Remapping from " + currentSequence);
