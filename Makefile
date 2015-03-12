@@ -26,7 +26,6 @@ TestPlayer/html-template/TestPlayer.swf: $(shell find TestPlayer -name \*.as) HL
 		-output html-template/TestPlayer.swf -source-path+=src src/DashTest.mxml
 		#-debug=true \
 
-
 HLSPlugin/hlsPlugin.swc: $(shell find HLSPlugin/ -name \*.as) OSMFUtils/osmfutils.swc
 	@echo ============= HLSPlugin ========================
 	cd HLSPlugin && ${COMPC} \
