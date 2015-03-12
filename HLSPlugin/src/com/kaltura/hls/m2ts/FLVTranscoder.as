@@ -81,17 +81,49 @@ package com.kaltura.hls.m2ts
         }
 
         private static var flvGenerationBuffer:ByteArray = new ByteArray();
+        private static var keyFrame:Boolean = false;
+        private static var totalAppended:int = 0;
+
+        private function naluConverter(bytes:ByteArray, cursor:uint, length:uint):void
+        {
+            // Check for a NALU that is keyframe type.
+            var naluType:uint = bytes[cursor] & 0x1f;
+            trace(naluType + " length=" + length);
+            switch(naluType)
+            {
+                case 0x09: // "access unit delimiter"
+                    switch((bytes[cursor + 1] >> 5) & 0x07) // access unit type
+                    {
+                        case 0:
+                        case 3:
+                        case 5:
+                            keyFrame = true;
+                            break;
+                        default:
+                            keyFrame = false;
+                            break;
+                    }
+                    break;
+
+                default:
+                    // Infer keyframe state.
+                    if(naluType == 5)
+                        keyFrame = true;
+                    else if(naluType == 1)
+                        keyFrame = false;                        
+            }
+
+            // Append.
+            flvGenerationBuffer.writeUnsignedInt(length);
+            flvGenerationBuffer.writeBytes(bytes, cursor, length);
+            totalAppended += length;
+        }
 
         /**
          * Convert and amit AVC NALU data.
          */
         public function convert(unit:NALU):void
         {
-            // Emit an AVCC.
-            var avcc:ByteArray = NALUProcessor.extractAVCC(unit);
-            if(avcc)
-                sendFLVTag(convertFLVTimestamp(unit.pts), FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);            
-
             // Accumulate NALUs into buffer.
             flvGenerationBuffer.length = 3;
             flvGenerationBuffer[0] = (tsu >> 16) & 0xff;
@@ -99,44 +131,17 @@ package com.kaltura.hls.m2ts
             flvGenerationBuffer[2] = (tsu      ) & 0xff;
             flvGenerationBuffer.position = 3;
 
-            // Check keyframe status.
-            var keyFrame:Boolean = false;
-            var totalAppended:int = 0;
-            NALUProcessor.walkNALUs(unit.buffer, 0, function(bytes:ByteArray, cursor:uint, length:uint):void
-            {
-                // Check for a NALU that is keyframe type.
-                var naluType:uint = bytes[cursor] & 0x1f;
-                //trace(naluType + " length=" + length);
-                switch(naluType)
-                {
-                    case 0x09: // "access unit delimiter"
-                        switch((bytes[cursor + 1] >> 5) & 0x07) // access unit type
-                        {
-                            case 0:
-                            case 3:
-                            case 5:
-                                keyFrame = true;
-                                break;
-                            default:
-                                keyFrame = false;
-                                break;
-                        }
-                        break;
+            totalAppended = 0;
+            keyFrame = false;
 
-                    default:
-                        // Infer keyframe state.
-                        if(naluType == 5)
-                            keyFrame = true;
-                        else if(naluType == 1)
-                            keyFrame = false;                        
-                }
+            // Emit an AVCC and walk the NALUs.
+            var avcc:ByteArray = NALUProcessor.extractAVCC(unit, naluConverter);
+            if(avcc)
+                sendFLVTag(convertFLVTimestamp(unit.pts), FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);            
 
-                // Append.
-                flvGenerationBuffer.writeUnsignedInt(length);
-                flvGenerationBuffer.writeBytes(bytes, cursor, length);
-                totalAppended += length;
-            }, true );
+            trace("Appended " + totalAppended + " bytes");
 
+            // Finish writing and sending packet.
             var flvts:uint = convertFLVTimestamp(unit.pts);
             var tsu:uint = convertFLVTimestamp(unit.pts - unit.dts);
 
@@ -147,7 +152,6 @@ package com.kaltura.hls.m2ts
                 codec = FLVTags.VIDEO_CODEC_AVC_PREDICTIVEFRAME;
 
             //trace("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
-            
             sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length);
         }
 
