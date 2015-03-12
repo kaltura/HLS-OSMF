@@ -9,31 +9,10 @@ flexlib="/Applications/Adobe Flash Builder 4.7/sdks/4.6.0/"
 
 
 # First time, run make disabled all
-# Then only need to run disable if you change OSMF or OSMFUtils
-all:
-	@echo ============= OSMF ========================
-	cd OSMF && ${COMPC} \
-		-load-config+=OSMF-build-config.xml \
-		-swf-version 20 \
-		-debug=true \
-		-output osmf.swc -include-sources . 
-	@echo ============= OSMFUtils ========================
-	cd OSMFUtils && ${COMPC} \
-		-load-config+=OSMFUtils-build-config.xml \
-		-swf-version 20 \
-		-debug=true \
-		-library-path+=../OSMF/osmf.swc \
-		-output osmfutils.swc -include-sources src 
-	@echo ============= HLSPlugin ========================
-	cd HLSPlugin && ${COMPC} \
-		-load-config+=HLS-build-config.xml \
-		-library-path+=../OSMF/osmf.swc \
-		-library-path+=libs/aes-decrypt.swc \
-		-swf-version 20 \
-		-use-network=true \
-		-debug=true \
-		-output hlsPlugin.swc -include-sources src
-#		-debug=true \
+# Then only need to run disable if you change OSMF or OSMFUtils	
+all: TestPlayer/html-template/TestPlayer.swf
+
+TestPlayer/html-template/TestPlayer.swf: $(shell find TestPlayer -name \*.as) HLSPlugin/hlsPlugin.swc
 	@echo ============ TestPlayer ========================
 	cd TestPlayer && ${MXMLC} \
 		-static-link-runtime-shared-libraries=true \
@@ -47,4 +26,33 @@ all:
 		-output html-template/TestPlayer.swf -source-path+=src src/DashTest.mxml
 		#-debug=true \
 
+
+HLSPlugin/hlsPlugin.swc: $(shell find HLSPlugin/ -name \*.as) OSMFUtils/osmfutils.swc
+	@echo ============= HLSPlugin ========================
+	cd HLSPlugin && ${COMPC} \
+		-load-config+=HLS-build-config.xml \
+		-library-path+=../OSMF/osmf.swc \
+		-library-path+=libs/aes-decrypt.swc \
+		-swf-version 20 \
+		-use-network=true \
+		-debug=true \
+		-output hlsPlugin.swc -include-sources src
+#		-debug=true \
+
+OSMFUtils/osmfutils.swc: $(shell find OSMFUtils/ -name \*.as) OSMF/osmf.swc
+	@echo ============= OSMFUtils ========================
+	cd OSMFUtils && ${COMPC} \
+		-load-config+=OSMFUtils-build-config.xml \
+		-swf-version 20 \
+		-debug=true \
+		-library-path+=../OSMF/osmf.swc \
+		-output osmfutils.swc -include-sources src 
+
+OSMF/osmf.swc: $(shell find OSMF/ -name \*.as)
+	@echo ============= OSMF ========================
+	cd OSMF && ${COMPC} \
+		-load-config+=OSMF-build-config.xml \
+		-swf-version 20 \
+		-debug=true \
+		-output osmf.swc -include-sources . 
 
