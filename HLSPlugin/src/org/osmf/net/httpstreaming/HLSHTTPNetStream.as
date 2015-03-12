@@ -36,6 +36,7 @@ package org.osmf.net.httpstreaming
 	import flash.net.NetStreamPlayTransitions;
 	import flash.utils.ByteArray;
 	import flash.utils.Timer;
+	import flash.utils.getTimer;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.events.HTTPStreamingEvent;
@@ -857,7 +858,7 @@ package org.osmf.net.httpstreaming
 						
 						_enhancedSeekTarget = _seekTarget;
 
-						if(indexHandler.bumpedTime)
+						if(indexHandler && indexHandler.bumpedTime)
 						{
 							trace("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
 							_seekTarget = indexHandler.bumpedSeek;
@@ -926,7 +927,7 @@ package org.osmf.net.httpstreaming
 						break;
 					}
 
-					if(neverPlayed && indexHandler.manifest && (indexHandler.manifest.streamEnds == false))
+					if(neverPlayed && indexHandler && indexHandler.manifest && (indexHandler.manifest.streamEnds == false))
 					{
 						neverPlayed = false;
 						_seekTarget = Number.MAX_VALUE;
@@ -963,6 +964,7 @@ package org.osmf.net.httpstreaming
 					var processed:int = 0;
 					var keepProcessing:Boolean = true;
 					
+					var startTime:int = getTimer();
 					while(keepProcessing)
 					{
 						var bytes:ByteArray = _source.getBytes();
@@ -981,6 +983,9 @@ package org.osmf.net.httpstreaming
 							keepProcessing = false;
 						}
 					}
+					var totalTime:int = getTimer() - startTime;
+					if(totalTime > 15)
+						trace("******* spent " + totalTime + "ms processing bytes *********");
 					
 					if (_state == HTTPStreamingState.PLAY)
 					{
@@ -1681,7 +1686,7 @@ package org.osmf.net.httpstreaming
 			var i:int;
 
 			// Apply bump if present.
-			if(indexHandler.bumpedTime 
+			if(indexHandler && indexHandler.bumpedTime 
 				&& (_enhancedSeekTarget > indexHandler.bumpedSeek
 					|| _seekTarget > indexHandler.bumpedSeek))
 			{
@@ -1697,7 +1702,8 @@ package org.osmf.net.httpstreaming
 				_seekTarget = 0.0;
 			}
 
-			indexHandler.bumpedTime = false;
+			if(indexHandler)
+				indexHandler.bumpedTime = false;
 
 			var currentTime:Number = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
 			
