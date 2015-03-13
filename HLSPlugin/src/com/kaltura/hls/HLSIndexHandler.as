@@ -775,7 +775,7 @@ package com.kaltura.hls
 				else 
 				{
 					trace("getFileForTime - Waiting on knowledge!");
-					return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL);
+					return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, 1);
 				}
 			}
 
@@ -832,7 +832,7 @@ package com.kaltura.hls
 			if (!resource.manifest.streamEnds)
 			{
 				trace("getFileForTime - stalling.");
-				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL);
+				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, 1);
 			}
 			
 			trace("getFileForTime - end of stream.s");
@@ -868,7 +868,7 @@ package com.kaltura.hls
 
 				// TODO - ensure a reload is pending?
 
-				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);
+				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 1);
 			}
 
 			HLSHTTPNetStream.recoveryStateNum = URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED;
@@ -883,7 +883,7 @@ package com.kaltura.hls
 			if(quality != origQuality && isBestEffortActive())
 			{
 				trace("Waiting on best effort to resolve...");
-				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);
+				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 1);
 			}
 
 			// If no old manifest, it's a new play session.
@@ -913,7 +913,8 @@ package com.kaltura.hls
 				}
 				else
 				{
-					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);
+					trace("Firing live stall");
+					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 1);
 				}
 			}
 
@@ -921,7 +922,7 @@ package com.kaltura.hls
 			if(quality != origQuality && manifest.streamEnds == false)
 			{
 				trace("Stalling for manifest -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
-				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);				
+				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 1);
 			}
 
 			// Advance sequence number.
@@ -965,6 +966,7 @@ package com.kaltura.hls
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, segments[segments.length-1].duration / 2);
 			}
 			
+			trace("Ending stream playback");
 			return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 		}
 		
