@@ -27,6 +27,7 @@ package org.osmf.net.httpstreaming
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
 	import com.kaltura.hls.manifest.HLSManifestSegment;
 	import com.kaltura.hls.manifest.HLSManifestStream;
+	import com.kaltura.hls.manifest.HLSManifestParser;
 	
 	import flash.events.NetStatusEvent;
 	import flash.events.TimerEvent;
@@ -279,12 +280,12 @@ package org.osmf.net.httpstreaming
 			{
 				if(_initialTime < 0)
 				{
-					trace("Setting A to " + offset);
+					trace("Setting seek (A) to " + offset);
 					_seekTarget = offset + 0;	// this covers the "don't know initial time" case, rare
 				}
 				else
 				{
-					trace("Setting B to " + offset);
+					trace("Setting seek (B) to " + offset);
 					_seekTarget = offset + _initialTime;
 				}
 				
@@ -1396,8 +1397,8 @@ package org.osmf.net.httpstreaming
 					if(errorSurrenderTimer.currentCount > 5)
 						errorSurrenderTimer.reset();
 
-					//seekToRecoverStream();
-					//return;
+					seekToRecoverStream();
+					return;
 				}
 
 
@@ -1455,7 +1456,7 @@ package org.osmf.net.httpstreaming
 			}
 			else
 			{
-				// Here we seek forward in the stream on segment at a time to try and find a good segment.
+				// Here we seek forward in the stream one segment at a time to try and find a good segment.
 				seekToRetrySegment(time + calculateSeekTime());
 			}
 		}
@@ -2051,6 +2052,16 @@ package org.osmf.net.httpstreaming
 		 */
 		private function seekToRetrySegment(requestedTime:Number):void
 		{
+			// If we are in a live stream, treat this scenario as a restart.
+			if(indexHandler)
+			{
+				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
+				if(lastMan && lastMan.streamEnds == false && requestedTime < indexHandler.lastKnownPlaylistStartTime)
+				{
+					requestedTime = Number.MAX_VALUE;
+				}				
+			}
+
 			trace("Seeking to retry segment " + requestedTime);
 			_seekTarget = requestedTime;
 			setState(HTTPStreamingState.SEEK);
@@ -2282,7 +2293,7 @@ package org.osmf.net.httpstreaming
 		public static var recoveryStateNum:int = URLErrorRecoveryStates.IDLE;// used when recovering from a URL error to determine if we need to quickly skip ahead due to a bad segment
 		public static var errorSurrenderTimer:Timer = new Timer(1000);// Timer used by both this and HLSHTTPNetStream to determine if we should give up recovery of a URL error
 		public static var hasGottenManifest:Boolean = false;
-		public static var reloadDelayTime:int = 500;// The amount of time (in miliseconds) we want to wait between reload attempts in case of a URL error
+		public static var reloadDelayTime:int = 2500;// The amount of time (in miliseconds) we want to wait between reload attempts in case of a URL error
 		
 		private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 		
