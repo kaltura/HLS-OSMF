@@ -88,7 +88,7 @@ package com.kaltura.hls.m2ts
         {
             // Check for a NALU that is keyframe type.
             var naluType:uint = bytes[cursor] & 0x1f;
-            trace(naluType + " length=" + length);
+            //trace(naluType + " length=" + length);
             switch(naluType)
             {
                 case 0x09: // "access unit delimiter"
@@ -139,7 +139,7 @@ package com.kaltura.hls.m2ts
             if(avcc)
                 sendFLVTag(convertFLVTimestamp(unit.pts), FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);            
 
-            trace("Appended " + totalAppended + " bytes");
+           // trace("Appended " + totalAppended + " bytes");
 
             // Finish writing and sending packet.
             var flvts:uint = convertFLVTimestamp(unit.pts);
