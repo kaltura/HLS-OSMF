@@ -280,10 +280,31 @@ package com.kaltura.hls
 			}
 
 			// No match, dump to aid debug.
-			for(i=0; i<segments.length-1; i++)
+			if(segments.length <= 10)
 			{
-				seg = segments[i];
-				trace("#" + i + " id=" + seg.id + " start=" + seg.startTime + " end=" + (seg.startTime + seg.duration));
+				for(i=0; i<segments.length-1; i++)
+				{
+					seg = segments[i];
+					trace("#" + i + " id=" + seg.id + " start=" + seg.startTime + " end=" + (seg.startTime + seg.duration));
+				}
+			}
+			else
+			{
+				// First 3
+				for(i=0; i<3; i++)
+				{
+					seg = segments[i];
+					trace("#" + i + " id=" + seg.id + " start=" + seg.startTime + " end=" + (seg.startTime + seg.duration));
+				}
+
+				trace(" .... skipping middle ....");
+
+				// Last 3
+				for(i=segments.length-4; i<segments.length-1; i++)
+				{
+					seg = segments[i];
+					trace("#" + i + " id=" + seg.id + " start=" + seg.startTime + " end=" + (seg.startTime + seg.duration));
+				}
 			}
 
 			return null;
