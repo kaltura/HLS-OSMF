@@ -156,7 +156,7 @@ package com.kaltura.hls.m2ts
 		public override function get inputBytesNeeded():Number
 		{
 			// Get TS packets!
-			return 188;
+			return 0;
 		}
 
 		public static var tmpBuffer:ByteArray = new ByteArray();
