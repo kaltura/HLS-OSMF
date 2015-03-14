@@ -622,7 +622,7 @@ package org.osmf.net.httpstreaming
 
 					if(bufferTime < 30)
 					{
-						trace("NetStream emptied out, upping buffer time by 5 seconds.");
+						trace("NetStream emptied out, upping buffer time by 5 seconds to " + (bufferTime + 5));
 						bufferTime += 5.0;							
 					}
 
@@ -703,11 +703,11 @@ package org.osmf.net.httpstreaming
 			private function onDRMError(event:DRMErrorEvent):void
 			{
 				CONFIG::LOGGING
-					{
-						logger.debug("Received an DRM error (" + event.toString() + ").");
-						logger.debug("Entering waiting mode until DRM state is updated."); 
-					}
-					_waitForDRM = true;
+				{
+					logger.debug("Received an DRM error (" + event.toString() + ").");
+					logger.debug("Entering waiting mode until DRM state is updated."); 
+				}
+				_waitForDRM = true;
 				setState(HTTPStreamingState.WAIT);
 			}
 			
@@ -716,10 +716,10 @@ package org.osmf.net.httpstreaming
 				if (event.voucher != null)
 				{
 					CONFIG::LOGGING
-						{
-							logger.debug("DRM state updated. We'll exit waiting mode once the buffer is consumed.");
-						}
-						_waitForDRM = false;
+					{
+						logger.debug("DRM state updated. We'll exit waiting mode once the buffer is consumed.");
+					}
+					_waitForDRM = false;
 				}
 			}
 		}
@@ -977,7 +977,7 @@ package org.osmf.net.httpstreaming
 						}
 						
 						if ((_state != HTTPStreamingState.PLAY) 	// we are no longer in play mode
-							|| (getTimer() - startTime > 25) // or we are out of time and got something
+							|| (getTimer() - startTime > 25) 		// or we are out of time and got something
 							|| (processed >= OSMFSettings.hdsBytesProcessingLimit) 	// or we have processed enough data  
 						)
 						{
@@ -1285,7 +1285,6 @@ package org.osmf.net.httpstreaming
 				lastFragmentDetails = sourceQoSInfo.lastFragmentDetails;
 			}
 			
-			
 			var playbackDetailsRecord:Vector.<PlaybackDetails> = null;
 			var currentIndex:int = -1;
 			
@@ -1317,7 +1316,10 @@ package org.osmf.net.httpstreaming
 			
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.RUN_ALGORITHM));
 			
+			_lastSegmentEnd = indexHandler ? indexHandler.getCurrentSegmentEnd() : 0.0;
 		}
+
+		private var _lastSegmentEnd:int = -1;
 		
 		/**
 		 * @private
@@ -1686,6 +1688,13 @@ package org.osmf.net.httpstreaming
 		{
 			var i:int;
 
+			if(_enhancedSeekTarget <= 0.0)
+			{
+				trace("Setting enhanced seek target to last segment end of " + _lastSegmentEnd);
+				_enhancedSeekTarget = _lastSegmentEnd;
+				_seekTarget = _enhancedSeekTarget;
+			}
+
 			// Apply bump if present.
 			if(indexHandler && indexHandler.bumpedTime 
 				&& (_enhancedSeekTarget > indexHandler.bumpedSeek
@@ -1698,7 +1707,7 @@ package org.osmf.net.httpstreaming
 
 			if(_enhancedSeekTarget == Number.MAX_VALUE)
 			{
-				trace("Left over seek-to-end, aborting.");
+				trace("Left over enhanced seek-to-end, aborting (_seekTarget=" + _seekTarget + ").");
 				_enhancedSeekTarget = 0.0;
 				_seekTarget = 0.0;
 			}
@@ -1708,7 +1717,7 @@ package org.osmf.net.httpstreaming
 
 			var currentTime:Number = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
 			
-			trace("Saw tag @ " + tag.timestamp);
+			trace("Saw tag @ " + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget);
 
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
 			// We need to take into account that flv tags' timestamps are 32-bit unsigned ints

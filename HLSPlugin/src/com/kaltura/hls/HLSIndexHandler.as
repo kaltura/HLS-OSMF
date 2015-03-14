@@ -709,9 +709,17 @@ package com.kaltura.hls
 		{
 			var streams:Array = [];
 			var rates:Array = [];
+
+			// Make a copy of the streamItems and sort them by bitrate ascending.
+			var itemsCopy:Array = new Array();
+			itemsCopy.length = resource.streamItems.length;
 			for(var i:int=0; i<resource.streamItems.length; i++)
+				itemsCopy[i] = resource.streamItems[i];
+			itemsCopy.sortOn("bitrate", Array.NUMERIC)
+
+			for(var i:int=0; i<itemsCopy.length; i++)
 			{
-				var curStream:DynamicStreamingItem = resource.streamItems[i];
+				var curStream:DynamicStreamingItem = itemsCopy[i] as DynamicStreamingItem;
 				streams.push(curStream.streamName);
 				rates.push(curStream.bitrate);
 			}
@@ -922,7 +930,11 @@ package com.kaltura.hls
 			if(quality != origQuality && manifest.streamEnds == false)
 			{
 				trace("Stalling for manifest -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
-				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 1);
+
+				// Kick the reloader.
+				onReloadTimer(null);
+
+				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 2);
 			}
 
 			// Advance sequence number.
@@ -1194,10 +1206,17 @@ package com.kaltura.hls
 			var segments:Vector.<HLSManifestSegment> = getLastSequenceSegments();
 			updateSegmentTimes(segments);
 			var segment:HLSManifestSegment = getSegmentBySequence( segments, getLastSequence() );
-
 			return segment ? segment.startTime : 0.0;
 		}
 		
+		public function getCurrentSegmentEnd():Number
+		{
+			var segments:Vector.<HLSManifestSegment> = getLastSequenceSegments();
+			updateSegmentTimes(segments);
+			var segment:HLSManifestSegment = getSegmentBySequence( segments, getLastSequence() );
+			return segment ? segment.startTime + segment.duration : 0.0;
+		}
+
 		public function getTargetSegmentDuration():Number
 		{
 			return getManifestForQuality(lastQuality).targetDuration;

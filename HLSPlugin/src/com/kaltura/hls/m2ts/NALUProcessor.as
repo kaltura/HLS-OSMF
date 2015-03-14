@@ -294,7 +294,7 @@ package com.kaltura.hls.m2ts
 
             // Go through each buffer and find all the SPS/PPS info.
             activeCallback = perNaluCallback;
-            walkNALUs(unit.buffer, 0, extractAVCCInner, activeCallback != null)
+            walkNALUs(unit.buffer, 0, extractAVCCInner, true)
             activeCallback = null;
 
             // Generate and return the AVCC.
