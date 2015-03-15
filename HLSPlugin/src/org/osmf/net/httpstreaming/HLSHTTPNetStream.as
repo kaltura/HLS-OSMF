@@ -27,7 +27,6 @@ package org.osmf.net.httpstreaming
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
 	import com.kaltura.hls.manifest.HLSManifestSegment;
 	import com.kaltura.hls.manifest.HLSManifestStream;
-	import com.kaltura.hls.manifest.HLSManifestParser;
 	
 	import flash.events.NetStatusEvent;
 	import flash.events.TimerEvent;
@@ -37,7 +36,6 @@ package org.osmf.net.httpstreaming
 	import flash.net.NetStreamPlayTransitions;
 	import flash.utils.ByteArray;
 	import flash.utils.Timer;
-	import flash.utils.getTimer;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.events.HTTPStreamingEvent;
@@ -280,12 +278,12 @@ package org.osmf.net.httpstreaming
 			{
 				if(_initialTime < 0)
 				{
-					trace("Setting seek (A) to " + offset);
+					trace("Setting A to " + offset);
 					_seekTarget = offset + 0;	// this covers the "don't know initial time" case, rare
 				}
 				else
 				{
-					trace("Setting seek (B) to " + offset);
+					trace("Setting B to " + offset);
 					_seekTarget = offset + _initialTime;
 				}
 				
@@ -622,7 +620,7 @@ package org.osmf.net.httpstreaming
 
 					if(bufferTime < 30)
 					{
-						trace("NetStream emptied out, upping buffer time by 5 seconds to " + (bufferTime + 5));
+						trace("NetStream emptied out, upping buffer time by 5 seconds.");
 						bufferTime += 5.0;							
 					}
 
@@ -703,11 +701,11 @@ package org.osmf.net.httpstreaming
 			private function onDRMError(event:DRMErrorEvent):void
 			{
 				CONFIG::LOGGING
-				{
-					logger.debug("Received an DRM error (" + event.toString() + ").");
-					logger.debug("Entering waiting mode until DRM state is updated."); 
-				}
-				_waitForDRM = true;
+					{
+						logger.debug("Received an DRM error (" + event.toString() + ").");
+						logger.debug("Entering waiting mode until DRM state is updated."); 
+					}
+					_waitForDRM = true;
 				setState(HTTPStreamingState.WAIT);
 			}
 			
@@ -716,10 +714,10 @@ package org.osmf.net.httpstreaming
 				if (event.voucher != null)
 				{
 					CONFIG::LOGGING
-					{
-						logger.debug("DRM state updated. We'll exit waiting mode once the buffer is consumed.");
-					}
-					_waitForDRM = false;
+						{
+							logger.debug("DRM state updated. We'll exit waiting mode once the buffer is consumed.");
+						}
+						_waitForDRM = false;
 				}
 			}
 		}
@@ -859,7 +857,7 @@ package org.osmf.net.httpstreaming
 						
 						_enhancedSeekTarget = _seekTarget;
 
-						if(indexHandler && indexHandler.bumpedTime)
+						if(indexHandler.bumpedTime)
 						{
 							trace("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
 							_seekTarget = indexHandler.bumpedSeek;
@@ -928,7 +926,7 @@ package org.osmf.net.httpstreaming
 						break;
 					}
 
-					if(neverPlayed && indexHandler && indexHandler.manifest && (indexHandler.manifest.streamEnds == false))
+					if(neverPlayed && indexHandler.manifest && (indexHandler.manifest.streamEnds == false))
 					{
 						neverPlayed = false;
 						_seekTarget = Number.MAX_VALUE;
@@ -965,28 +963,24 @@ package org.osmf.net.httpstreaming
 					var processed:int = 0;
 					var keepProcessing:Boolean = true;
 					
-					var startTime:int = getTimer();
 					while(keepProcessing)
 					{
 						var bytes:ByteArray = _source.getBytes();
 						issueLivenessEventsIfNeeded();
 						if (bytes != null)
 						{
-							trace("processed " + bytes.length);
 							processed += processAndAppend(bytes);	
 						}
 						
-						if ((_state != HTTPStreamingState.PLAY) 	// we are no longer in play mode
-							|| (getTimer() - startTime > 25) 		// or we are out of time and got something
+						if (
+							(_state != HTTPStreamingState.PLAY) 	// we are no longer in play mode
+							|| (bytes == null) 						// or we don't have any additional data
 							|| (processed >= OSMFSettings.hdsBytesProcessingLimit) 	// or we have processed enough data  
 						)
 						{
 							keepProcessing = false;
 						}
 					}
-					var totalTime:int = getTimer() - startTime;
-					if(totalTime > 30)
-						trace("******* spent " + totalTime + "ms processing bytes *********");
 					
 					if (_state == HTTPStreamingState.PLAY)
 					{
@@ -1285,6 +1279,7 @@ package org.osmf.net.httpstreaming
 				lastFragmentDetails = sourceQoSInfo.lastFragmentDetails;
 			}
 			
+			
 			var playbackDetailsRecord:Vector.<PlaybackDetails> = null;
 			var currentIndex:int = -1;
 			
@@ -1316,10 +1311,7 @@ package org.osmf.net.httpstreaming
 			
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.RUN_ALGORITHM));
 			
-			_lastSegmentEnd = indexHandler ? indexHandler.getCurrentSegmentEnd() : 0.0;
 		}
-
-		private var _lastSegmentEnd:int = -1;
 		
 		/**
 		 * @private
@@ -1399,8 +1391,8 @@ package org.osmf.net.httpstreaming
 					if(errorSurrenderTimer.currentCount > 5)
 						errorSurrenderTimer.reset();
 
-					seekToRecoverStream();
-					return;
+					//seekToRecoverStream();
+					//return;
 				}
 
 
@@ -1458,7 +1450,7 @@ package org.osmf.net.httpstreaming
 			}
 			else
 			{
-				// Here we seek forward in the stream one segment at a time to try and find a good segment.
+				// Here we seek forward in the stream on segment at a time to try and find a good segment.
 				seekToRetrySegment(time + calculateSeekTime());
 			}
 		}
@@ -1688,15 +1680,8 @@ package org.osmf.net.httpstreaming
 		{
 			var i:int;
 
-			if(_enhancedSeekTarget <= 0.0)
-			{
-				trace("Setting enhanced seek target to last segment end of " + _lastSegmentEnd);
-				_enhancedSeekTarget = _lastSegmentEnd;
-				_seekTarget = _enhancedSeekTarget;
-			}
-
 			// Apply bump if present.
-			if(indexHandler && indexHandler.bumpedTime 
+			if(indexHandler.bumpedTime 
 				&& (_enhancedSeekTarget > indexHandler.bumpedSeek
 					|| _seekTarget > indexHandler.bumpedSeek))
 			{
@@ -1707,17 +1692,16 @@ package org.osmf.net.httpstreaming
 
 			if(_enhancedSeekTarget == Number.MAX_VALUE)
 			{
-				trace("Left over enhanced seek-to-end, aborting (_seekTarget=" + _seekTarget + ").");
+				trace("Left over seek-to-end, aborting.");
 				_enhancedSeekTarget = 0.0;
 				_seekTarget = 0.0;
 			}
 
-			if(indexHandler)
-				indexHandler.bumpedTime = false;
+			indexHandler.bumpedTime = false;
 
 			var currentTime:Number = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
 			
-			trace("Saw tag @ " + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget);
+			trace("Saw tag @ " + tag.timestamp);
 
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
 			// We need to take into account that flv tags' timestamps are 32-bit unsigned ints
@@ -2061,16 +2045,6 @@ package org.osmf.net.httpstreaming
 		 */
 		private function seekToRetrySegment(requestedTime:Number):void
 		{
-			// If we are in a live stream, treat this scenario as a restart.
-			if(indexHandler)
-			{
-				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
-				if(lastMan && lastMan.streamEnds == false && requestedTime < indexHandler.lastKnownPlaylistStartTime)
-				{
-					requestedTime = Number.MAX_VALUE;
-				}				
-			}
-
 			trace("Seeking to retry segment " + requestedTime);
 			_seekTarget = requestedTime;
 			setState(HTTPStreamingState.SEEK);
@@ -2302,7 +2276,7 @@ package org.osmf.net.httpstreaming
 		public static var recoveryStateNum:int = URLErrorRecoveryStates.IDLE;// used when recovering from a URL error to determine if we need to quickly skip ahead due to a bad segment
 		public static var errorSurrenderTimer:Timer = new Timer(1000);// Timer used by both this and HLSHTTPNetStream to determine if we should give up recovery of a URL error
 		public static var hasGottenManifest:Boolean = false;
-		public static var reloadDelayTime:int = 2500;// The amount of time (in miliseconds) we want to wait between reload attempts in case of a URL error
+		public static var reloadDelayTime:int = 500;// The amount of time (in miliseconds) we want to wait between reload attempts in case of a URL error
 		
 		private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 		
