@@ -73,8 +73,9 @@ package
         {
 			if ( e.resource && e.resource == _pluginResource ) {
 				e.target.removeEventListener(MediaFactoryEvent.PLUGIN_LOAD, onOSMFPluginLoaded);
-				if (segmentBuffer != -1) 
-					HLSManifestParser.MAX_SEG_BUFFER = segmentBuffer;
+				if (segmentBuffer != -1){ 
+					HLSManifestParser.MAX_SEG_BUFFER = segmentBuffer; // if passed by JS, update static MAX_SEG_BUFFER with the new value 
+				}
 				dispatchEvent( new KPluginEvent (KPluginEvent.KPLUGIN_INIT_COMPLETE) );
 			}
             
