@@ -87,13 +87,6 @@ package com.kaltura.hls.m2ts
 		
 		public override function beginProcessFile(seek:Boolean, seekTime:Number):void
 		{
-			if(isBestEffort)
-			{
-				trace("Doing extra flush for best effort file handler");
-				_parser.flush();
-				_parser.clear();
-			}
-
 			// Decryption reset
 			if ( key )
 			{
@@ -155,7 +148,7 @@ package com.kaltura.hls.m2ts
 		
 		public override function get inputBytesNeeded():Number
 		{
-			// Get TS packets!
+			// We can always survive no bytes.
 			return 0;
 		}
 

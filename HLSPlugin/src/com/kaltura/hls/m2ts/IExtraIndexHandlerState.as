@@ -12,8 +12,6 @@ package com.kaltura.hls.m2ts
 
 		function getCurrentSegmentOffset():Number;
 
-		function getCurrentSegmentEnd():Number;
-
 		function getTargetSegmentDuration():Number;
 	}
 }

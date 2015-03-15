@@ -133,12 +133,6 @@ package com.kaltura.hls.m2ts
             var b:ByteArray = packet.buffer;
             b.position = 0;
 
-            if(b.length < 8)
-            {
-                trace("Ignoring too short PES packet, length=" + b.length);
-                return;
-            }
-
             // Get the start code.
             var startCode:uint = b.readUnsignedInt();
             if((startCode & 0xFFFFFF00) != 0x00000100)
