@@ -15,8 +15,6 @@ package
     import com.kaltura.kdpfl.plugin.KPluginEvent;
 	import com.kaltura.kdpfl.plugin.KalturaHLSMediator;
 	
-	import com.kaltura.kdpfl.model.ConfigProxy;
-	
 	import flash.display.Sprite;
 	
 	import org.osmf.media.PluginInfo;
