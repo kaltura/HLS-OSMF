@@ -12,14 +12,16 @@ package com.kaltura.hls
 	import flash.events.IEventDispatcher;
 	import flash.events.IOErrorEvent;
 	import flash.events.TimerEvent;
-	import flash.utils.Timer;
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
+	import flash.utils.Timer;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.events.HTTPStreamingEvent;
-	import org.osmf.events.HTTPStreamingIndexHandlerEvent;
 	import org.osmf.events.HTTPStreamingEventReason;
+	import org.osmf.events.HTTPStreamingIndexHandlerEvent;
+	import org.osmf.logging.Log;
+	import org.osmf.logging.Logger;
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.net.DynamicStreamingItem;
 	import org.osmf.net.httpstreaming.HLSHTTPNetStream;
@@ -31,9 +33,6 @@ package com.kaltura.hls
 	import org.osmf.net.httpstreaming.dvr.DVRInfo;
 	import org.osmf.net.httpstreaming.flv.FLVTagScriptDataMode;
 	import org.osmf.net.httpstreaming.flv.FLVTagScriptDataObject;
-
-	import org.osmf.logging.Logger;
-	import org.osmf.logging.Log;
 	
 	public class HLSIndexHandler extends HTTPStreamingIndexHandlerBase implements IExtraIndexHandlerState
 	{
@@ -45,7 +44,6 @@ package com.kaltura.hls
 		// The new current seek target.
 		public var bumpedSeek:Number = 0;
 
-		public var lastSequence:int = 0;
 		public var lastKnownPlaylistStartTime:Number = 0.0;
 		public var lastQuality:int = 0;
 		public var targetQuality:int = 0;
@@ -63,38 +61,9 @@ package com.kaltura.hls
 		private var primaryStream:HLSManifestStream;// The manifest we are currently using when we attempt to switch to a backup
 		private var isRecovering:Boolean = false;// If we are currently recovering from a URL error
 		private var lastBadManifestUri:String = "Unknown URI";
+		private var lastSequence:int = 0;
 		
-		// _bestEffortState values
-		private static const BEST_EFFORT_STATE_OFF:String = "off"; 											// not performing best effort fetch
-		private static const BEST_EFFORT_STATE_PLAY:String = "play"; 										// doing best effort for liveness or dropout
-		private static const BEST_EFFORT_STATE_SEEK_BACKWARD:String = "seekBackward";						// in the backward fetch phase of best effort seek
-		private static const BEST_EFFORT_STATE_SEEK_FORWARD:String = "seekForward";							// in the forward fetch phase of best effort seek
-		
-		private var _bestEffortInited:Boolean = false;														// did we initialize _bestEffortEnabled?
-		private var _bestEffortEnabled:Boolean = false;														// is BEF enabled at all?
-		private var _bestEffortState:String =  BEST_EFFORT_STATE_OFF;										// the current state of best effort
-		private var _bestEffortSeekTime:Number = 0;															// the time we're seeking to
-		private var _bestEffortDownloaderMonitor:EventDispatcher = null; 									// Special dispatcher to handler the results of best-effort downloads.
-		private var _bestEffortFailedFetches:uint = 0; 														// The number of fetches that have failed so far.
-		private var _bestEffortDownloadReply:String = null;													// After initiating a download, this is the DOWNLOAD_CONTINUE or DOWNLOAD_SKIP reply that we sent
-		private var _bestEffortFileHandler:M2TSFileHandler = new M2TSFileHandler();							// used to pre-parse backward seeks
-		private var _bestEffortSeekBuffer:ByteArray = new ByteArray();										// buffer for saving bytes when pre-parsing backward seek
-		private var _bestEffortLastGoodFragmentDownloadTime:Date = null;
-		
-		private var _pendingBestEffortRequest:HTTPStreamRequest = null;
-
-		// constants used by getNextRequestForBestEffortPlay:
-		private static const BEST_EFFORT_PLAY_SITUAUTION_NORMAL:String = "normal";
-		private static const BEST_EFFORT_PLAY_SITUAUTION_DROPOUT:String = "dropout";
-		private static const BEST_EFFORT_PLAY_SITUAUTION_LIVENESS:String = "liveness";
-		private static const BEST_EFFORT_PLAY_SITUAUTION_DONE:String = "done";
-
-		// We keep a list of witnesses of known PTS start values for segments.
-		// This is indexed by segment URL and returns the PTS start for that
-		// seg if known.  Since all segments are immutable, we can keep this
-		// as a global cache.
-		public static var startTimeWitnesses:Object = {};
-
+		private var changeHandler:HLSQualityChangeHandler = new HLSQualityChangeHandler(getKeyForIndex);
 
 		CONFIG::LOGGING
 		{
@@ -109,83 +78,6 @@ package com.kaltura.hls
 			baseUrl = manifest.baseUrl;
 			fileHandler = _fileHandler as M2TSFileHandler;
 			fileHandler.extendedIndexHandler = this;
-
-			_bestEffortFileHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onBestEffortParsed);
-			_bestEffortFileHandler.isBestEffort = true;
-		}
-
-
-		public function updateSegmentTimes(segments:Vector.<HLSManifestSegment>):Vector.<HLSManifestSegment>
-		{
-			// Using our witnesses, fill in as much knowledge as we can about 
-			// segment start/end times.
-
-			// Keep track of whatever segments we've assigned to.
-			var setSegments:Object = {};
-
-			// First, set any exactly known values.
-			for(var i:int=0; i<segments.length; i++)
-			{
-				// Skip unknowns.
-				if(!startTimeWitnesses.hasOwnProperty(segments[i].uri))
-					continue;
-
-				segments[i].startTime = startTimeWitnesses[segments[i].uri];
-				setSegments[i] = 1;
-			}
-
-			if(segments.length > 1)
-			{
-				// Then fill in any unknowns scanning forward....
-				for(i=1; i<segments.length; i++)
-				{
-					// Skip unknowns.
-					if(!setSegments.hasOwnProperty(i-1))
-						continue;
-
-					segments[i].startTime = segments[i-1].startTime + segments[i-1].duration;
-					setSegments[i] = 1;
-				}
-
-				// And scanning back...
-				for(i=segments.length-2; i>=0; i--)
-				{
-					// Skip unknowns.
-					if(!setSegments.hasOwnProperty(i+1))
-						continue;
-
-					segments[i].startTime = segments[i+1].startTime - segments[i].duration;
-					setSegments[i] = 1;
-				}
-			}
-
-			// Dump results:
-			/*trace("Last 10 manifest time reconstruction");
-			for(i=Math.max(0, segments.length - 100); i<segments.length; i++)
-			{
-				trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + " uri=" + segments[i].uri);
-			}*/
-			trace("Reconstructed manifest time with knowledge=" + checkAnySegmentKnowledge(segments) + " firstTime=" + (segments.length > 1 ? segments[0].startTime : -1) + " lastTime=" + (segments.length > 1 ? segments[segments.length-1].startTime : -1));
-
-			// Done!
-			return segments;
-		}
-
-		/**
-		 * Return true if we have encountered any segments from this list of segments. Useful for
-		 * determining if we need to do a best effort based seek and/or if the estimates are any good.
-		 */
-		public static function checkAnySegmentKnowledge(segments:Vector.<HLSManifestSegment>):Boolean
-		{
-			// Find matches.
-			for(var i:int=0; i<segments.length; i++)
-			{
-				// Skip unknowns.
-				if(startTimeWitnesses.hasOwnProperty(segments[i].uri))
-					return true;
-			}
-
-			return false;
 		}
 
 		public static function getSegmentBySequence(segments:Vector.<HLSManifestSegment>, id:int):HLSManifestSegment
@@ -262,6 +154,11 @@ package com.kaltura.hls
 			// Reset our recovery variables just in case
 			isRecovering = false;
 			backupStreamNumber = 0;
+			
+			changeHandler.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, passUpChangeHandlerEvent);
+			changeHandler.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, passUpChangeHandlerEvent);
+			changeHandler.addEventListener(HTTPStreamingEvent.DOWNLOAD_CONTINUE, passUpChangeHandlerEvent);
+			changeHandler.addEventListener(HTTPStreamingEvent.DOWNLOAD_SKIP, passUpChangeHandlerEvent);
 		}
 		
 		private function setUpReloadTimer(initialDelay:int):void
@@ -293,10 +190,8 @@ package com.kaltura.hls
 			trace("Scheduling reload for quality " + quality);
 			reloadingQuality = quality;
 
-			// Make sure we have knowledge of our current stream.
-			if(!checkAnySegmentKnowledge(getManifestForQuality(lastQuality).segments) 
-				&& !_bestEffortDownloaderMonitor)
-				_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, lastQuality);
+			// Check if we have knowledge of our stream, this will initiate a best effor request if not
+			changeHandler.checkAnySegmentKnowledge(getManifestForQuality(lastQuality).segments);
 
 			// Reload the manifest we were given, if we were given a manifest
 			var manToReload:HLSManifestParser = manifest ? manifest : getManifestForQuality(reloadingQuality);
@@ -305,7 +200,6 @@ package com.kaltura.hls
 			reloadingManifest.addEventListener(Event.COMPLETE, onReloadComplete);
 			reloadingManifest.addEventListener(IOErrorEvent.IO_ERROR, onReloadError);
 			reloadingManifest.reload(manToReload);
-
 		}
 		
 		private function onReloadError(event:Event):void
@@ -485,29 +379,12 @@ package com.kaltura.hls
 			}
 			else if (reloadingQuality == targetQuality)
 			{
-				// If we are going to a quality level we don't know about, go ahead
-				// and best-effort-fetch a segment from it to establish the timebase.
-				if(!checkAnySegmentKnowledge(newManifest.segments) 
-					&& !_bestEffortDownloaderMonitor)
+				if (changeHandler.getNewQualityLevelKnowlege(currentManifest, newManifest, lastQuality, reloadingQuality))
 				{
-					trace("(A) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-					_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, reloadingQuality, newManifest.segments);
-				} else if(!checkAnySegmentKnowledge(currentManifest.segments) 
-					&& !_bestEffortDownloaderMonitor)
-				{
-					trace("(B) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-					_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, lastQuality);
-				}
-
-				if(!checkAnySegmentKnowledge(newManifest.segments) || !checkAnySegmentKnowledge(currentManifest.segments))
-				{
-					trace("Bailing on reload due to lack of knowledge!");
-					
 					// re-reload.
 					reloadingManifest = null; // don't want to hang on to this one.
 					if (reloadTimer) reloadTimer.start();
-
-					return;
+					return
 				}
 
 			}
@@ -515,60 +392,7 @@ package com.kaltura.hls
 			// Remap time.
 			if(reloadingQuality != lastQuality)
 			{
-				updateSegmentTimes(currentManifest.segments);
-				updateSegmentTimes(newManifest.segments);
-
-				const fudgeTime:Number = 1.0;
-				var lastSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, lastSequence);
-				var newSeg:HLSManifestSegment = lastSeg ? getSegmentContainingTime(newManifest.segments, lastSeg.startTime + lastSeg.duration) : null;
-				if(newSeg == null)
-				{
-					trace("Remapping from " + lastSequence);
-
-					if(lastSeg)
-					{
-						// Guess by time....
-						trace("Found last seg with startTime = " + lastSeg.startTime + " duration=" + lastSeg.duration);
-
-						// If the segment is beyond last ID, then jump to end...
-						if(lastSeg.startTime + lastSeg.duration >= newManifest.segments[newManifest.segments.length-1].startTime)
-						{
-							trace("ERROR: Couldn't remap sequence to new quality level, restarting at last time " + newManifest.segments[newManifest.segments.length-1].startTime);
-							lastSequence = newManifest.segments[newManifest.segments.length-1].id;
-						}
-						else
-						{
-							trace("ERROR: Couldn't remap sequence to new quality level, restarting at first time " + newManifest.segments[0].startTime);
-							lastSequence = newManifest.segments[0].id;
-						}
-					}
-					else
-					{
-						// Guess by sequence number...
-						trace("No last seg found");
-	
-						// If the segment is beyond last ID, then jump to end...
-						if(lastSequence >= newManifest.segments[newManifest.segments.length-1].id)
-						{
-							trace("ERROR: Couldn't remap sequence to new quality level, restarting at last sequence " + newManifest.segments[newManifest.segments.length-1].id);
-							lastSequence = newManifest.segments[newManifest.segments.length-1].id;
-						}
-						else
-						{
-							trace("ERROR: Couldn't remap sequence to new quality level, restarting at first sequence " + newManifest.segments[0].id);
-							lastSequence = newManifest.segments[0].id;
-						}
-					}
-				}
-				else
-				{
-					trace("Remapping from " + lastSequence + " to " + lastSeg.startTime + "-" + (lastSeg.startTime + lastSeg.duration));
-					trace("===== Remapping to " + lastSequence + " newId=" + (newSeg.id) + " newTime=" + newSeg.startTime + "-" + (newSeg.startTime + newSeg.duration) );
-					lastSequence = newSeg.id;
-				}
-
-				// Dec for next time around.
-				trace("   o Ended at " + lastSequence);
+				changeHandler.remapTime(currentManifest, newManifest, lastSequence); 
 			}
 
 			// Update our manifest for this quality level.
@@ -643,7 +467,7 @@ package com.kaltura.hls
 			// If the requested quality is the same as the target quality, we've already asked for a reload, so return the last quality
 			if (requestedQuality == targetQuality) return lastQuality;
 			
-			// The requested quality doesn't match eithe the targetQuality or the lastQuality, which means this is new territory.
+			// The requested quality doesn't match either the targetQuality or the lastQuality, which means this is new territory.
 			// So we will reload the manifest for the requested quality
 			targetQuality = requestedQuality;
 			trace("::getWorkingQuality Quality Change: " + lastQuality + " --> " + requestedQuality);
@@ -665,12 +489,12 @@ package com.kaltura.hls
 				trace("Seeking to end due to MAX_VALUE.");
 				lastSequence = int.MAX_VALUE;
 			}
-
-			if(!checkAnySegmentKnowledge(segments) && !_bestEffortDownloaderMonitor)
+	
+			if(!changeHandler.checkAnySegmentKnowledge(segments))
 			{
 				// We may also need to establish a timebase.
 				trace("Seeking without timebase; initiating request.")
-				return initiateBestEffortRequest(uint.MAX_VALUE, origQuality);
+				return changeHandler.firePendingBestEffortRequest();
 			}
 
 			if(time < segments[0].startTime)
@@ -748,16 +572,13 @@ package com.kaltura.hls
 		public override function getNextFile(quality:int):HTTPStreamRequest
 		{
 			// Fire any pending best effort requests.
-			if(_pendingBestEffortRequest)
+			if(changeHandler.pendingBestEffortRequest)
 			{
-				trace("Firing pending best effort request: " + _pendingBestEffortRequest);
-				var pber:HTTPStreamRequest = _pendingBestEffortRequest;
-				_pendingBestEffortRequest = null;
-				return pber;
+				return changeHandler.firePendingBestEffortRequest();
 			}
 
 			// Report stalls and/or wait on timebase establishment.
-			if (stalled || _bestEffortDownloaderMonitor)
+			if (changeHandler.stalled || changeHandler.bestEffortDownloaderMonitor)
 			{
 				trace("Stalling -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL);
@@ -770,19 +591,19 @@ package com.kaltura.hls
 			quality = getWorkingQuality(quality);
 
 			var currentManifest:HLSManifestParser = getManifestForQuality ( origQuality );
-			var oldManifest:HLSManifestParser = getManifestForQuality ( lastQuality);
+			var oldManifest:HLSManifestParser = getManifestForQuality ( lastQuality ); // Use of "lastQuality" is redundant
 
 			var segments:Vector.<HLSManifestSegment> = currentManifest.segments;
 			var oldSegments:Vector.<HLSManifestSegment> = oldManifest.segments;
 
 			// If no knowledge available, cue up a best effort fetch.
-			if(!checkAnySegmentKnowledge(segments))
+			if(!changeHandler.checkAnySegmentKnowledge(segments))
 			{
 				trace("Lack timebase for this manifest...");
-				if(!_bestEffortDownloaderMonitor)
+				if(!changeHandler.bestEffortDownloaderMonitor)
 				{
 					trace("Initiating best effort request");
-					return initiateBestEffortRequest(uint.MAX_VALUE, origQuality);
+					return changeHandler.firePendingBestEffortRequest();
 				}
 				else
 				{
@@ -791,13 +612,13 @@ package com.kaltura.hls
 				}
 			}
 
-			if(!checkAnySegmentKnowledge(oldSegments))
+			if(!changeHandler.checkAnySegmentKnowledge(oldSegments))
 			{
 				trace("Lack timebase for this manifest...");
-				if(!_bestEffortDownloaderMonitor)
+				if(!changeHandler.bestEffortDownloaderMonitor)
 				{
 					trace("Initiating best effort request");
-					return initiateBestEffortRequest(uint.MAX_VALUE, lastQuality);
+					return changeHandler.firePendingBestEffortRequest();
 				}
 				else
 				{
@@ -829,60 +650,7 @@ package com.kaltura.hls
 			// Remap time immediately if needed and we're not on a DVR.
 			if(origQuality != lastQuality && quality == origQuality)
 			{
-				updateSegmentTimes(segments);
-				updateSegmentTimes(oldSegments);
-
-				const fudgeTime:Number = 1.0;
-				var lastSeg:HLSManifestSegment = getSegmentBySequence(oldSegments, lastSequence);
-				var newSeg:HLSManifestSegment = lastSeg ? getSegmentContainingTime(segments, lastSeg.startTime + lastSeg.duration) : null;
-				if(newSeg == null)
-				{
-					trace("Remapping from " + lastSequence);
-
-					if(lastSeg)
-					{
-						// Guess by time....
-						trace("Found last seg with startTime = " + lastSeg.startTime + " duration=" + lastSeg.duration);
-
-						// If the segment is beyond last ID, then jump to end...
-						if(lastSeg.startTime + lastSeg.duration >= segments[segments.length-1].startTime)
-						{
-							trace("ERROR: Couldn't remap sequence to new quality level, restarting at last time " + segments[segments.length-1].startTime);
-							lastSequence = segments[segments.length-1].id;
-						}
-						else
-						{
-							trace("ERROR: Couldn't remap sequence to new quality level, restarting at first time " + segments[0].startTime);
-							lastSequence = segments[0].id;
-						}
-					}
-					else
-					{
-						// Guess by sequence number...
-						trace("No last seg found");
-	
-						// If the segment is beyond last ID, then jump to end...
-						if(lastSequence >= segments[segments.length-1].id)
-						{
-							trace("ERROR: Couldn't remap sequence to new quality level, restarting at last sequence " + segments[segments.length-1].id);
-							lastSequence = segments[segments.length-1].id;
-						}
-						else
-						{
-							trace("ERROR: Couldn't remap sequence to new quality level, restarting at first sequence " + segments[0].id);
-							lastSequence = segments[0].id;
-						}
-					}
-				}
-				else
-				{
-					trace("Remapping from " + lastSequence + " to " + lastSeg.startTime + "-" + (lastSeg.startTime + lastSeg.duration));
-					trace("===== Remapping to " + lastSequence + " newId=" + (newSeg.id) + " newTime=" + newSeg.startTime + "-" + (newSeg.startTime + newSeg.duration) );
-					lastSequence = newSeg.id;
-				}
-
-				// Dec for next time around.
-				trace("   o Ended at " + lastSequence);
+				changeHandler.remapTime(oldManifest, currentManifest, lastSequence); 
 			}
 
 			if( segments.length > 0 && lastSequence < segments[0].id)
@@ -1044,6 +812,12 @@ package com.kaltura.hls
 			dispatchEvent(new DVRStreamInfoEvent(DVRStreamInfoEvent.DVRSTREAMINFO, false, false, dvrInfo));
 		}
 		
+		private function passUpChangeHandlerEvent(event:HTTPStreamingEvent):void
+		{
+			// Simply pass up the event
+			dispatchEvent(event);
+		}
+		
 		public override function dvrGetStreamInfo(indexInfo:Object):void
 		{
 			dispatchDVRStreamInfo();
@@ -1061,13 +835,17 @@ package com.kaltura.hls
 		
 		private function getSegmentsForQuality( quality:int ):Vector.<HLSManifestSegment>
 		{
+			var returningSegments:Vector.<HLSManifestSegment>;
 			if ( !manifest ) return new Vector.<HLSManifestSegment>;
 			if ( manifest.streams.length < 1 || manifest.streams[0].manifest == null )
 			{
-				return updateSegmentTimes(manifest.segments);
+				returningSegments = manifest.segments;
 			}
-			else if ( quality >= manifest.streams.length ) return updateSegmentTimes(manifest.streams[0].manifest.segments);
-			else return updateSegmentTimes(manifest.streams[quality].manifest.segments);
+			else if ( quality >= manifest.streams.length )returningSegments = manifest.streams[0].manifest.segments;
+			else returningSegments = manifest.streams[quality].manifest.segments; 
+			
+			changeHandler.updateSegmentTimes(returningSegments);
+			return returningSegments;
 		}
 		
 		private function getManifestForQuality( quality:int):HLSManifestParser
@@ -1145,357 +923,7 @@ package com.kaltura.hls
 		{
 			return getManifestForQuality(lastQuality).targetDuration;
 		}
-
-
-		/**
-		 * @private
-		 * 
-		 * Initiates a best effort request (from getNextFile or getFileForTime) and constructs an HTTPStreamRequest.
-		 * 
-		 * @return the action to take, expressed as an HTTPStreamRequest
-		 **/
-		private function initiateBestEffortRequest(nextFragmentId:uint, quality:int, segments:Vector.<HLSManifestSegment> = null):HTTPStreamRequest
-		{
-			// if we had a pending BEF download, invalidate it
-			stopListeningToBestEffortDownload();
-			
-			// clean up best effort state
-			_bestEffortDownloadReply = null;
-			
-			// recreate the best effort download monitor
-			// this protects us against overlapping best effort downloads
-			_bestEffortDownloaderMonitor = new EventDispatcher();
-			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
-			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
-			
-			if(!segments)
-			{
-				// Get the URL.
-				var newMan:HLSManifestParser = getManifestForQuality(quality);
-				if(newMan == null)
-				{
-					trace("No manifest found to best effort request quality level " + quality);
-					return null;
-				}
-
-				segments = newMan.segments;
-			}
-
-			if(!segments)
-			{
-				trace("NO SEGMENTS FOUND, ABORTING initiateBestEffortRequest");
-				return null;
-			}
-
-			if(nextFragmentId > segments.length - 1 || nextFragmentId == uint.MAX_VALUE)
-			{
-				trace("Capping to end of segment list " + (segments.length - 1));
-				nextFragmentId = segments.length - 1;
-			}				
-
-			_bestEffortFileHandler.segmentId = segments[nextFragmentId].id;
-			_bestEffortFileHandler.key = getKeyForIndex( nextFragmentId );
-			_bestEffortFileHandler.segmentUri = segments[nextFragmentId].uri;
-
-			var streamRequest:HTTPStreamRequest =  new HTTPStreamRequest(
-				HTTPStreamRequestKind.BEST_EFFORT_DOWNLOAD,
-				segments[nextFragmentId].uri, // url
-				-1, // retryAfter
-				_bestEffortDownloaderMonitor); // bestEffortDownloaderMonitor
-			
-			trace("Requesting best effort download: " + streamRequest.toString());
-
-			return streamRequest;
-		}
-		
-		/**
-		 * @private
-		 *
-		 * if we had a pending BEF download, invalid it
-		 **/
-		private function stopListeningToBestEffortDownload():void
-		{
-			if(_bestEffortDownloaderMonitor != null)
-			{
-				_bestEffortDownloaderMonitor.removeEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
-				_bestEffortDownloaderMonitor.removeEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
-				_bestEffortDownloaderMonitor = null;
-			}
-		}
-		
-		/**
-		 * @private
-		 * 
-		 * Best effort backward seek needs to pre-parse the fragment in order to determine if the
-		 * downloaded fragment actually contains the desired seek time. This method performs that parse.
-		 **/
-		private function bufferAndParseDownloadedBestEffortBytes(url:String, downloader:HTTPStreamDownloader):void
-		{
-			if(_bestEffortDownloadReply != null)
-			{
-				// if we already decided to skip or continue, don't parse new bytes
-				trace("bufferAndParseDownloadedBestEffortBytes - Already set our reply to " + _bestEffortDownloadReply + ", so ignoring data...");
-				return;
-			}
-
-			try
-			{
-				var downloaderAvailableBytes:uint = downloader.totalAvailableBytes;
-				trace("Saw " + downloaderAvailableBytes + " bytes available");
-				if(downloaderAvailableBytes > 0)
-				{
-					// buffer the downloaded bytes
-					var downloadInput:IDataInput = downloader.getBytes(downloaderAvailableBytes);
-					if(downloadInput != null)
-					{
-						downloadInput.readBytes(_bestEffortSeekBuffer, _bestEffortSeekBuffer.length, downloaderAvailableBytes);
-					}
-					else
-					{
-						trace("Got null download input.");
-					}
-					
-					// Resetp arsing process.
-					_bestEffortFileHandler.beginProcessFile(false, 0.0);
-
-					// feed the bytes to our f4f handler in order to parse out the bootstrap box.
-					trace("processing segment");
-					_bestEffortFileHandler.processFileSegment(_bestEffortSeekBuffer); 
-
-					_bestEffortFileHandler.endProcessFile(_bestEffortSeekBuffer);
-
-					if(_bestEffortDownloadReply == HTTPStreamingEvent.DOWNLOAD_CONTINUE)
-					{
-						// we're done parsing and the HTTPStreamSource is going to process the file,
-						// restore the contents of the downloader
-						downloader.clearSavedBytes();
-						_bestEffortSeekBuffer.position = 0;
-						downloader.appendToSavedBytes(_bestEffortSeekBuffer, _bestEffortSeekBuffer.length);
-						_bestEffortSeekBuffer.length = 0; // release the buffer
-					}
-					else
-					{
-						// Clean up on skip.
-						_bestEffortSeekBuffer.length = 0;
-					}
-				}
-				else
-				{
-					trace("No bytes available in best effort downloader");
-				}
-			}
-			catch(e:Error)
-			{
-				trace("Failed to parse best effort segment due to " + e.toString() + "\n " + e.getStackTrace());
-			}
-		}
-
-		protected function onBestEffortParsed(e:Event):void
-		{
-			// Currently a nop.
-			trace("Got duration from best effort segment: " + _bestEffortFileHandler.segmentUri);
-
-			// Try again.
-			stalled = false;
-		}
 		
 		
-		/**
-		 * @private
-		 * 
-		 * Invoked on HTTPStreamingEvent.DOWNLOAD_COMPLETE for best effort downloads
-		 */
-		private function onBestEffortDownloadComplete(event:HTTPStreamingEvent):void
-		{
-			if(_bestEffortDownloaderMonitor == null ||
-				_bestEffortDownloaderMonitor != event.target as IEventDispatcher)
-			{
-				// we're receiving an event for a download we abandoned
-				trace("Got event for abandoned best effort download!");
-				return;
-			}
-
-			trace("Best effort download complete " + event.toString());
-			
-			// unregister the listeners
-			stopListeningToBestEffortDownload();
-			
-			trace("Start download parse");
-			bufferAndParseDownloadedBestEffortBytes(event.url, event.downloader);
-			trace("end download parse");
-
-			// forward the DOWNLOAD_COMPLETE to HTTPStreamSource, but change the reason
-			var clone:HTTPStreamingEvent = new HTTPStreamingEvent(
-				event.type,
-				event.bubbles,
-				event.cancelable,
-				event.fragmentDuration,
-				event.scriptDataObject,
-				event.scriptDataMode,
-				event.url,
-				event.bytesDownloaded,
-				HTTPStreamingEventReason.BEST_EFFORT,
-				event.downloader);
-			dispatchEvent(clone);
-
-			// Always skip for now.
-			skipBestEffortFetch(_bestEffortFileHandler.segmentUri, event.downloader);
-			
-		}
-		
-		/**
-		 * @private
-		 * 
-		 * Invoked on HTTPStreamingEvent.DOWNLOAD_ERROR for best effort downloads
-		 */
-		private function onBestEffortDownloadError(event:HTTPStreamingEvent):void
-		{
-			if(_bestEffortDownloaderMonitor == null ||
-				_bestEffortDownloaderMonitor != event.target as IEventDispatcher)
-			{
-				// we're receiving an event for a download we abandoned
-				return;
-			}
-
-			trace("Best effort download error " + event.toString());
-
-			// unregister our listeners
-			stopListeningToBestEffortDownload();
-			
-			if(_bestEffortDownloadReply != null)
-			{
-				// special case: if we received some bytes and said "continue", but then the download failed.
-				// there means there was a connection problem mid-download
-				bestEffortLog("Best effort download error after we already decided to skip or continue.");
-				dispatchEvent(event); // this stops playback
-			}
-			else if(event.reason == HTTPStreamingEventReason.TIMEOUT)
-			{
-				// special case: the download took too long and all the retries failed
-				bestEffortLog("Best effort download timed out");
-				dispatchEvent(event); // this stops playback
-			}
-			else
-			{
-				// failure due to http status code, or some other reason. resume best effort fetch
-				bestEffortLog("Best effort download error.");
-				++_bestEffortFailedFetches;
-				skipBestEffortFetch(event.url, event.downloader);
-			}
-		}
-		
-		/**
-		 * @private
-		 * 
-		 * After initiating a best effort fetch, call this function to tell the
-		 * HTTPStreamSource that it should not continue processing the downloaded
-		 * fragment.
-		 * 
-		 **/
-		private function skipBestEffortFetch(url:String, downloader:HTTPStreamDownloader):void
-		{
-			if(_bestEffortDownloadReply != null)
-			{
-				bestEffortLog("Best effort wanted to skip fragment, but we already replied with "+_bestEffortDownloadReply);
-				return;
-			}
-
-			bestEffortLog("Best effort skipping fragment.");
-			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_SKIP,
-				false, // bubbles
-				false, // cancelable
-				0, // fragmentDuration
-				null, // scriptDataObject
-				FLVTagScriptDataMode.NORMAL, // scriptDataMode 
-				url, // url
-				0, // bytesDownloaded
-				HTTPStreamingEventReason.BEST_EFFORT, // reason
-				downloader); // downloader
-			dispatchEvent(event);
-			
-			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_SKIP;
-		}
-		
-		/**
-		 * @private
-		 * 
-		 * After initiating a best effort fetch, call this function to tell the
-		 * HTTPStreamSource that it may continue processing the downloaded fragment.
-		 * A continue event is assumed to mean that best effort fetch is complete.
-		 **/
-		private function continueBestEffortFetch(url:String, downloader:HTTPStreamDownloader):void
-		{
-			if(_bestEffortDownloadReply != null)
-			{
-				bestEffortLog("Best effort wanted to continue, but we're already replied with "+_bestEffortDownloadReply);
-				return;
-			}
-			bestEffortLog("Best effort received a desirable fragment.");
-			
-			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_CONTINUE,
-				false, // bubbles
-				false, // cancelable
-				0, // fragmentDuration
-				null, // scriptDataObject
-				FLVTagScriptDataMode.NORMAL, // scriptDataMode 
-				url, // url
-				0, // bytesDownloaded
-				HTTPStreamingEventReason.BEST_EFFORT, // reason
-				downloader); // downloader
-			
-			CONFIG::LOGGING
-			{
-				//logger.debug("Setting _bestEffortLivenessRestartPoint to "+_bestEffortLivenessRestartPoint+" because of successful BEF download.");
-				;
-			}
-			
-			// remember that we started a download now
-			_bestEffortLastGoodFragmentDownloadTime = new Date();
-			
-			dispatchEvent(event);
-			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_CONTINUE;
-			_bestEffortState = BEST_EFFORT_STATE_OFF;
-		}
-		
-		/**
-		 * @private
-		 * 
-		 * After initiating a best effort fetch, call this function to tell the
-		 * HTTPStreamSource that a bad download error occurred. This causes HTTPStreamSource
-		 * to stop playback with an error.
-		 **/
-		private function errorBestEffortFetch(url:String, downloader:HTTPStreamDownloader):void
-		{
-			bestEffortLog("Best effort fetch error.");
-			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_ERROR,
-				false, // bubbles
-				false, // cancelable
-				0, // fragmentDuration
-				null, // scriptDataObject
-				FLVTagScriptDataMode.NORMAL, // scriptDataMode 
-				url, // url
-				0, // bytesDownloaded
-				HTTPStreamingEventReason.BEST_EFFORT, // reason
-				downloader); // downloader
-			dispatchEvent(event);
-			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_ERROR;
-		}
-		
-		/**
-		 * @private
-		 * logging related to best effort fetch
-		 **/
-		private function bestEffortLog(s:String):void
-		{
-			trace("BEST EFFORT: "+s);
-		}
-		
-		/**
-		 * @inheritDoc
-		 */	
-		public override function get isBestEffortFetchEnabled():Boolean
-		{
-			return _bestEffortEnabled;
-		}
 	}
 }
