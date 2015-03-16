@@ -18,6 +18,20 @@ package com.kaltura.hls.m2ts
             buffer = bytes;
         }
 
+        public function clone():PESPacket
+        {
+            var tmpBuffer:ByteArray = new ByteArray();
+            tmpBuffer.writeBytes(buffer);
+
+            var p:PESPacket = new PESPacket(packetID, tmpBuffer);
+            p.pts = pts;
+            p.dts = dts;
+            p.type = type;
+            return p;
+        }
+
+        public var type:int = -1;
+
         public var pts:Number, dts:Number;
         public var packetID:int = -1;
         public var buffer:ByteArray = null;

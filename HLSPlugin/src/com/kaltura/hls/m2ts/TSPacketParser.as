@@ -215,13 +215,19 @@ package com.kaltura.hls.m2ts
 
         public function flush():void
         {
-            // 
             trace("FLUSHING");
             for (var idx:* in _streams)
             {
                 trace("Flushing stream id " + idx);
                 completeStreamPacket(_streams[idx]);
             }
+
+            pesProcessor.processAllNalus();
+        }
+
+        public function flushNalus():void
+        {
+            pesProcessor.processAllNalus();            
         }
 
         public function clear(clearAACConfig:Boolean = true):void
