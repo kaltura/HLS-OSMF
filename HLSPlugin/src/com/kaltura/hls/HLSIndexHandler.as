@@ -368,13 +368,24 @@ package com.kaltura.hls
 			trace("Scheduling reload for quality " + quality);
 			reloadingQuality = quality;
 
-			// Make sure we have knowledge of our current stream.
-			if(!checkAnySegmentKnowledge(getManifestForQuality(lastQuality).segments) 
-				&& !isBestEffortActive())
-				_pendingBestEffortRequest = initiateBestEffortRequest(uint.MAX_VALUE, lastQuality);
-
 			// Reload the manifest we were given, if we were given a manifest
 			var manToReload:HLSManifestParser = manifest ? manifest : getManifestForQuality(reloadingQuality);
+			if(getTimer() - manToReload.timestamp < (manToReload.targetDuration * 500))
+			{
+				trace("Aborting, don't reload faster than " + (manToReload.targetDuration * 500) + "ms");
+				lastQuality = reloadingQuality;
+				dispatchDVRStreamInfo();
+				updateTotalDuration();
+				reloadingManifest = null; // don't want to hang on to it
+
+				if (reloadTimer) reloadTimer.start();
+
+				stalled = false;
+				HLSHTTPNetStream.hasGottenManifest = true;
+
+				return;
+			}
+			
 			reloadingManifest = new HLSManifestParser();
 			reloadingManifest.type = manToReload.type;
 			reloadingManifest.addEventListener(Event.COMPLETE, onReloadComplete);
@@ -550,9 +561,9 @@ package com.kaltura.hls
 			updateSegmentTimes(currentManifest.segments);
 			updateSegmentTimes(newManifest.segments);
 
-			const fudgeTime:Number = 1.0;
+			const fudgeTime:Number = 0; //1.0 / 24; // Approximate acceptable jump.
 			var currentSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, currentSequence);
-			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration : 0), !end) : null;
+			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration + fudgeTime : 0) , !end) : null;
 			if(newSeg == null)
 			{
 				trace("Remapping from " + currentSequence);
@@ -756,7 +767,7 @@ package com.kaltura.hls
 			// If the requested quality is the same as the target quality, we've already asked for a reload, so return the last quality
 			if (requestedQuality == targetQuality) return lastQuality;
 			
-			// The requested quality doesn't match eithe the targetQuality or the lastQuality, which means this is new territory.
+			// The requested quality doesn't match either the targetQuality or the lastQuality, which means this is new territory.
 			// So we will reload the manifest for the requested quality
 			targetQuality = requestedQuality;
 			trace("::getWorkingQuality Quality Change: " + lastQuality + " --> " + requestedQuality);
@@ -908,6 +919,14 @@ package com.kaltura.hls
 				}
 			}
 
+			// Fire a reload if needed.
+			if(quality != origQuality && manifest.streamEnds == false)
+			{
+				trace("Firing reload of manifest for quality " + origQuality);
+				// Kick the reloader.
+				onReloadTimer(null);
+			}
+
 			// Attempt remap.
 			var newSequence:int = remapSequence(getLastSequenceManifest(), currentManifest, getLastSequence());
 			if(newSequence == -1)
@@ -930,9 +949,6 @@ package com.kaltura.hls
 			if(quality != origQuality && manifest.streamEnds == false)
 			{
 				trace("Stalling for manifest -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
-
-				// Kick the reloader.
-				onReloadTimer(null);
 
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 2);
 			}
