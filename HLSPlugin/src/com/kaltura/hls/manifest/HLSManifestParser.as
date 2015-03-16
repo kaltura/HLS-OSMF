@@ -8,6 +8,8 @@ package com.kaltura.hls.manifest
 	import flash.events.SecurityErrorEvent;
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
+
+	import flash.utils.getTimer;
 	
 	/**
 	 *  Fires Event.COMPLETE when the manifest is fully loaded. 
@@ -36,6 +38,7 @@ package com.kaltura.hls.manifest
 		public var subtitles:Vector.<SubTitleParser> = new Vector.<SubTitleParser>();
 		public var keys:Vector.<HLSManifestEncryptionKey> = new Vector.<HLSManifestEncryptionKey>();
 		public var goodManifest:Boolean = true;
+		public var timestamp:int;
 		
 		public var manifestLoaders:Vector.<URLLoader> = new Vector.<URLLoader>();
 		public var manifestParsers:Vector.<HLSManifestParser> = new Vector.<HLSManifestParser>();
@@ -62,6 +65,8 @@ package com.kaltura.hls.manifest
 
 		public function parse(input:String, _fullUrl:String):void
 		{
+			timestamp = getTimer();
+
 			fullUrl = _fullUrl;
 			baseUrl = _fullUrl.substring(0, _fullUrl.lastIndexOf("/") + 1);
 			//trace("BASE URL " + baseUrl);
@@ -348,6 +353,8 @@ package com.kaltura.hls.manifest
 		
 		protected function addItemToManifestLoader( item:BaseHLSManifestItem ):void
 		{
+			timestamp = getTimer();
+
 			trace("REQUESTING " + item.uri);
 			var manifestLoader:URLLoader = new URLLoader(new URLRequest(item.uri));
 			manifestLoader.addEventListener(Event.COMPLETE, closurizeAppend(onManifestLoadComplete, item) );
@@ -382,6 +389,8 @@ package com.kaltura.hls.manifest
 //			{
 //				trace("ERROR loading manifest " + parseError.toString());
 //			}
+
+			timestamp = getTimer();
 		}
 		
 		protected function onManifestParseComplete(e:Event):void
@@ -433,6 +442,7 @@ package com.kaltura.hls.manifest
 			//trace("HLSManifestParser.onManifestReloadComplete");
 			var resourceData:String = String(manifestLoader.data);
 			trace("onManifestReloadComplete - resourceData.length = " + resourceData.length);
+			timestamp = getTimer();
 			// Start parsing the manifest.
 			parse(resourceData, fullUrl);	
 		}
