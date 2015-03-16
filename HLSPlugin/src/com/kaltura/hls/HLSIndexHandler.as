@@ -804,7 +804,7 @@ package com.kaltura.hls
 			{
 				trace("getFileForTime - Got out of bound timestamp. Trying to recover...");
 
-				var lastSeg:HLSManifestSegment = segments[Math.max(0, segments.length - 3)];
+				var lastSeg:HLSManifestSegment = segments[Math.max(0, segments.length - HLSManifestParser.MAX_SEG_BUFFER)];
 
 				if(time < segments[0].startTime)
 				{
@@ -904,7 +904,7 @@ package com.kaltura.hls
 				}
 				else
 				{
-					updateLastSequence(currentManifest, currentManifest.segments[Math.max(0, currentManifest.segments.length - 4)].id);
+					updateLastSequence(currentManifest, currentManifest.segments[Math.max(0, currentManifest.segments.length - HLSManifestParser.MAX_SEG_BUFFER)].id);
 				}
 			}
 
@@ -950,8 +950,8 @@ package com.kaltura.hls
 
 			if (segments.length > 0 && newSequence > (segments[Math.max(0, segments.length-1)].id + 3))
 			{
-				trace("Got in a bad state of " + newSequence + " , resetting to near end of stream " + segments[segments.length-2].id);
-				newSequence = segments[segments.length-2].id;
+				trace("Got in a bad state of " + newSequence + " , resetting to near end of stream " + segments[segments.length-HLSManifestParser.MAX_SEG_BUFFER].id);
+				newSequence = segments[segments.length-HLSManifestParser.MAX_SEG_BUFFER].id;
 			}
 
 			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, newSequence);
