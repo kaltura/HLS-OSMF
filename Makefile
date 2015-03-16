@@ -7,8 +7,8 @@ MXMLC="/Applications/Adobe Flash Builder 4.7/sdks/4.6.0/bin/mxmlc"
 COMPC="/Applications/Adobe Flash Builder 4.7/sdks/4.6.0/bin/compc"
 flexlib="/Applications/Adobe Flash Builder 4.7/sdks/4.6.0/"
 
-DEBUG_FLAG=true
-OPTIMIZE_FLAG=false
+DEBUG_FLAG=false
+OPTIMIZE_FLAG=true
 
 # First time, run make disabled all
 # Then only need to run disable if you change OSMF or OSMFUtils	
