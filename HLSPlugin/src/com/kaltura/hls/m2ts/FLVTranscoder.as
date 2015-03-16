@@ -113,10 +113,21 @@ package com.kaltura.hls.m2ts
                         keyFrame = false;                        
             }
 
+            // Skip access unit delimeters.
+            if(naluType == 9)
+                return;
+
             // Append.
             flvGenerationBuffer.writeUnsignedInt(length);
             flvGenerationBuffer.writeBytes(bytes, cursor, length);
             totalAppended += length;
+        }
+
+        public function emitSPSPPS(unit:NALU):void
+        {
+            var avcc:ByteArray = NALUProcessor.extractAVCC(unit, naluConverter);
+            if(avcc)
+                sendFLVTag(convertFLVTimestamp(unit.pts), FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);
         }
 
         /**
@@ -135,9 +146,7 @@ package com.kaltura.hls.m2ts
             keyFrame = false;
 
             // Emit an AVCC and walk the NALUs.
-            var avcc:ByteArray = NALUProcessor.extractAVCC(unit, naluConverter);
-            if(avcc)
-                sendFLVTag(convertFLVTimestamp(unit.pts), FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);            
+            NALUProcessor.walkNALUs(unit.buffer, 0, naluConverter, true);
 
            // trace("Appended " + totalAppended + " bytes");
 
@@ -211,7 +220,7 @@ package com.kaltura.hls.m2ts
          * Convert and amit AAC data.
          */
         public function convertAAC(pes:PESPacket):void
-        {            
+        {
             var timeAccumulation:Number = 0.0;
             var limit:uint;
             var stream:ByteArray;

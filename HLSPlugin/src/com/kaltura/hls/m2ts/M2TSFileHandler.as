@@ -161,7 +161,7 @@ package com.kaltura.hls.m2ts
 
 		public static var tmpBuffer:ByteArray = new ByteArray();
 
-		private function basicProcessFileSegment(input:IDataInput, flush:Boolean):ByteArray
+		private function basicProcessFileSegment(input:IDataInput, flush:Boolean, naluFlush:Boolean = false):ByteArray
 		{
 			if ( key && !key.isLoaded )
 			{
@@ -178,6 +178,9 @@ package com.kaltura.hls.m2ts
 				_encryptedDataBuffer.readBytes( tmpBuffer );
 				_encryptedDataBuffer.clear();
 			}
+
+			if(!input)
+				input = new ByteArray();
 			
 			input.readBytes( tmpBuffer, tmpBuffer.length );
 			
@@ -238,9 +241,11 @@ package com.kaltura.hls.m2ts
 			_buffer = buffer;
 			_parser.appendBytes(tmpBuffer);
 			if ( flush ) _parser.flush();
+			if(isBestEffort || naluFlush)
+				_parser.flushNalus();
 			_buffer = null;
 			buffer.position = 0;
-			
+
 			if(isBestEffort && buffer.length > 0)
 			{
 				trace("Discarding normal data from best effort.");
@@ -272,7 +277,7 @@ package com.kaltura.hls.m2ts
 		{
 			if ( key ) key.usePadding = true;
 			
-			var rv:ByteArray = basicProcessFileSegment(input, false);
+			var rv:ByteArray = basicProcessFileSegment(input, false, true);
 			
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			

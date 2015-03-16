@@ -6,7 +6,7 @@ package com.kaltura.hls.m2ts
     import flash.utils.Endian;    
     import flash.utils.IDataInput;
     import flash.utils.IDataOutput;
-    import com.hurlant.util.Hex;
+    //import com.hurlant.util.Hex;
 
     /**
      * Process packetized elementary streams and extract NALUs and other data.
@@ -159,7 +159,7 @@ package com.kaltura.hls.m2ts
 
                 var tmp:ByteArray = new ByteArray();
                 tmp.writeInt(startCode);
-                trace("ES prefix was wrong, expected 00:00:01:xx but got " + Hex.fromArray(tmp, true));
+                trace("ES prefix was wrong, expected 00:00:01:xx but got "); // + Hex.fromArray(tmp, true));
                 return;
             }
 
@@ -278,6 +278,9 @@ package com.kaltura.hls.m2ts
                 return;
             }
 
+            // Note the type at this moment in time.
+            packet.type = types[packet.packetID];
+
             // And process.
             if(MediaClass.calculate(types[packet.packetID]) == MediaClass.VIDEO)
             {
@@ -301,33 +304,32 @@ package com.kaltura.hls.m2ts
                     cursor = start;
                 }
 
-                // Convert previous data.
+                // Submit previous data.
                 if(lastVideoNALU)
-                    transcoder.convert(lastVideoNALU);
-
-                // Generate a new NALU. (Sanity.)
-                if(!lastVideoNALU)
-                    lastVideoNALU = new NALU();
-                if(!lastVideoNALU.buffer)
-                    lastVideoNALU.buffer = new ByteArray();
+                {
+                    pendingNalus.push(lastVideoNALU.clone());
+                }
 
                 // Update NALU state.
+                lastVideoNALU = new NALU();
+                lastVideoNALU.buffer = new ByteArray();
                 lastVideoNALU.pts = pts;
                 lastVideoNALU.dts = dts;
-                lastVideoNALU.buffer.position = 0;
-                lastVideoNALU.buffer.length = b.length - cursor;
+                lastVideoNALU.type = packet.type;
                 lastVideoNALU.buffer.writeBytes(b, cursor);
 
             }
             else if(types[packet.packetID] == 0x0F)
             {
                 // It's an AAC stream.
-                transcoder.convertAAC(packet);
+                //transcoder.convertAAC(packet);
+                pendingNalus.push(packet.clone());
             }
             else if(types[packet.packetID] == 0x03 || types[packet.packetID] == 0x04)
             {
                 // It's an MP3 stream. Pass through directly.
-                transcoder.convertMP3(packet);
+                //transcoder.convertMP3(packet);
+                pendingNalus.push(packet.clone());
             }
             else
             {
@@ -335,5 +337,58 @@ package com.kaltura.hls.m2ts
             }
         }
 
+        var pendingNalus:Vector.<Object> = new Vector.<Object>();
+
+        public function processAllNalus():void
+        {
+            // First walk all the video NALUs and get the correct SPS/PPS
+            NALUProcessor.startAVCCExtraction();
+
+            var firstNalu:NALU = null;
+
+            for(var i:int=0; i<pendingNalus.length; i++)
+            {
+                if(!(pendingNalus[i] is NALU))
+                    continue;
+
+                if(!firstNalu)
+                    firstNalu = pendingNalus[i] as NALU;
+
+                NALUProcessor.pushAVCData(pendingNalus[i] as NALU);
+            }
+
+            // Then emit SPS/PPS
+            transcoder.emitSPSPPS(firstNalu);
+
+            // Then iterate the packet again.
+            for(var i:int=0; i<pendingNalus.length; i++)
+            {
+                if(pendingNalus[i] is NALU)
+                {
+                    transcoder.convert(pendingNalus[i] as NALU);
+                }
+                else if(pendingNalus[i] is PESPacket)
+                {
+                    var packet:PESPacket = pendingNalus[i] as PESPacket;
+                    if(packet.type == 0x0F)
+                    {
+                        // It's an AAC stream.
+                        transcoder.convertAAC(packet);
+                    }
+                    else if(packet.type == 0x03 || packet.type == 0x04)
+                    {
+                        // It's an MP3 stream. Pass through directly.
+                        transcoder.convertMP3(packet);
+                    }
+                    else
+                    {
+                        trace("Unknown packet ID type " + packet.type + ", ignoring.");
+                    }
+                }
+            }
+
+            // Don't forget to clear the pending list.
+            pendingNalus.length = 0;
+        }
     }
 }

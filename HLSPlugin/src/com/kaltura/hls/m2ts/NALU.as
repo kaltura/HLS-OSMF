@@ -15,6 +15,21 @@ package com.kaltura.hls.m2ts
         public var pts:Number, dts:Number;
         public var buffer:ByteArray;
 
+        public var type:int;
+
+        public function clone():NALU
+        {
+            var tmpBuffer:ByteArray = new ByteArray();
+            tmpBuffer.writeBytes(buffer);
+
+            var p:NALU = new NALU();
+            p.type = type;
+            p.pts = pts;
+            p.dts = dts;
+            p.buffer = tmpBuffer;
+            return p;
+        }
+
         /**
          * Scan buffer for NALU start code.
          *

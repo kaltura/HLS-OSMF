@@ -12,8 +12,8 @@ package com.kaltura.hls.m2ts
      */
     public class NALUProcessor
     {
-        private static var ppsList:Vector.<ByteArray>;
-        private static var spsList:Vector.<ByteArray>;
+        private static var ppsList:Vector.<ByteArray> = new Vector.<ByteArray>;
+        private static var spsList:Vector.<ByteArray> = new Vector.<ByteArray>;
         
         private static function sortSPS(a:ByteArray, b:ByteArray):int
         {
@@ -283,19 +283,31 @@ package com.kaltura.hls.m2ts
 
         private static var activeCallback:Function = null;
 
+        public static function startAVCCExtraction():void
+        {
+            spsList = new Vector.<ByteArray>();
+            ppsList = new Vector.<ByteArray>();            
+        }
+
+        public static function pushAVCData(unit:NALU):void
+        {
+            // Go through each buffer and find all the SPS/PPS info.
+            activeCallback = null;
+            walkNALUs(unit.buffer, 0, extractAVCCInner, true)
+        }
+
         /**
          * Scan a set of NALUs and come up with an AVCC record.
          */
         public static function extractAVCC(unit:NALU, perNaluCallback:Function):ByteArray
         {
-            // Clear the buffers.
-            spsList = new Vector.<ByteArray>();
-            ppsList = new Vector.<ByteArray>();
-
             // Go through each buffer and find all the SPS/PPS info.
-            activeCallback = perNaluCallback;
-            walkNALUs(unit.buffer, 0, extractAVCCInner, true)
-            activeCallback = null;
+            if(unit)
+            {
+                activeCallback = perNaluCallback;
+                walkNALUs(unit.buffer, 0, extractAVCCInner, true)
+                activeCallback = null;                
+            }
 
             // Generate and return the AVCC.
             return serializeAVCC();

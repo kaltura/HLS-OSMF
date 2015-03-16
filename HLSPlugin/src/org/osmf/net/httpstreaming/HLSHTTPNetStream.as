@@ -566,7 +566,7 @@ package org.osmf.net.httpstreaming
 				if (audioResource != null)
 				{
 					// audio handler is not dispatching events on the NetStream
-					_mixer.audio = new HTTPStreamSource(_factory, audioResource, _mixer);
+					_mixer.audio = new HLSHTTPStreamSource(_factory, audioResource, _mixer);
 					_mixer.audio.open(_desiredAudioStreamName);
 				}
 				else
@@ -1393,7 +1393,7 @@ package org.osmf.net.httpstreaming
 					// Stuff index handler down a quality level.
 					trace("TRYING BITRATE DOWNSHIFT");
 
-					_videoHandler.changeQualityLevel( (_videoHandler as HTTPStreamSource)._streamNames[0] );
+					_videoHandler.changeQualityLevel( (_videoHandler as HLSHTTPStreamSource)._streamNames[0] );
 
 					// Never die due to bandwidth, just keep trying.
 					if(errorSurrenderTimer.currentCount > 5)
@@ -2034,15 +2034,15 @@ package org.osmf.net.httpstreaming
 			if (streamingResource == null || streamingResource.alternativeAudioStreamItems == null || streamingResource.alternativeAudioStreamItems.length == 0)
 			{
 				// we are not in alternative audio scenario, we are going to the legacy mode
-				var legacySource:HTTPStreamSource = new HTTPStreamSource(_factory, _resource, this);
+				var legacySource:IHTTPStreamSource = new HLSHTTPStreamSource(_factory, _resource, this);
 				
 				_source = legacySource;
-				_videoHandler = legacySource;
+				_videoHandler = legacySource as IHTTPStreamHandler;
 			}
 			else
 			{
 				_mixer = new HTTPStreamMixer(this);
-				_mixer.video = new HTTPStreamSource(_factory, _resource, _mixer);
+				_mixer.video = new HLSHTTPStreamSource(_factory, _resource, _mixer);
 				
 				_source = _mixer;
 				_videoHandler = _mixer.video;
