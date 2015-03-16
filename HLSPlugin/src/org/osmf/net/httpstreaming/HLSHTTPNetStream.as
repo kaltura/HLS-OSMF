@@ -103,6 +103,12 @@ package org.osmf.net.httpstreaming
 	 */	
 	public class HLSHTTPNetStream extends NetStream
 	{
+		CONFIG::LOGGING
+		{
+			private static var logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HLSHTTPNetStream");
+			private var previouslyLoggedState:String = null;
+		}
+
 		public static var writeToMasterBuffer:Boolean = true;
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
@@ -125,6 +131,8 @@ package org.osmf.net.httpstreaming
 		 */
 		public function HLSHTTPNetStream( connection:NetConnection, factory:HTTPStreamingFactory, resource:URLResource = null)
 		{
+			//logger = Log.getLogger("org.osmf.net.httpstreaming.HLSHTTPNetStream");
+
 			super(connection);
 			_resource = resource;
 			_factory = factory;
@@ -148,7 +156,7 @@ package org.osmf.net.httpstreaming
 				addEventListener(DRMStatusEvent.DRM_STATUS, onDRMStatus);
 			}
 				
-			this.bufferTime = OSMFSettings.hdsMinimumBufferTime;
+			this.bufferTime = HLSManifestParser.MAX_SEG_BUFFER * 7.5;
 			this.bufferTimeMax = 0;
 			
 			setState(HTTPStreamingState.INIT);
@@ -972,7 +980,8 @@ package org.osmf.net.httpstreaming
 						issueLivenessEventsIfNeeded();
 						if (bytes != null)
 						{
-							trace("processed " + bytes.length);
+							if(bytes.length > 0)
+								trace("processed " + bytes.length);
 							processed += processAndAppend(bytes);	
 						}
 						
@@ -2305,11 +2314,5 @@ package org.osmf.net.httpstreaming
 		public static var reloadDelayTime:int = 2500;// The amount of time (in miliseconds) we want to wait between reload attempts in case of a URL error
 		
 		private static const HIGH_PRIORITY:int = int.MAX_VALUE;
-		
-		CONFIG::LOGGING
-		{
-			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HTTPNetStream");
-			private var previouslyLoggedState:String = null;
-		}
 	}
 }
