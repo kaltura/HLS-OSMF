@@ -484,7 +484,8 @@ package org.osmf.net.httpstreaming
 					{
 						CONFIG::LOGGING
 						{
-							logger.debug("_bestEffortDownloadResult = " + _bestEffortDownloadResult);
+							if(_bestEffortDownloadResult != null)
+								logger.debug("_bestEffortDownloadResult = " + _bestEffortDownloadResult);
 						}
 						if(_bestEffortDownloadResult == null)
 						{
