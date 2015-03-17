@@ -157,6 +157,7 @@ package org.osmf.net.httpstreaming
 			}
 				
 			this.bufferTime = HLSManifestParser.MAX_SEG_BUFFER * 7.5;
+			trace("Setting bufferTime to " + HLSManifestParser.MAX_SEG_BUFFER * 7.5 + " readback " + this.bufferTime);
 			this.bufferTimeMax = 0;
 			
 			setState(HTTPStreamingState.INIT);
@@ -342,6 +343,8 @@ package org.osmf.net.httpstreaming
 		 */
 		override public function set bufferTime(value:Number):void
 		{
+			trace("Trying to set buffertime to " + value + ", ignoring...");
+			value = HLSManifestParser.MAX_SEG_BUFFER * 7.5;
 			super.bufferTime = value;
 			_desiredBufferTime_Min = Math.max(OSMFSettings.hdsMinimumBufferTime, value);
 			_desiredBufferTime_Max = _desiredBufferTime_Min + OSMFSettings.hdsAdditionalBufferTime;
