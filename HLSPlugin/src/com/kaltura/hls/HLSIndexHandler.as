@@ -527,7 +527,7 @@ package com.kaltura.hls
 				return -1;
 			}
 
-			if(currentManifest == newManifest)
+			if(currentManifest.fullUrl == newManifest.fullUrl)
 			{
 				return currentSequence;
 			}
