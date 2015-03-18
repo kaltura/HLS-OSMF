@@ -233,10 +233,10 @@ package org.osmf.net.httpstreaming
 			_isPaused = false;
 			super.resume();
 
-			// Always seek.
-			if(_dvrInfo)
+			// Always seek on live streams.
+			if(_dvrInfo && indexHandler && indexHandler.manifest && (indexHandler.manifest.streamEnds == false))
 			{
-				trace("Resuming at " + time);
+				trace("Resuming live stream at " + time);
 				seek(time);
 			}
 
@@ -284,8 +284,8 @@ package org.osmf.net.httpstreaming
 				offset = 0;	// FMS rule. Seek to <0 is same as seeking to zero.
 			}
 			
-			// we can't seek before the playback starts 
-			if (_state != HTTPStreamingState.INIT)    
+			// we can't seek before the playback starts or if it has stopped.
+			if (_state != HTTPStreamingState.INIT)
 			{
 				if(_initialTime < 0)
 				{
@@ -343,19 +343,22 @@ package org.osmf.net.httpstreaming
 		 */
 		override public function set bufferTime(value:Number):void
 		{
-			value = HLSManifestParser.MAX_SEG_BUFFER * 7.5;
-
-			// Try a better guess.
-			if(indexHandler)
+			if(_state != HTTPStreamingState.HALT)
 			{
-				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
-				if(lastMan && lastMan.targetDuration > 0.0)
-					value = HLSManifestParser.MAX_SEG_BUFFER * lastMan.targetDuration;				
-			}
+				value = HLSManifestParser.MAX_SEG_BUFFER * 7.5;
 
-			// skip nop.
-			if(super.bufferTime == value)
-				return;
+				// Try a better guess.
+				if(indexHandler)
+				{
+					var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
+					if(lastMan && lastMan.targetDuration > 0.0)
+						value = HLSManifestParser.MAX_SEG_BUFFER * lastMan.targetDuration;				
+				}
+
+				// skip nop.
+				if(super.bufferTime == value)
+					return;				
+			}
 
 			trace("Trying to set buffertime to " + value + ", ignoring...");
 
@@ -646,7 +649,7 @@ package org.osmf.net.httpstreaming
 					emptyBufferInterruptionSinceLastQoSUpdate = true;
 					_wasBufferEmptied = true;
 
-					if(bufferTime < 30)
+					if(bufferTime < 30 && _state != HTTPStreamingState.HALT)
 					{
 						trace("NetStream emptied out, upping buffer time by 5 seconds to " + (bufferTime + 5));
 						bufferTime += 5.0;							
@@ -758,9 +761,7 @@ package org.osmf.net.httpstreaming
 		 */  
 		private function onMainTimer(timerEvent:TimerEvent):void
 		{
-			bufferTime = 99999; // Sanity to ensure we never allow this to work. Also forces us to recalculate it.
-
-			if (seeking && time != timeBeforeSeek)
+			if (seeking && time != timeBeforeSeek && _state != HTTPStreamingState.HALT)
 			{
 				seeking = false;
 				timeBeforeSeek = Number.NaN;
@@ -791,7 +792,12 @@ package org.osmf.net.httpstreaming
 			}
 
 			//trace("HLSHTTPNetStream is in " + _state);
-			
+		
+			if(_state == HTTPStreamingState.WAIT || _state == HTTPStreamingState.PLAY)
+			{
+				bufferTime = 99999; // Sanity to ensure we never allow this to work. Also forces us to recalculate it.
+			}
+
 			switch(_state)
 			{
 				case HTTPStreamingState.INIT:
