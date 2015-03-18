@@ -734,15 +734,9 @@ package com.kaltura.hls
 			var rates:Array = [];
 
 			// Make a copy of the streamItems and sort them by bitrate ascending.
-			var itemsCopy:Array = new Array();
-			itemsCopy.length = resource.streamItems.length;
 			for(var i:int=0; i<resource.streamItems.length; i++)
-				itemsCopy[i] = resource.streamItems[i];
-			itemsCopy.sortOn("bitrate", Array.NUMERIC)
-
-			for(var i:int=0; i<itemsCopy.length; i++)
 			{
-				var curStream:DynamicStreamingItem = itemsCopy[i] as DynamicStreamingItem;
+				var curStream:DynamicStreamingItem = resource.streamItems[i] as DynamicStreamingItem;
 				streams.push(curStream.streamName);
 				rates.push(curStream.bitrate);
 			}
