@@ -12,15 +12,17 @@ package com.kaltura.hls
 	import flash.events.IEventDispatcher;
 	import flash.events.IOErrorEvent;
 	import flash.events.TimerEvent;
-	import flash.utils.Timer;
 	import flash.utils.ByteArray;
-	import flash.utils.getTimer;
 	import flash.utils.IDataInput;
+	import flash.utils.Timer;
+	import flash.utils.getTimer;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.events.HTTPStreamingEvent;
-	import org.osmf.events.HTTPStreamingIndexHandlerEvent;
 	import org.osmf.events.HTTPStreamingEventReason;
+	import org.osmf.events.HTTPStreamingIndexHandlerEvent;
+	import org.osmf.logging.Log;
+	import org.osmf.logging.Logger;
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.net.DynamicStreamingItem;
 	import org.osmf.net.httpstreaming.HLSHTTPNetStream;
@@ -32,9 +34,6 @@ package com.kaltura.hls
 	import org.osmf.net.httpstreaming.dvr.DVRInfo;
 	import org.osmf.net.httpstreaming.flv.FLVTagScriptDataMode;
 	import org.osmf.net.httpstreaming.flv.FLVTagScriptDataObject;
-
-	import org.osmf.logging.Logger;
-	import org.osmf.logging.Log;
 	
 	public class HLSIndexHandler extends HTTPStreamingIndexHandlerBase implements IExtraIndexHandlerState
 	{
@@ -181,7 +180,7 @@ package com.kaltura.hls
 				for(i=1; i<segments.length; i++)
 				{
 					// Skip unknowns.
-					if(!setSegments.hasOwnProperty(i-1))
+					if(!setSegments.hasOwnProperty(i-1) || setSegments.hasOwnProperty(i))
 						continue;
 
 					segments[i].startTime = segments[i-1].startTime + segments[i-1].duration;
@@ -192,7 +191,7 @@ package com.kaltura.hls
 				for(i=segments.length-2; i>=0; i--)
 				{
 					// Skip unknowns.
-					if(!setSegments.hasOwnProperty(i+1))
+					if(!setSegments.hasOwnProperty(i+1) || setSegments.hasOwnProperty(i))
 						continue;
 
 					segments[i].startTime = segments[i+1].startTime - segments[i].duration;
@@ -204,7 +203,7 @@ package com.kaltura.hls
 			/*trace("Last 10 manifest time reconstruction");
 			for(i=Math.max(0, segments.length - 100); i<segments.length; i++)
 			{
-				trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + " uri=" + segments[i].uri);
+				trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + "uri=" + segments[i].uri);
 			}*/
 			trace("Reconstructed manifest time with knowledge=" + checkAnySegmentKnowledge(segments) + " firstTime=" + (segments.length > 1 ? segments[0].startTime : -1) + " lastTime=" + (segments.length > 1 ? segments[segments.length-1].startTime : -1));
 
@@ -261,25 +260,38 @@ package com.kaltura.hls
 			if(biasBackward)
 			{			
 				// Find matches.
-				for(var i:int=0; i<segments.length; i++)
+				for(var i:int=segments.length-2; i>=0; i--)
 				{
-					var seg:HLSManifestSegment = segments[i];
-					if(seg.startTime <= time && time < (seg.startTime + seg.duration))
-						return seg;
+					// Don't start at the last index because if this check passes then the index ABOVE the index
+					// we are checking is the segment we are looking for. If this check was to pass on the last index
+					// then there is no segment that contains the requested time.
+					if(segments[i].startTime + segments[i].duration < time)
+						return segments[i+1];
+					
+					// The first index is a special case
+					if (i == 0 && segments[i].startTime < time)
+						return segments[i];
 				}
 			}
 			else
 			{
 				// Find matches.
-				for(var i:int=0; i<segments.length; i++)
+				for(var i:int=1; i<segments.length; i++)
 				{
-					var seg:HLSManifestSegment = segments[i];
-					if(seg.startTime <= time && time <= (seg.startTime + seg.duration))
-						return seg;
+					// Don't start at the first index because if this check passes then the index BELOW the index
+					// we are checking is the segment we are looking for. If this check was to pass on the last index
+					// then there is no segment that contains the requested time.
+					if(segments[i].startTime > time)
+						return segments[i-1];
+					
+					// The first index is a special case
+					if (i == segments.length && segments[i].startTime + segments[i].duration < time)
+						return segments[i];
 				}				
 			}
 
 			// No match, dump to aid debug.
+			var seg:HLSManifestSegment;
 			if(segments.length <= 10)
 			{
 				for(i=0; i<segments.length-1; i++)
@@ -527,7 +539,7 @@ package com.kaltura.hls
 				return -1;
 			}
 
-			if(currentManifest == newManifest)
+			if(currentManifest.fullUrl == newManifest.fullUrl)
 			{
 				return currentSequence;
 			}
@@ -563,7 +575,7 @@ package com.kaltura.hls
 
 			const fudgeTime:Number = 0; //1.0 / 24; // Approximate acceptable jump.
 			var currentSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, currentSequence);
-			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration + fudgeTime : 0) , !end) : null;
+			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration + fudgeTime : 0) , end) : null;
 			if(newSeg == null)
 			{
 				trace("Remapping from " + currentSequence);
@@ -722,15 +734,9 @@ package com.kaltura.hls
 			var rates:Array = [];
 
 			// Make a copy of the streamItems and sort them by bitrate ascending.
-			var itemsCopy:Array = new Array();
-			itemsCopy.length = resource.streamItems.length;
 			for(var i:int=0; i<resource.streamItems.length; i++)
-				itemsCopy[i] = resource.streamItems[i];
-			itemsCopy.sortOn("bitrate", Array.NUMERIC)
-
-			for(var i:int=0; i<itemsCopy.length; i++)
 			{
-				var curStream:DynamicStreamingItem = itemsCopy[i] as DynamicStreamingItem;
+				var curStream:DynamicStreamingItem = resource.streamItems[i] as DynamicStreamingItem;
 				streams.push(curStream.streamName);
 				rates.push(curStream.bitrate);
 			}

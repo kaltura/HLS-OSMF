@@ -234,6 +234,12 @@ package com.kaltura.hls.manifest
 				}		
 			}
 			
+			// Sort submanifests.
+			streams.sort(function(a:HLSManifestStream, b:HLSManifestStream):int
+				{
+					return a.bandwidth - b.bandwidth;
+				});
+
 			// Process any other manifests referenced.
 			var pendingManifests:Boolean = false;
 			var manifestItems:Vector.<BaseHLSManifestItem> = new <BaseHLSManifestItem>[].concat( streams, playLists, subtitlePlayLists );

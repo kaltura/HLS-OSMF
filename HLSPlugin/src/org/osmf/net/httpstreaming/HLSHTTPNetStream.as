@@ -157,6 +157,7 @@ package org.osmf.net.httpstreaming
 			}
 				
 			this.bufferTime = HLSManifestParser.MAX_SEG_BUFFER * 7.5;
+			trace("Setting bufferTime to " + HLSManifestParser.MAX_SEG_BUFFER * 7.5 + " readback " + this.bufferTime);
 			this.bufferTimeMax = 0;
 			
 			setState(HTTPStreamingState.INIT);
@@ -342,7 +343,24 @@ package org.osmf.net.httpstreaming
 		 */
 		override public function set bufferTime(value:Number):void
 		{
+			value = HLSManifestParser.MAX_SEG_BUFFER * 7.5;
+
+			// Try a better guess.
+			if(indexHandler)
+			{
+				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
+				if(lastMan && lastMan.targetDuration > 0.0)
+					value = HLSManifestParser.MAX_SEG_BUFFER * lastMan.targetDuration;				
+			}
+
+			// skip nop.
+			if(super.bufferTime == value)
+				return;
+
+			trace("Trying to set buffertime to " + value + ", ignoring...");
+
 			super.bufferTime = value;
+			trace("   o super.bufferTime = " + super.bufferTime);
 			_desiredBufferTime_Min = Math.max(OSMFSettings.hdsMinimumBufferTime, value);
 			_desiredBufferTime_Max = _desiredBufferTime_Min + OSMFSettings.hdsAdditionalBufferTime;
 		}
@@ -740,6 +758,8 @@ package org.osmf.net.httpstreaming
 		 */  
 		private function onMainTimer(timerEvent:TimerEvent):void
 		{
+			bufferTime = 99999; // Sanity to ensure we never allow this to work. Also forces us to recalculate it.
+
 			if (seeking && time != timeBeforeSeek)
 			{
 				seeking = false;
