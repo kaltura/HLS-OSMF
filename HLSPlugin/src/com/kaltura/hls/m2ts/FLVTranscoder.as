@@ -113,8 +113,8 @@ package com.kaltura.hls.m2ts
                         keyFrame = false;                        
             }
 
-            // Skip access unit delimeters and SPS/PPS data.
-            if(naluType == 7 || naluType == 8 || naluType == 9)
+            // Skip all non VCL data.
+            if(naluType > 6)
                 return;
 
             // Append.
