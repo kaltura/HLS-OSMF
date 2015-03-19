@@ -109,7 +109,9 @@ package org.osmf.net.httpstreaming
 			private var previouslyLoggedState:String = null;
 		}
 
-		public static var writeToMasterBuffer:Boolean = true;
+		// If enabled, we log to a FLV buffer that can be saved out via FileReference.
+		// The testplayer does this.
+		public static var writeToMasterBuffer:Boolean = false;
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
 		private var neverPlayed:Boolean = true;
