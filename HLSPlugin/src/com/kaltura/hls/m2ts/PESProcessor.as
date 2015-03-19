@@ -38,14 +38,6 @@ package com.kaltura.hls.m2ts
             transcoder.clear(clearAACConfig);
         }
 
-        public function flush():void
-        {
-            if(lastVideoNALU)
-                pendingBuffers.push(lastVideoNALU.clone());
-            lastVideoNALU = null;
-        }
-
-
         private function parseProgramMapTable(bytes:ByteArray, cursor:uint):Boolean
         {
             var sectionLength:uint;
@@ -135,15 +127,16 @@ package com.kaltura.hls.m2ts
             return true;
         }
 
-        public function append(packet:PESPacket):void
+        public function append(packet:PESPacket):Boolean
         {
+//            trace("saw packet of " + packet.buffer.length);
             var b:ByteArray = packet.buffer;
             b.position = 0;
 
             if(b.length < 8)
             {
                 trace("Ignoring too short PES packet, length=" + b.length);
-                return;
+                return true;
             }
 
             // Get the start code.
@@ -154,20 +147,20 @@ package com.kaltura.hls.m2ts
                 if((startCode & 0xFFFFFF00) == 0x0000b000)
                 {
                     trace("Ignoring program association table.");
-                    return;
+                    return true;
                 }
 
                 // It could be the program map table.
                 if((startCode & 0xFFFFFC00) == 0x0002b000)
                 {
                     parseProgramMapTable(b, 1);
-                    return;
+                    return true;
                 }
 
                 var tmp:ByteArray = new ByteArray();
                 tmp.writeInt(startCode);
                 trace("ES prefix was wrong, expected 00:00:01:xx but got "); // + Hex.fromArray(tmp, true));
-                return;
+                return true;
             }
 
             // Get the stream ID.
@@ -180,14 +173,14 @@ package com.kaltura.hls.m2ts
                 if(b.length < packetLength )
                 {
                     trace("WARNING: parsePESPacket - not enough bytes, expecting " + packetLength + ", but have " + b.length);
-                    return; // not enough bytes in packet
+                    return false; // not enough bytes in packet
                 }
             }
             
             if(b.length < 9)
             {
                 trace("WARNING: parsePESPacket - too short to read header!");
-                return;
+                return false;
             }
 
             // Read the rest of the header.
@@ -209,7 +202,7 @@ package com.kaltura.hls.m2ts
             {
                 // has PTS at least
                 if(cursor + 5 > b.length)
-                    return;
+                    return true;
                 
                 pts  = b[cursor] & 0x0e;
                 pts *= 128;
@@ -226,7 +219,7 @@ package com.kaltura.hls.m2ts
                 {
                     // DTS too!
                     if(cursor + 10 > b.length)
-                        return;
+                        return true;
                     
                     dts  = b[cursor + 5] & 0x0e;
                     dts *= 128;
@@ -252,13 +245,13 @@ package com.kaltura.hls.m2ts
             if(cursor > b.length)
             {
                 trace("WARNING: parsePESPacket - ran out of bytes");
-                return;
+                return true;
             }
             
             if(types[packet.packetID] == undefined)
             {
                 trace("WARNING: parsePESPacket - unknown type");
-                return;
+                return true;
             }
             
             var pes:PESPacketStream;
@@ -267,8 +260,8 @@ package com.kaltura.hls.m2ts
             {
                 if(dts < 0.0)
                 {
-                    trace("WARNING: parsePESPacket - invalid decode timestamp");
-                    return;
+                    trace("WARNING: parsePESPacket - invalid decode timestamp, skipping");
+                    return true;
                 }
                 
                 pes = new PESPacketStream();
@@ -282,7 +275,7 @@ package com.kaltura.hls.m2ts
             if(headerSent == false)
             {
                 trace("Skipping data that came before PMT");
-                return;
+                return true;
             }
 
             // Note the type at this moment in time.
@@ -298,7 +291,7 @@ package com.kaltura.hls.m2ts
                     lastVideoNALU.buffer.position = lastVideoNALU.buffer.length;
                     b.position = 0;
                     lastVideoNALU.buffer.writeBytes(b, cursor, b.length - cursor);
-                    return;
+                    return true;
 
                 }
                 else if((start - cursor) > 0 && lastVideoNALU)
@@ -340,19 +333,29 @@ package com.kaltura.hls.m2ts
             }
             else
             {
-                trace("Unknown packet ID type " + types[packet.packetID] + ", ignoring.");
+                trace("Unknown packet ID type " + types[packet.packetID] + ", ignoring (A).");
             }
+
+            return true;
         }
 
         var pendingBuffers:Vector.<Object> = new Vector.<Object>();
 
         public function processAllNalus():void
         {
-            // First walk all the video NALUs and get the correct SPS/PPS
-            //NALUProcessor.startAVCCExtraction();
+            // Consume any unposted video NALUs.
+            if(lastVideoNALU)
+            {
+                pendingBuffers.push(lastVideoNALU.clone());
+                lastVideoNALU = null;
+            }
 
+            // First walk all the video NALUs and get the correct SPS/PPS
             if(pendingBuffers.length == 0)
                 return;
+            
+            // First walk all the video NALUs and get the correct SPS/PPS
+            //NALUProcessor.startAVCCExtraction();
 
             var firstNalu:NALU = null;
 
@@ -369,7 +372,17 @@ package com.kaltura.hls.m2ts
 
             // Then emit SPS/PPS
             if(firstNalu)
+            {
                 transcoder.emitSPSPPS(firstNalu);
+                //NALUProcessor.startAVCCExtraction();
+            }
+            else
+            {
+                trace("No first NALU, failed to output SPS/PPS in AVCC form.");
+            }
+
+            // Sort.
+            //pendingBuffers.sort(naluSortFunc);
 
             // Then iterate the packet again.
             for(var i:int=0; i<pendingBuffers.length; i++)
@@ -393,7 +406,7 @@ package com.kaltura.hls.m2ts
                     }
                     else
                     {
-                        trace("Unknown packet ID type " + packet.type + ", ignoring.");
+                        trace("Unknown packet ID type " + packet.type + ", ignoring (B).");
                     }
                 }
             }

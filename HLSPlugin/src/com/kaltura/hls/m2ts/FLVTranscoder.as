@@ -16,8 +16,6 @@ package com.kaltura.hls.m2ts
         public const MIN_FILE_HEADER_BYTE_COUNT:int = 9;
 
         public var callback:Function;
-        
-        private var lastTagSize:uint = 0;
 
         private var _aacConfig:ByteArray;
         private var _aacRemainder:ByteArray;
@@ -41,7 +39,9 @@ package com.kaltura.hls.m2ts
             if(msgLength > 0xffffff)
                 return; // too big for the length field
             
-            tag.length = FLVTags.HEADER_LENGTH + msgLength; 
+            //trace("FLV @ " + flvts);
+
+            tag.length = FLVTags.HEADER_LENGTH + msgLength;
             tag[cursor++] = type;
             tag[cursor++] = (msgLength >> 16) & 0xff;
             tag[cursor++] = (msgLength >>  8) & 0xff;
@@ -65,9 +65,7 @@ package com.kaltura.hls.m2ts
             cursor += length;
             msgLength += 11; // account for message header in back pointer
 
-            tag.writeUnsignedInt(lastTagSize);
-
-            lastTagSize = tag.length;
+            tag.writeUnsignedInt(tag.length);
 
             // Dispatch tag.
             if(callback != null)
@@ -113,8 +111,9 @@ package com.kaltura.hls.m2ts
                         keyFrame = false;                        
             }
 
-            // Skip all non VCL data.
-            if(naluType > 6)
+            // We need AUD for proper playback on Mac Chrome, but including
+            // SPS and PPS breaks PC Chrome.
+            if(naluType == 7 || naluType == 8)
                 return;
 
             // Append.
@@ -125,9 +124,14 @@ package com.kaltura.hls.m2ts
 
         public function emitSPSPPS(unit:NALU):void
         {
-            var avcc:ByteArray = NALUProcessor.extractAVCC(unit, naluConverter);
+            var avcc:ByteArray = NALUProcessor.serializeAVCC();
             if(avcc)
+            { 
+                //trace("Wrote AVCC at " + convertFLVTimestamp(unit.pts));
                 sendFLVTag(convertFLVTimestamp(unit.pts), FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);
+            }
+            else
+                trace("FAILED to write out AVCC");
         }
 
         /**
@@ -135,6 +139,9 @@ package com.kaltura.hls.m2ts
          */
         public function convert(unit:NALU):void
         {
+            var flvts:uint = convertFLVTimestamp(unit.dts);
+            var tsu:uint = convertFLVTimestamp(unit.pts - unit.dts);
+
             // Accumulate NALUs into buffer.
             flvGenerationBuffer.length = 3;
             flvGenerationBuffer[0] = (tsu >> 16) & 0xff;
@@ -148,12 +155,9 @@ package com.kaltura.hls.m2ts
             // Emit an AVCC and walk the NALUs.
             NALUProcessor.walkNALUs(unit.buffer, 0, naluConverter, true);
 
-           // trace("Appended " + totalAppended + " bytes");
+            //trace("Appended " + totalAppended + " bytes");
 
             // Finish writing and sending packet.
-            var flvts:uint = convertFLVTimestamp(unit.pts);
-            var tsu:uint = convertFLVTimestamp(unit.pts - unit.dts);
-
             var codec:uint;
             if(keyFrame)
                 codec = FLVTags.VIDEO_CODEC_AVC_KEYFRAME;
@@ -230,6 +234,8 @@ package com.kaltura.hls.m2ts
             var bytes:ByteArray = pes.buffer;
             var timestamp:Number = pes.pts;
             
+            //trace("pes pts = " + pes.pts);
+
             if(_aacRemainder)
             {
                 stream = _aacRemainder;
@@ -285,45 +291,19 @@ package com.kaltura.hls.m2ts
                 sampleRateIndex = (stream[cursor + 2] >> 2) & 0x0f;
                 switch(sampleRateIndex)
                 {
-                    case 0x00:
-                        sampleRate = 96000.0;
-                        break;
-                    case 0x01:
-                        sampleRate = 88200.0;
-                        break;
-                    case 0x02:
-                        sampleRate = 64000.0;
-                        break;
-                    case 0x03:
-                        sampleRate = 48000.0;
-                        break;
-                    case 0x04:
-                        sampleRate = 44100.0;
-                        break;
-                    case 0x05:
-                        sampleRate = 32000.0;
-                        break;
-                    case 0x06:
-                        sampleRate = 24000.0;
-                        break;
-                    case 0x07:
-                        sampleRate = 22050.0;
-                        break;
-                    case 0x08:
-                        sampleRate = 16000.0;
-                        break;
-                    case 0x09:
-                        sampleRate = 12000.0;
-                        break;
-                    case 0x0a:
-                        sampleRate = 11025.0;
-                        break;
-                    case 0x0b:
-                        sampleRate = 8000.0;
-                        break;
-                    case 0x0c:
-                        sampleRate = 7350.0;
-                        break;
+                    case 0x00: sampleRate = 96000.0; break;
+                    case 0x01: sampleRate = 88200.0; break;
+                    case 0x02: sampleRate = 64000.0; break;
+                    case 0x03: sampleRate = 48000.0; break;
+                    case 0x04: sampleRate = 44100.0; break;
+                    case 0x05: sampleRate = 32000.0; break;
+                    case 0x06: sampleRate = 24000.0; break;
+                    case 0x07: sampleRate = 22050.0; break;
+                    case 0x08: sampleRate = 16000.0; break;
+                    case 0x09: sampleRate = 12000.0; break;
+                    case 0x0a: sampleRate = 11025.0; break;
+                    case 0x0b: sampleRate = 8000.0; break;
+                    case 0x0c: sampleRate = 7350.0; break;
                 }
                 
                 channelConfig = ((stream[cursor + 2] & 0x01) << 2) + ((stream[cursor + 3] >> 6) & 0x03);
@@ -333,7 +313,8 @@ package com.kaltura.hls.m2ts
                     var flvts:uint = convertFLVTimestamp(timestamp + timeAccumulation);
                     
                     sendAACConfigFLVTag(flvts, profile, sampleRateIndex, channelConfig);
-                    //trace("Sending AAC");
+                    //trace("Sending AAC @ " + flvts + " ts=" + timestamp + " acc=" + timeAccumulation);
+                    
                     sendFLVTag(flvts, FLVTags.TYPE_AUDIO, FLVTags.AUDIO_CODEC_AAC, FLVTags.AAC_MODE_FRAME, stream, cursor + FLVTags.ADTS_FRAME_HEADER_LENGTH, frameLength - FLVTags.ADTS_FRAME_HEADER_LENGTH);
                     
                     timeAccumulation += (1024.0 / sampleRate) * 90000.0; // account for the duration of this frame
