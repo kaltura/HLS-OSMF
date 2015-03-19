@@ -6,6 +6,7 @@ package com.kaltura.hls.m2ts
     import flash.utils.Endian;    
     import flash.utils.IDataInput;
     import flash.utils.IDataOutput;
+    //import com.hurlant.util.Hex;
 
     /**
      * NALU processing utilities.
@@ -18,11 +19,13 @@ package com.kaltura.hls.m2ts
         private static function sortSPS(a:ByteArray, b:ByteArray):int
         {
             var ourEg:ExpGolomb = new ExpGolomb(a);
-            ourEg.readBits(28);
+            ourEg.readBits(8);
+            ourEg.readBits(24);
             var Id_a:int = ourEg.readUE();
 
             ourEg = new ExpGolomb(b);
-            ourEg.readBits(28);
+            ourEg.readBits(8);
+            ourEg.readBits(24);
             var Id_b:int = ourEg.readUE();
 
             return Id_a - Id_b;
@@ -76,11 +79,12 @@ package com.kaltura.hls.m2ts
                 // Debug dump the SPS
                 var spsLength:uint = spsList[i].length;
 
-                //trace("SPS #" + i + " profile " + spsList[i][1] + "   " + Hex.fromArray(spsList[i], true));
+                //trace("SPS #" + i + " profile=" + spsList[i][1] + "   " + Hex.fromArray(spsList[i], true));
 
                 var eg:ExpGolomb = new ExpGolomb(spsList[i]);
                 // constraint_set[0-5]_flag, u(1), reserved_zero_2bits u(2), level_idc u(8)
-                eg.readBits(16);
+                eg.readBits(8);
+                eg.readBits(24);
                 //trace("Saw id " + eg.readUE());
 
                 avcc.position = cursor;
@@ -99,6 +103,12 @@ package com.kaltura.hls.m2ts
             {
                 var ppsLength:uint = ppsList[i].length;
                 //trace("PPS length #" + i + " is " + ppsLength + "   " + Hex.fromArray(ppsList[i], true));
+
+                eg = new ExpGolomb(ppsList[i]);
+                // constraint_set[0-5]_flag, u(1), reserved_zero_2bits u(2), level_idc u(8)
+                eg.readBits(8);
+                //trace("Saw id " + eg.readUE());
+
                 avcc.position = cursor;
                 ppsList[i].position = 0;
                 avcc.writeShort(ppsLength);
@@ -118,40 +128,29 @@ package com.kaltura.hls.m2ts
             sps.writeBytes(bytes, cursor, length);
 
             var ourEg:ExpGolomb = new ExpGolomb(sps);
-            ourEg.readBits(16);
+            ourEg.readBits(8);
+            ourEg.readBits(24);
             var ourId:int = ourEg.readUE();
 
             // If not present in list add it!
-            var found:Boolean = false;
             for(var i:int=0; i<spsList.length; i++)
             {
                 // If it matches our ID, replace it.
                 var eg:ExpGolomb = new ExpGolomb(spsList[i]);
-                eg.readBits(16);
+                eg.readBits(8);
+                eg.readBits(24);
                 var foundId:int = eg.readUE();
 
-                if(foundId == ourId)
-                {
-                    //trace("Got SPS match for " + foundId + "!");
-                    spsList[i] = sps;
-                    return;
-                }
-
-                if(spsList[i].length != length)
+                if(foundId != ourId)
                     continue;
 
-                // If identical don't append to list.
-                for(var j:int=0; j<spsList[i].length && j<sps.length; j++)
-                    if(spsList[i][j] != sps[j])
-                        continue;
-
-                found = true;
-                break;
+                //trace("Got SPS match for " + foundId + "!");
+                spsList[i] = sps;
+                return;
             }
 
             // Maybe we do have to add it!
-            if(!found)
-                spsList.push(sps);
+            spsList.push(sps);
         }
 
         /**
@@ -163,38 +162,27 @@ package com.kaltura.hls.m2ts
             pps.writeBytes(bytes, cursor, length);
 
             var ourEg:ExpGolomb = new ExpGolomb(pps);
+            ourEg.readBits(8);
             var ourId:int = ourEg.readUE();
 
             // If not present in list add it!
-            var found:Boolean = false;
             for(var i:int=0; i<ppsList.length; i++)
             {
                 // If it matches our ID, replace it.
                 var eg:ExpGolomb = new ExpGolomb(ppsList[i]);
+                eg.readBits(8);
                 var foundId:int = eg.readUE();
 
-                if(foundId == ourId)
-                {
-                    //trace("Got PPS match for " + foundId + "!");
-                    ppsList[i] = pps;
-                    return;
-                }
-
-                if(ppsList[i].length != length)
+                if(foundId != ourId)
                     continue;
 
-                // If identical don't append to list.
-                for(var j:int=0; j<ppsList[i].length && j<pps.length; j++)
-                    if(ppsList[i][j] != pps[j])
-                        continue;
-
-                found = true;
-                break;
+                //trace("Got PPS match for " + foundId + "!");
+                ppsList[i] = pps;
+                return;
             }
 
             // Maybe we do have to add it!
-            if(!found)          
-                ppsList.push(pps);
+            ppsList.push(pps);
         }        
 
         /**
