@@ -356,7 +356,7 @@ package org.osmf.net.httpstreaming
 				}
 
 				// skip nop.
-				if(super.bufferTime == value)
+				if(Math.abs(super.bufferTime - value) < 0.01)
 					return;				
 			}
 
@@ -1719,12 +1719,12 @@ package org.osmf.net.httpstreaming
 		{
 			var i:int;
 
-/*			if(_enhancedSeekTarget <= 0.0)
+/*			if(_enhancedSeekTarget <= 0.0 && indegetLastSequenceManifest() && getLastSequenceManifest().streamEnds == false)
 			{
 				trace("Setting enhanced seek target to last segment end of " + _lastSegmentEnd);
 				_enhancedSeekTarget = _lastSegmentEnd;
 				_seekTarget = _enhancedSeekTarget;
-			} */
+			}*/
 
 			// Apply bump if present.
 			if(indexHandler && indexHandler.bumpedTime 

@@ -318,7 +318,7 @@ package com.kaltura.hls.m2ts
 			if(isBestEffort)
 				return;
 
-			trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
+			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 
 			if(_timeOriginNeeded)
 			{
