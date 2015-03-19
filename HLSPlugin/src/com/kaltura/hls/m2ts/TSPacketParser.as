@@ -222,6 +222,8 @@ package com.kaltura.hls.m2ts
                 completeStreamPacket(_streams[idx]);
             }
 
+            pesProcessor.flush();
+
             pesProcessor.processAllNalus();
         }
 

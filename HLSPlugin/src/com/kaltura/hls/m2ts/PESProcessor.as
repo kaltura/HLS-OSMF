@@ -38,6 +38,13 @@ package com.kaltura.hls.m2ts
             transcoder.clear(clearAACConfig);
         }
 
+        public function flush():void
+        {
+            if(lastVideoNALU)
+                pendingBuffers.push(lastVideoNALU.clone());
+            lastVideoNALU = null;
+        }
+
 
         private function parseProgramMapTable(bytes:ByteArray, cursor:uint):Boolean
         {
@@ -307,7 +314,7 @@ package com.kaltura.hls.m2ts
                 // Submit previous data.
                 if(lastVideoNALU)
                 {
-                    pendingNalus.push(lastVideoNALU.clone());
+                    pendingBuffers.push(lastVideoNALU.clone());
                 }
 
                 // Update NALU state.
@@ -323,13 +330,13 @@ package com.kaltura.hls.m2ts
             {
                 // It's an AAC stream.
                 //transcoder.convertAAC(packet);
-                pendingNalus.push(packet.clone());
+                pendingBuffers.push(packet.clone());
             }
             else if(types[packet.packetID] == 0x03 || types[packet.packetID] == 0x04)
             {
                 // It's an MP3 stream. Pass through directly.
                 //transcoder.convertMP3(packet);
-                pendingNalus.push(packet.clone());
+                pendingBuffers.push(packet.clone());
             }
             else
             {
@@ -337,39 +344,43 @@ package com.kaltura.hls.m2ts
             }
         }
 
-        var pendingNalus:Vector.<Object> = new Vector.<Object>();
+        var pendingBuffers:Vector.<Object> = new Vector.<Object>();
 
         public function processAllNalus():void
         {
             // First walk all the video NALUs and get the correct SPS/PPS
-            NALUProcessor.startAVCCExtraction();
+            //NALUProcessor.startAVCCExtraction();
+
+            if(pendingBuffers.length == 0)
+                return;
 
             var firstNalu:NALU = null;
 
-            for(var i:int=0; i<pendingNalus.length; i++)
+            for(var i:int=0; i<pendingBuffers.length; i++)
             {
-                if(!(pendingNalus[i] is NALU))
+                if(!(pendingBuffers[i] is NALU))
                     continue;
 
                 if(!firstNalu)
-                    firstNalu = pendingNalus[i] as NALU;
+                    firstNalu = pendingBuffers[i] as NALU;
 
-                NALUProcessor.pushAVCData(pendingNalus[i] as NALU);
+                NALUProcessor.pushAVCData(pendingBuffers[i] as NALU);
             }
 
             // Then emit SPS/PPS
-            transcoder.emitSPSPPS(firstNalu);
+            if(firstNalu)
+                transcoder.emitSPSPPS(firstNalu);
 
             // Then iterate the packet again.
-            for(var i:int=0; i<pendingNalus.length; i++)
+            for(var i:int=0; i<pendingBuffers.length; i++)
             {
-                if(pendingNalus[i] is NALU)
+                if(pendingBuffers[i] is NALU)
                 {
-                    transcoder.convert(pendingNalus[i] as NALU);
+                    transcoder.convert(pendingBuffers[i] as NALU);
                 }
-                else if(pendingNalus[i] is PESPacket)
+                else if(pendingBuffers[i] is PESPacket)
                 {
-                    var packet:PESPacket = pendingNalus[i] as PESPacket;
+                    var packet:PESPacket = pendingBuffers[i] as PESPacket;
                     if(packet.type == 0x0F)
                     {
                         // It's an AAC stream.
@@ -388,7 +399,7 @@ package com.kaltura.hls.m2ts
             }
 
             // Don't forget to clear the pending list.
-            pendingNalus.length = 0;
+            pendingBuffers.length = 0;
         }
     }
 }
