@@ -109,7 +109,9 @@ package org.osmf.net.httpstreaming
 			private var previouslyLoggedState:String = null;
 		}
 
-		public static var writeToMasterBuffer:Boolean = true;
+		// If enabled, we log to a FLV buffer that can be saved out via FileReference.
+		// The testplayer does this.
+		public static var writeToMasterBuffer:Boolean = false;
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
 		private var neverPlayed:Boolean = true;
@@ -131,8 +133,6 @@ package org.osmf.net.httpstreaming
 		 */
 		public function HLSHTTPNetStream( connection:NetConnection, factory:HTTPStreamingFactory, resource:URLResource = null)
 		{
-			//logger = Log.getLogger("org.osmf.net.httpstreaming.HLSHTTPNetStream");
-
 			super(connection);
 			_resource = resource;
 			_factory = factory;
@@ -352,11 +352,11 @@ package org.osmf.net.httpstreaming
 				{
 					var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
 					if(lastMan && lastMan.targetDuration > 0.0)
-						value = HLSManifestParser.MAX_SEG_BUFFER * lastMan.targetDuration;				
+						value = HLSManifestParser.MAX_SEG_BUFFER * lastMan.targetDuration * 0.9;
 				}
 
 				// skip nop.
-				if(super.bufferTime == value)
+				if(Math.abs(super.bufferTime - value) < 0.01)
 					return;				
 			}
 
@@ -718,7 +718,7 @@ package org.osmf.net.httpstreaming
 					_waitForDRM = true;
 				}
 			}
-				
+
 		}
 		
 		CONFIG::FLASH_10_1
@@ -999,29 +999,24 @@ package org.osmf.net.httpstreaming
 					var processed:int = 0;
 					var keepProcessing:Boolean = true;
 					
-					var startTime:int = getTimer();
 					while(keepProcessing)
 					{
 						var bytes:ByteArray = _source.getBytes();
 						issueLivenessEventsIfNeeded();
 						if (bytes != null)
 						{
-							if(bytes.length > 0)
-								trace("processed " + bytes.length);
 							processed += processAndAppend(bytes);	
 						}
 						
-						if ((_state != HTTPStreamingState.PLAY) 	// we are no longer in play mode
-							|| (getTimer() - startTime > 25) 		// or we are out of time and got something
-							|| (processed >= OSMFSettings.hdsBytesProcessingLimit) 	// or we have processed enough data  
+						if (
+							    (_state != HTTPStreamingState.PLAY) 	// we are no longer in play mode
+							 || (bytes == null) 						// or we don't have any additional data
+							 || (processed >= OSMFSettings.hdsBytesProcessingLimit) 	// or we have processed enough data  
 						)
 						{
 							keepProcessing = false;
 						}
 					}
-					var totalTime:int = getTimer() - startTime;
-					if(totalTime > 30)
-						trace("******* spent " + totalTime + "ms processing bytes *********");
 					
 					if (_state == HTTPStreamingState.PLAY)
 					{
@@ -1148,7 +1143,7 @@ package org.osmf.net.httpstreaming
 			}
 			return true;
 		}
-		
+			
 		/**
 		 * @private
 		 * 
@@ -1236,7 +1231,7 @@ package org.osmf.net.httpstreaming
 			
 			return true;
 		}
-		
+
 		/**
 		 * @private
 		 * 
@@ -1261,7 +1256,7 @@ package org.osmf.net.httpstreaming
 			{
 				logger.debug("Detected begin fragment for stream [" + event.url + "].");
 				logger.debug("Dropped frames=" + this.info.droppedFrames + ".");
-			}
+			}			
 			
 			if (_initialTime < 0 || _seekTime < 0 || _insertScriptDataTags ||  _playForDuration >= 0)
 			{
@@ -1285,7 +1280,7 @@ package org.osmf.net.httpstreaming
 				_flvParserDone = false;
 			}
 		}
-		
+
 		/**
 		 * @private
 		 * 
@@ -1303,7 +1298,7 @@ package org.osmf.net.httpstreaming
 			{
 				return;
 			}
-				
+			
 			var date:Date = new Date();
 			var machineTimestamp:Number = date.getTime();
 			
@@ -1319,6 +1314,7 @@ package org.osmf.net.httpstreaming
 				actualIndex = sourceQoSInfo.actualIndex;
 				lastFragmentDetails = sourceQoSInfo.lastFragmentDetails;
 			}
+			
 			
 			var playbackDetailsRecord:Vector.<PlaybackDetails> = null;
 			var currentIndex:int = -1;
@@ -1723,12 +1719,12 @@ package org.osmf.net.httpstreaming
 		{
 			var i:int;
 
-			if(_enhancedSeekTarget <= 0.0)
+/*			if(_enhancedSeekTarget <= 0.0 && indegetLastSequenceManifest() && getLastSequenceManifest().streamEnds == false)
 			{
 				trace("Setting enhanced seek target to last segment end of " + _lastSegmentEnd);
 				_enhancedSeekTarget = _lastSegmentEnd;
 				_seekTarget = _enhancedSeekTarget;
-			}
+			}*/
 
 			// Apply bump if present.
 			if(indexHandler && indexHandler.bumpedTime 

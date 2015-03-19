@@ -396,8 +396,8 @@
 
 			private function getFLV():void
 			{
-				//var fr:FileReference = new FileReference();
-				//fr.save(HLSHTTPNetStream._masterBuffer);
+				var fr:FileReference = new FileReference();
+				fr.save(HLSHTTPNetStream._masterBuffer);
 			}
 		]]>
 	</fx:Script>

@@ -550,7 +550,7 @@ package org.osmf.net.httpstreaming
 				case HTTPStreamingState.READ:
 					if (_downloader != null)
 					{
-						input =  _downloader.getBytes(Math.min(_downloader.totalAvailableBytes, 256*1024));
+						input =  _downloader.getBytes(_fileHandler.inputBytesNeeded);
 						if (input != null)
 						{
 							bytes = _fileHandler.processFileSegment(input);
@@ -559,7 +559,6 @@ package org.osmf.net.httpstreaming
 						{
 							_endFragment = (_downloader != null && _downloader.isOpen && _downloader.isComplete && !_downloader.hasData);
 							_hasErrors = (_downloader != null && _downloader.hasErrors);
-							bytes = _fileHandler.endProcessFile(null);
 						}
 					}
 					
@@ -582,14 +581,12 @@ package org.osmf.net.httpstreaming
 					if (_downloader != null)
 					{
 						input = _downloader.getBytes();
-						if (input != null)
-						{
-							bytes = _fileHandler.endProcessFile(input);
-							processedEnd = true;
-						}
 					}
 					
-					trace("SAW END OF FRAGMENT");
+					bytes = _fileHandler.endProcessFile(input);
+					processedEnd = true;
+					
+					trace("SAW END OF FRAGMENT with " + bytes.length + " bytes");
 					
 					var availableQualityLevels:Vector.<QualityLevel> = new Vector.<QualityLevel>;
 					for (var i:uint = 0; i < _qualityRates.length; i++)

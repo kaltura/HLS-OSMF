@@ -206,9 +206,10 @@ package com.kaltura.hls.m2ts
             }
 
             // Append to buffer.
-            pesProcessor.append(new PESPacket(stream.packetID, stream.buffer));
+            if(!pesProcessor.append(new PESPacket(stream.packetID, stream.buffer)))
+                return;
 
-            // Reset stream buffer.
+            // Reset stream buffer if we succeeded.
             stream.buffer.position = 0;
             stream.buffer.length = 0;
         }
@@ -218,16 +219,13 @@ package com.kaltura.hls.m2ts
             trace("FLUSHING");
             for (var idx:* in _streams)
             {
-                trace("Flushing stream id " + idx);
+                trace("Flushing stream id " + idx + " which has " + _streams[idx].buffer.length);
                 completeStreamPacket(_streams[idx]);
             }
 
             pesProcessor.processAllNalus();
-        }
 
-        public function flushNalus():void
-        {
-            pesProcessor.processAllNalus();            
+            pesProcessor.clear(true);
         }
 
         public function clear(clearAACConfig:Boolean = true):void

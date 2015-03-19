@@ -1,0 +1,56 @@
+<html>
+<head>
+<link rel="stylesheet" type="text/css" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+<style>
+body { padding: 15px; }
+</style>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" ></script>
+<script src="//www.kaltura.com/html5/html5lib/v2.24.1/mwEmbedLoader.php"></script>
+<!--<script src="//kgit.html5video.org/tags/v2.28.rc17/mwEmbedLoader.php"></script> -->
+<script>
+
+function embedPlayer(srcUrl, targetId){
+	mw.setConfig("LeadWithHLSOnFlash",true);
+	mw.setConfig('Kaltura.LeadWithHTML5', true);
+	mw.setConfig('EmbedPlayer.ReplaceSources', [
+		{
+			'type' : 'application/vnd.apple.mpegurl',
+			'src' : srcUrl
+		}
+	]);
+	kWidget.embed({
+		"targetId": targetId,
+		"wid": "_243342",
+		"uiconf_id": 25675992,
+		"cache_st": 1408262198,
+		"entry_id": "1_bhej6q2a",
+		"flashvars":{"liveCore":{"disableLiveCheck":true}, "audioSelector": {plugin: true}}
+	});
+}
+
+function jsCallbackReady(playerId){
+	window.player = document.getElementById(playerId);
+}
+
+</script>
+</head>
+<body>
+<h2>Demo - Frame Accurate Ad Insertion</h2>
+
+<div style="width:600px;">
+        <h4>Viewer's Screen (Broadcast Output)</h4>
+        <div>
+                <div id="videoTag" style="width:600px;height:400px;"></div>
+        </div>
+
+        <!-- <video id="videoTag" width="600" height="400" src="http://lbd.kaltura.com/d/new.m3u8" autoplay controls onerror="failed(event)"></video> -->
+</div>
+<br>
+<div style="width:600px;">
+	<textarea id="output" class="form-control" rows="2"></textarea>
+</div>
+<script>
+embedPlayer("http://localhost:9090/combined.flv", "videoTag");
+</script>
+</body>
+</html>

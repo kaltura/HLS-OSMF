@@ -14,7 +14,7 @@ OPTIMIZE_FLAG=false
 # Then only need to run disable if you change OSMF or OSMFUtils	
 all: TestPlayer/html-template/TestPlayer.swf KalturaHLSPlugin/KalturaHLSPlugin.swf
 
-TestPlayer/html-template/TestPlayer.swf: $(shell find TestPlayer -name \*.as) HLSPlugin/hlsPlugin.swc
+TestPlayer/html-template/TestPlayer.swf: $(shell find TestPlayer -name \*.as) $(shell find TestPlayer -name \*.mxml) HLSPlugin/hlsPlugin.swc
 	@echo ============ TestPlayer ========================
 	cd TestPlayer && ${MXMLC} \
 		-static-link-runtime-shared-libraries=true \
@@ -29,7 +29,7 @@ TestPlayer/html-template/TestPlayer.swf: $(shell find TestPlayer -name \*.as) HL
 		-output html-template/TestPlayer.swf -source-path+=src src/DashTest.mxml
 
 KalturaHLSPlugin/KalturaHLSPlugin.swf: $(shell find KalturaHLSPlugin -name \*.as) HLSPlugin/hlsPlugin.swc
-	@echo ============ TestPlayer ========================
+	@echo ============ KalturaHLSPlugin ========================
 	cd KalturaHLSPlugin && ${MXMLC} \
 		-static-link-runtime-shared-libraries=true \
 		-library-path+=../OSMF/osmf.swc \
@@ -65,7 +65,7 @@ OSMFUtils/osmfutils.swc: $(shell find OSMFUtils/ -name \*.as) OSMF/osmf.swc
 		-library-path+=../OSMF/osmf.swc \
 		-output osmfutils.swc -include-sources src 
 
-OSMF/osmf.swc: $(shell find OSMF/ -name \*.as)
+OSMF/osmf.swc: $(shell find OSMF/ -name \*.as) Makefile
 	@echo ============= OSMF ========================
 	cd OSMF && ${COMPC} \
 		-load-config+=OSMF-build-config.xml \
