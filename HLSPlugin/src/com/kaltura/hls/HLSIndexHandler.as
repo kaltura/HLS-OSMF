@@ -242,6 +242,32 @@ package com.kaltura.hls
 			return null;
 		}
 
+
+		public static function getSegmentBySequenceCapped(segments:Vector.<HLSManifestSegment>, id:int):HLSManifestSegment
+		{
+			if(segments.length >= 1)
+			{
+				if(id <= segments[0].id)
+					return segments[0];
+				else if (id >= segments[segments.length - 1].id)
+				{
+					trace("capping " + id + " as >= " + segments[segments.length - 1].id);
+					return segments[segments.length - 1];
+				}
+			}
+
+			// Find matches via linear search.
+			for(var i:int=0; i<segments.length; i++)
+			{
+				const seg:HLSManifestSegment = segments[i];
+				if(seg.id != id)
+					continue;
+				return seg;
+			}
+
+			return null;
+		}
+
 		public static function getSegmentStartTimeBySequence(segments:Vector.<HLSManifestSegment>, id:int):Number
 		{
 			// Find matches.
@@ -550,12 +576,12 @@ package com.kaltura.hls
 			if(!checkAnySegmentKnowledge(newManifest.segments) && !isBestEffortActive())
 			{
 				trace("(A) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-				_pendingBestEffortRequest = initiateBestEffortRequest(newManifest.streamEnds ? 0 : uint.MAX_VALUE, reloadingQuality, newManifest.segments);
+				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, reloadingQuality, newManifest.segments);
 			} 
 			else if(!checkAnySegmentKnowledge(currentManifest.segments) && !isBestEffortActive())
 			{
 				trace("(B) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-				_pendingBestEffortRequest = initiateBestEffortRequest(currentManifest.streamEnds ? 0 : uint.MAX_VALUE, lastQuality);
+				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, lastQuality);
 			}
 
 			if(!checkAnySegmentKnowledge(newManifest.segments) || !checkAnySegmentKnowledge(currentManifest.segments))
@@ -687,7 +713,7 @@ package com.kaltura.hls
 			var timerOnErrorDelay:Number = newManifest.targetDuration * 1000  / 2;
 			
 			// Remap if needed.
-			var newSequence:int = remapSequence(getLastSequenceManifest(), newManifest, getLastSequence(), false);
+				var newSequence:int = remapSequence(getLastSequenceManifest(), newManifest, getLastSequence(), false);
 			if(newSequence == -1)
 			{
 				reloadingManifest = null; // don't want to hang on to it
@@ -795,7 +821,7 @@ package com.kaltura.hls
 				{
 					// We may also need to establish a timebase.
 					trace("getFileForTime - Seeking without timebase; initiating request.");
-					return initiateBestEffortRequest(uint.MAX_VALUE, origQuality);
+					return initiateBestEffortRequest(getLastSequence() + 1, origQuality);
 				}
 				else 
 				{
@@ -929,6 +955,9 @@ package com.kaltura.hls
 			if(quality != origQuality && manifest.streamEnds == false)
 			{
 				trace("Firing reload of manifest for quality " + origQuality);
+
+				var hadPendingReload:Boolean = reloadingManifest != null;
+
 				// Kick the reloader.
 				onReloadTimer(null);
 			}
@@ -1285,19 +1314,18 @@ package com.kaltura.hls
 				return null;
 			}
 
-			if(nextFragmentId > segments.length - 1 || nextFragmentId == uint.MAX_VALUE)
+			var nextSeg:HLSManifestSegment = getSegmentBySequenceCapped(segments, nextFragmentId);
+			if(nextSeg.id != nextFragmentId)
 			{
-				trace("initiateBestEffortRequest - Capping to end of segment list " + (segments.length - 1));
-				nextFragmentId = segments.length - 1;
+				trace("Out of bounds best effort segment ID request, using " + nextSeg.id + " instead of " + nextFragmentId);
 			}
-
-			_bestEffortFileHandler.segmentId = segments[nextFragmentId].id;
-			_bestEffortFileHandler.key = getKeyForIndex( nextFragmentId );
-			_bestEffortFileHandler.segmentUri = segments[nextFragmentId].uri;
+			_bestEffortFileHandler.segmentId = nextSeg.id;
+			_bestEffortFileHandler.key = getKeyForIndex( nextSeg.id );
+			_bestEffortFileHandler.segmentUri = nextSeg.uri;
 
 			var streamRequest:HTTPStreamRequest =  new HTTPStreamRequest(
 				HTTPStreamRequestKind.BEST_EFFORT_DOWNLOAD,
-				segments[nextFragmentId].uri, // url
+				_bestEffortFileHandler.segmentUri, // url
 				-1, // retryAfter
 				_bestEffortDownloaderMonitor); // bestEffortDownloaderMonitor
 			

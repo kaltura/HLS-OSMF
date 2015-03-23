@@ -352,16 +352,22 @@ package org.osmf.net.httpstreaming
 				{
 					var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
 					if(lastMan && lastMan.targetDuration > 0.0)
+					{
 						value = HLSManifestParser.MAX_SEG_BUFFER * lastMan.targetDuration * 0.9;
+					}
 				}
 
 				// skip nop.
 				if(Math.abs(super.bufferTime - value) < 0.01)
-					return;				
+					return;
+
+				if(lastMan && lastMan.targetDuration > 0.0)
+					trace(" bufferTime " + value + " based on " + HLSManifestParser.MAX_SEG_BUFFER + " * " + lastMan.targetDuration + " * 0.9");
+				else
+					trace(" bufferTime " + value + " based on " + HLSManifestParser.MAX_SEG_BUFFER + " * 7.5");
 			}
 
-			trace("Trying to set buffertime to " + value + ", ignoring...");
-
+			trace("Trying to set buffertime to " + value);
 			super.bufferTime = value;
 			trace("   o super.bufferTime = " + super.bufferTime);
 			_desiredBufferTime_Min = Math.max(OSMFSettings.hdsMinimumBufferTime, value);
