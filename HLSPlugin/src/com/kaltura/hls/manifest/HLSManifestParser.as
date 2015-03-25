@@ -38,7 +38,6 @@ package com.kaltura.hls.manifest
 		public var subtitles:Vector.<SubTitleParser> = new Vector.<SubTitleParser>();
 		public var keys:Vector.<HLSManifestEncryptionKey> = new Vector.<HLSManifestEncryptionKey>();
 		public var goodManifest:Boolean = true;
-		public var timestamp:int;
 		
 		public var manifestLoaders:Vector.<URLLoader> = new Vector.<URLLoader>();
 		public var manifestParsers:Vector.<HLSManifestParser> = new Vector.<HLSManifestParser>();
@@ -47,7 +46,11 @@ package com.kaltura.hls.manifest
 		public var continuityEra:int = 0;
 		
 		private var _subtitlesLoading:int = 0;
-		
+
+		public var lastReloadRequestTime:int = -1;
+		public var timestamp:int = -1;
+		public var quality:int = -1;
+
 		public function get estimatedWindowDuration():Number
 		{
 			return segments.length * targetDuration;
@@ -434,6 +437,8 @@ package com.kaltura.hls.manifest
 		
 		public function reload(manifest:HLSManifestParser):void
 		{
+			lastReloadRequestTime = getTimer();
+
 			fullUrl = manifest.fullUrl;
 			var manifestLoader:URLLoader = new URLLoader(new URLRequest(fullUrl));
 			trace("REQUESTING " + fullUrl);

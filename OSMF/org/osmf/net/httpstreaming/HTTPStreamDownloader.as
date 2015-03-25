@@ -437,7 +437,7 @@ package org.osmf.net.httpstreaming
 			var curAgeInMs:int = ((new Date()).time - _downloadBeginDate.time)
 			var curAgeInSec:int = curAgeInMs / 1000;
 			var transferRate:int = event.bytesLoaded / curAgeInSec;
-			if((event.bytesTotal / transferRate) > 15 && curAgeInMs > 3000)
+			if((event.bytesTotal / transferRate) > 15 && curAgeInMs > 3000 && false)
 			{
 				CONFIG::LOGGING
 				{
