@@ -36,6 +36,9 @@ package org.osmf.net.httpstreaming
 	import org.osmf.net.httpstreaming.dvr.DVRInfo;
 	import org.osmf.utils.OSMFSettings;
 	import org.osmf.utils.OSMFStrings;
+
+	import com.kaltura.hls.HLSIndexHandler;
+	import com.kaltura.hls.m2ts.M2TSFileHandler;
 	
 	CONFIG::LOGGING
 	{
@@ -586,7 +589,7 @@ package org.osmf.net.httpstreaming
 					bytes = _fileHandler.endProcessFile(input);
 					processedEnd = true;
 					
-					trace("SAW END OF FRAGMENT with " + bytes.length + " bytes");
+					trace("SAW END OF FRAGMENT with " + (bytes ? bytes.length : "unknown") + " bytes");
 					
 					var availableQualityLevels:Vector.<QualityLevel> = new Vector.<QualityLevel>;
 					for (var i:uint = 0; i < _qualityRates.length; i++)
@@ -597,7 +600,18 @@ package org.osmf.net.httpstreaming
 					var requestURL:String = _request.urlRequest.url;
 					var fragmentIdentifier:String = requestURL.substr(requestURL.lastIndexOf("Seg"));
 					
-					var lastFragmentDetails:FragmentDetails = new FragmentDetails(_downloader.downloadBytesCount, _fragmentDuration, _downloader.downloadDuration, _qualityLevel, fragmentIdentifier);
+					// If we got this segment via a best effort fetch recently, then use its
+					// download duration instead of ours.
+					var downloadDuration:Number = _downloader.downloadDuration;
+					if(HLSIndexHandler._lastBestEffortFetchURI == (_fileHandler as M2TSFileHandler).segmentUri 
+						&& HLSIndexHandler._lastBestEffortFetchDuration > downloadDuration)
+					{
+						trace("Adjusting download duration to match best effort time for " + (_fileHandler as M2TSFileHandler).segmentUri + " of " + (HLSIndexHandler._lastBestEffortFetchDuration / 1000.0) + ".");
+						downloadDuration = HLSIndexHandler._lastBestEffortFetchDuration / 1000.0;
+					}
+
+					var lastFragmentDetails:FragmentDetails = new FragmentDetails(_downloader.downloadBytesCount, _fragmentDuration, downloadDuration, _qualityLevel, fragmentIdentifier);
+					trace("Submitting size=" + lastFragmentDetails.size + ", downloadDuration=" + downloadDuration + ", fragmentDuration=" + _fragmentDuration);
 					
 					_qosInfo = new HTTPStreamHandlerQoSInfo(availableQualityLevels, _qualityLevel, lastFragmentDetails)
 					
