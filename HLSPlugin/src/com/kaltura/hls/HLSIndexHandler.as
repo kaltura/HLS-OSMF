@@ -609,8 +609,16 @@ package com.kaltura.hls
 			const fudgeTime:Number = 0; //1.0 / 24; // Approximate acceptable jump.
 			var currentSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, currentSequence);
 			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration + fudgeTime : 0) , end) : null;
+
+			// When in live stream, try to keep things in bound.
 			if(newSeg == null)
 			{
+				if(currentManifest.streamEnds)
+				{
+					trace("Bailing, we don't apply boundaries in VOD.");
+					return -1;
+				}
+				
 				trace("Remapping from " + currentSequence);
 
 				if(currentSeg)
@@ -748,7 +756,7 @@ package com.kaltura.hls
 
 			// Update our manifest for this quality level.
 			//trace("Changing from " + lastQuality + " to " + reloadingQuality);
-			//lastQuality = reloadingQuality;
+			lastQuality = reloadingQuality;
 
 			// Update last sequence state.
 			updateLastSequence(newManifest, newSequence);
