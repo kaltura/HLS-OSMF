@@ -21,7 +21,7 @@ package com.kaltura.hls.manifest
 		public static const VIDEO:String = "VIDEO";
 		public static const SUBTITLES:String = "SUBTITLES";
 		
-		public static var MAX_SEG_BUFFER:int = 3;
+		public static var MAX_SEG_BUFFER:int = 4;
 		
 		public var type:String = DEFAULT;
 		public var version:int;

@@ -114,6 +114,9 @@ package com.kaltura.hls
 
 		private var _pendingBestEffortStartTime:int = -1;
 
+		public static var _lastBestEffortFetchURI:String;
+		public static var _lastBestEffortFetchDuration:Number;
+
 		private function isBestEffortActive():Boolean
 		{
 			var dt:int = getTimer() - _pendingBestEffortStartTime;
@@ -585,7 +588,7 @@ package com.kaltura.hls
 			else if(!checkAnySegmentKnowledge(currentManifest.segments) && !isBestEffortActive())
 			{
 				trace("(B) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, lastQuality);
+				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, lastQuality, currentManifest.segments);
 			}
 
 			if(!checkAnySegmentKnowledge(newManifest.segments) || !checkAnySegmentKnowledge(currentManifest.segments))
@@ -606,8 +609,16 @@ package com.kaltura.hls
 			const fudgeTime:Number = 0; //1.0 / 24; // Approximate acceptable jump.
 			var currentSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, currentSequence);
 			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration + fudgeTime : 0) , end) : null;
+
+			// When in live stream, try to keep things in bound.
 			if(newSeg == null)
 			{
+				if(currentManifest.streamEnds)
+				{
+					trace("Bailing, we don't apply boundaries in VOD.");
+					return -1;
+				}
+				
 				trace("Remapping from " + currentSequence);
 
 				if(currentSeg)
@@ -745,7 +756,7 @@ package com.kaltura.hls
 
 			// Update our manifest for this quality level.
 			//trace("Changing from " + lastQuality + " to " + reloadingQuality);
-			//lastQuality = reloadingQuality;
+			lastQuality = reloadingQuality;
 
 			// Update last sequence state.
 			updateLastSequence(newManifest, newSequence);
@@ -827,6 +838,8 @@ package com.kaltura.hls
 		public override function getFileForTime(time:Number, quality:int):HTTPStreamRequest
 		{	
 			trace("--- getFileForTime(time=" + time + ", quality=" + quality + ")");
+
+			targetQuality = quality;
 
 			// Force a reload if needed.
 			var manifestResponse:HTTPStreamRequest = issueManifestReloadIfNeeded(quality);
@@ -982,6 +995,8 @@ package com.kaltura.hls
 		public override function getNextFile(quality:int):HTTPStreamRequest
 		{
 			trace("--- getNextFile(" + quality + ")");
+
+			targetQuality = quality;
 
 			// Fire any pending best effort requests.
 			if(_pendingBestEffortRequest)
@@ -1374,12 +1389,6 @@ package com.kaltura.hls
 			// clean up best effort state
 			_bestEffortDownloadReply = null;
 			
-			// recreate the best effort download monitor
-			// this protects us against overlapping best effort downloads
-			_bestEffortDownloaderMonitor = new EventDispatcher();
-			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
-			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
-
 			// Get the manifest.
 			var newMan:HLSManifestParser = getManifestForQuality(quality);
 			if(newMan == null)
@@ -1402,14 +1411,22 @@ package com.kaltura.hls
 			var nextSeg:HLSManifestSegment = getSegmentBySequenceCapped(segments, nextFragmentId);
 			if(nextSeg.id != nextFragmentId)
 			{
+				trace("Out of bounds best effort segment ID request, using " + nextSeg.id + " instead of " + nextFragmentId);
+
 				// Wait for manifest to reload, we probably hit live edge!
 				if(nextSeg.id < nextFragmentId)
 				{
+					trace("Waiting on live edge!");
 					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 				}
-
-				trace("Out of bounds best effort segment ID request, using " + nextSeg.id + " instead of " + nextFragmentId);
 			}
+
+			// recreate the best effort download monitor
+			// this protects us against overlapping best effort downloads
+			_bestEffortDownloaderMonitor = new EventDispatcher();
+			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
+			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
+
 
 			_bestEffortFileHandler.segmentId = nextSeg.id;
 			_bestEffortFileHandler.key = getKeyForIndex( nextSeg.id );
@@ -1523,7 +1540,6 @@ package com.kaltura.hls
 			dispatchDVRStreamInfo();
 		}
 		
-		
 		/**
 		 * @private
 		 * 
@@ -1562,21 +1578,33 @@ package com.kaltura.hls
 				event.downloader);
 			dispatchEvent(clone);
 
+			// Note our download time so we can force the right duration
+			// rather than getting confused by speedy cache responses.
+			_lastBestEffortFetchURI = _bestEffortFileHandler.segmentUri;
+			_lastBestEffortFetchDuration = getTimer() - _pendingBestEffortStartTime;
+
 			// Is it the next one we want?
-			if(getLastSequenceManifest())
+			// This code path seems to result in buffer time getting screwed up and doesn't solve the
+			// bandwidth calculation/bitrate selection issues.
+			/*if(getLastSequenceManifest() && getManifestForQuality(targetQuality))
 			{
-				var nextSeg:HLSManifestSegment = getSegmentBySequence(getLastSequenceSegments(), getLastSequence() + 1);
+				var nextSeg:HLSManifestSegment = getSegmentBySequence(getManifestForQuality(targetQuality).segments, getLastSequence() + 1);
 				if(nextSeg)
 				{
 					var nextUri:String = nextSeg.uri;
-					trace("Checking " + event.url + " vs " + nextUri);
-					if(event.url == nextUri)
+					trace("onBestEffortDownloadComplete - Checking " + _bestEffortFileHandler.segmentUri + " vs " + nextUri);
+					if(_bestEffortFileHandler.segmentUri == nextUri)
 					{
+						trace("Keeping this download buddy.");
 						continueBestEffortFetch(nextUri, event.downloader);
+
+						// And update the last sequence state.
+						updateLastSequence(getManifestForQuality(targetQuality), getLastSequence() + 1);
+
 						return;
 					}
 				}
-			}
+			}*/
 
 			// Otherwise skip.
 			skipBestEffortFetch(_bestEffortFileHandler.segmentUri, event.downloader);

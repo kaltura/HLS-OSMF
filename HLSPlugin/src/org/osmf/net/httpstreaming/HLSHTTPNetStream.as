@@ -353,7 +353,7 @@ package org.osmf.net.httpstreaming
 					var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
 					if(lastMan && lastMan.targetDuration > 0.0)
 					{
-						value = 1.75 * lastMan.targetDuration;
+						value = 2.0 * lastMan.targetDuration;
 					}
 				}
 
@@ -371,7 +371,7 @@ package org.osmf.net.httpstreaming
 			super.bufferTime = value;
 			trace("   o super.bufferTime = " + super.bufferTime);
 			_desiredBufferTime_Min = Math.max(OSMFSettings.hdsMinimumBufferTime, value);
-			_desiredBufferTime_Max = Math.min(60, _desiredBufferTime_Min * 3);
+			_desiredBufferTime_Max = Math.max(60, _desiredBufferTime_Min * 3);
 			trace("   o _desiredBufferTime_Min = " + _desiredBufferTime_Min);
 			trace("   o _desiredBufferTime_Max = " + _desiredBufferTime_Max);
 
