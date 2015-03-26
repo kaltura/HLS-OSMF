@@ -96,7 +96,9 @@ package org.osmf.net.metrics
 			{
 				var fragmentDetails:FragmentDetails = history[i].lastDownloadedFragmentDetails;
 				var fragmentBandwidth:Number = fragmentDetails.size / fragmentDetails.downloadDuration;
-				
+
+				trace("fragmentBandwidth=" + fragmentBandwidth + " weight[" + i + "]=" + _weights[i]);
+
 				bandwidth += fragmentBandwidth * _weights[i];
 				weightSum += _weights[i];
 			}
@@ -105,7 +107,7 @@ package org.osmf.net.metrics
 			
 			CONFIG::LOGGING
 			{
-				logger.info("Bandwidth metric is valid and has value: " + ABRUtils.roundNumber(bandwidth) + " B/s");
+				logger.info("Bandwidth metric is valid (N=" + history.length + ") and has value: " + ABRUtils.roundNumber(bandwidth) + " B/s has weights " + weights);
 			}
 			
 			return new MetricValue(bandwidth, true);
