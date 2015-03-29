@@ -357,7 +357,7 @@ package org.osmf.net.httpstreaming
 					}
 
 					// Make sure we don't try to buffer for longer than the video.
-					if(lastMan && value > lastMan.bestGuessWindowDuration)
+					if(lastMan && lastMan.streamEnds && value > lastMan.bestGuessWindowDuration)
 						value = lastMan.bestGuessWindowDuration - 1;
 				}
 
