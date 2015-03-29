@@ -55,6 +55,14 @@ package com.kaltura.hls.manifest
 		{
 			return segments.length * targetDuration;
 		}
+
+		public function get bestGuessWindowDuration():Number
+		{
+			var accum:Number = 0.0;
+			for(var i:int=0; i<segments.length; i++)
+				accum += segments[i].duration;
+			return accum;	
+		}
 		
 		public function get isDVR():Boolean
 		{

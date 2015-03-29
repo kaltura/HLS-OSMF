@@ -858,7 +858,12 @@ package com.kaltura.hls
 					trace("getFileForTime - Seeking without timebase; initiating request.");
 					if(getLastSequenceManifest())
 					{
-						return initiateBestEffortRequest(getLastSequence() + 1, origQuality, segments);
+						// Check if we're seeking backwards...
+						var oldSeg:HLSManifestSegment = getSegmentContainingTime(getLastSequenceSegments(), time);
+						if(oldSeg)
+							return initiateBestEffortRequest(oldSeg.id, origQuality, segments);
+						else
+							return initiateBestEffortRequest(getLastSequence() + 1, origQuality, segments);
 					}
 					else
 					{
@@ -956,11 +961,19 @@ package com.kaltura.hls
 		{
 			// If we don't need a reload, return null.
 			var manToReload:HLSManifestParser = getManifestForQuality(quality);
+
+			// If it's VOD, never need this.
+			if(manToReload.streamEnds)
+			{
+				trace("issueManifestReloadIfNeeded - VODs do not need to reload, returning.");
+				return null;
+			}
+
 			var curTime:uint = getTimer();
 			if(curTime - manToReload.timestamp < manToReload.targetDuration * 500)
 			{
 				// Don't need to reload.
-				trace("issueManifestReloadIfNeeded - Don't need to reload");
+				trace("issueManifestReloadIfNeeded - Don't need to reload yet.");
 				return null;
 			}
 
@@ -970,7 +983,7 @@ package com.kaltura.hls
 				&& reloadingManifest.timestamp < reloadingManifest.lastReloadRequestTime)
 			{
 				// Waiting on a reload already.
-				trace("issueManifestReloadIfNeeded - waiting");
+				trace("issueManifestReloadIfNeeded - waiting on reload");
 				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 			}
 
@@ -978,7 +991,7 @@ package com.kaltura.hls
 			if (reloadTimer)
 				reloadTimer.stop(); // In case the timer is active - don't want to do another reload in the middle of it
 
-			trace("Firing reload for quality " + quality);
+			trace("issueManifestReloadIfNeeded - Firing reload for quality " + quality);
 			
 			reloadingQuality = quality;
 
@@ -1031,6 +1044,20 @@ package com.kaltura.hls
 
 			var currentManifest:HLSManifestParser = getManifestForQuality ( origQuality );
 			var oldManifest:HLSManifestParser = getLastSequenceManifest();
+
+			// If this would be the final file on the original quality level, end.
+			if(currentManifest.streamEnds 
+				&& currentManifest.segments.length > 0 
+				&& getLastSequence() == currentManifest.segments[currentManifest.segments.length - 1].id)
+			{
+				trace("Reached end of stream (lastSeq=" + getLastSequence() + ", finalId=" + currentManifest.segments[currentManifest.segments.length - 1].id + ") on currentManifest.");
+				
+				// Queue up for replay.
+				updateLastSequence(currentManifest, 0);
+				
+				return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
+			}
+
 
 			if(quality != origQuality && isBestEffortActive())
 			{
@@ -1416,8 +1443,16 @@ package com.kaltura.hls
 				// Wait for manifest to reload, we probably hit live edge!
 				if(nextSeg.id < nextFragmentId)
 				{
-					trace("Waiting on live edge!");
-					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
+					if(newMan.streamEnds == false)
+					{
+						trace("Waiting on live edge!");
+						return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
+					}
+					else
+					{
+						trace("Tried to best effort fetch past end of stream, ending playback.")
+						return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
+					}
 				}
 			}
 
