@@ -28,7 +28,7 @@ package com.kaltura.hls.subtitles
 		{
 		}
 		
-		public function parse( input:String ):void
+		public function parse( input:String, timeOffset:Number ):void
 		{
 			var position:int = 0;
 			var state:String = STATE_WHITESPACE;
@@ -54,7 +54,7 @@ package com.kaltura.hls.subtitles
 							accum += char;
 						if ( char == " " || position == input.length - 1 )
 						{
-							var timeStamp:Number = SubTitleParser.parseTimeStamp( accum );
+							var timeStamp:Number = SubTitleParser.parseTimeStamp( accum ) + timeOffset;
 							if ( startTime == -1 ) startTime = timeStamp;
 							else endTime = timeStamp;
 							accum = "";
