@@ -610,6 +610,9 @@ package org.osmf.net.httpstreaming
 						downloadDuration = HLSIndexHandler._lastBestEffortFetchDuration / 1000.0;
 					}
 
+					// Cap download time to 2ms to avoid singularities.
+					downloadDuration = Math.max(downloadDuration, 0.002);
+
 					var lastFragmentDetails:FragmentDetails = new FragmentDetails(_downloader.downloadBytesCount, _fragmentDuration, downloadDuration, _qualityLevel, fragmentIdentifier);
 					trace("Submitting size=" + lastFragmentDetails.size + ", downloadDuration=" + downloadDuration + ", fragmentDuration=" + _fragmentDuration);
 					
