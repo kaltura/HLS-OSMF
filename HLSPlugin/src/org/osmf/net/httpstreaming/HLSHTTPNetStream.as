@@ -355,11 +355,16 @@ package org.osmf.net.httpstreaming
 					{
 						value = 2.0 * lastMan.targetDuration;
 					}
+
+					// Make sure we don't try to buffer for longer than the video.
+					if(lastMan && lastMan.streamEnds && value > lastMan.bestGuessWindowDuration)
+						value = lastMan.bestGuessWindowDuration - 1;
 				}
 
 				// skip nop.
 				if(Math.abs(super.bufferTime - value) < 0.01)
 					return;
+
 
 				if(lastMan && lastMan.targetDuration > 0.0)
 					trace(" bufferTime " + value + " based on " + HLSManifestParser.MAX_SEG_BUFFER + " * " + lastMan.targetDuration + " * 0.9");
