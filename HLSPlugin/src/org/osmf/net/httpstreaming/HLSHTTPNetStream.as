@@ -285,7 +285,7 @@ package org.osmf.net.httpstreaming
 			}			
 
 			// Make sure we don't go past the buffer for the live edge.
-			if(offset > (indexHandler as HLSIndexHandler).liveEdge)
+			if(indexHandler && offset > (indexHandler as HLSIndexHandler).liveEdge)
 			{
 				trace("Capping seek to the known-safe live edge (" + offset + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
 				offset = (indexHandler as HLSIndexHandler).liveEdge;
@@ -504,7 +504,7 @@ package org.osmf.net.httpstreaming
 			trace("Changing source to " + streamName + " , " + seekTarget);
 
 			// Make sure we don't go past the buffer for the live edge.
-			if(seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
+			if(indexHandler && seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
 			{
 				trace("Capping seek (source change) to the known-safe live edge (" + seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
 				seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
@@ -913,7 +913,7 @@ package org.osmf.net.httpstreaming
 						seeking = true;
 
 						// Make sure we don't go past the buffer for the live edge.
-						if(_seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
+						if(indexHandler && _seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
 						{
 							trace("Capping seek (source) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
 							_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
