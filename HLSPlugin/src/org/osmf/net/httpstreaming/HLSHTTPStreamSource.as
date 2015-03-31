@@ -248,6 +248,13 @@ package org.osmf.net.httpstreaming
 		 */
 		public function seek(offset:Number):void
 		{
+			// Make sure we don't go past the buffer for the live edge.
+			if(offset > (_indexHandler as HLSIndexHandler).liveEdge)
+			{
+				trace("Capping seek (source) to the known-safe live edge (" + offset + " < " + (_indexHandler as HLSIndexHandler).liveEdge + ").");
+				offset = (_indexHandler as HLSIndexHandler).liveEdge;
+			}
+
 			_endOfStream = false;
 			_hasErrors = false;
 			_isLiveStalled = false;
@@ -255,6 +262,7 @@ package org.osmf.net.httpstreaming
 			_seekTarget = offset;
 			_didBeginSeek = false;
 			_didCompleteSeek = false;
+
 			if (_seekTarget < 0 )
 			{
 				if (_dvrInfo != null)

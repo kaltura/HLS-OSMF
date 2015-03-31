@@ -282,8 +282,15 @@ package org.osmf.net.httpstreaming
 			if(offset < 0)
 			{
 				offset = 0;	// FMS rule. Seek to <0 is same as seeking to zero.
+			}			
+
+			// Make sure we don't go past the buffer for the live edge.
+			if(offset > (indexHandler as HLSIndexHandler).liveEdge)
+			{
+				trace("Capping seek to the known-safe live edge (" + offset + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+				offset = (indexHandler as HLSIndexHandler).liveEdge;
 			}
-			
+
 			// we can't seek before the playback starts or if it has stopped.
 			if (_state != HTTPStreamingState.INIT)
 			{
@@ -495,6 +502,14 @@ package org.osmf.net.httpstreaming
 		{
 			_initializeFLVParser = true;
 			trace("Changing source to " + streamName + " , " + seekTarget);
+
+			// Make sure we don't go past the buffer for the live edge.
+			if(seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
+			{
+				trace("Capping seek (source change) to the known-safe live edge (" + seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+				seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
+			}
+
 			_seekTarget = seekTarget;
 			_videoHandler.open(streamName);
 			setState(HTTPStreamingState.SEEK);
@@ -896,6 +911,14 @@ package org.osmf.net.httpstreaming
 					{
 						timeBeforeSeek = time;
 						seeking = true;
+
+						// Make sure we don't go past the buffer for the live edge.
+						if(_seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
+						{
+							trace("Capping seek (source) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+							_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
+						}
+
 						
 						// cleaning up the previous seek info
 						_flvParser = null;
