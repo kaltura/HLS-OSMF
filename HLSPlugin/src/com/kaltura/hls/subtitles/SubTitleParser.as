@@ -24,6 +24,11 @@ package com.kaltura.hls.subtitles
 		public var textTrackCues:Vector.<TextTrackCue> = new <TextTrackCue>[];
 		public var startTime:Number = -1;
 		public var endTime:Number = -1;
+
+		public var parseTimeOffset:Number = 0;
+
+		public var requested:Boolean = false;
+		public var loaded:Boolean = false;
 		
 		private var _loader:URLLoader;
 		private var _url:String;
@@ -49,10 +54,12 @@ package com.kaltura.hls.subtitles
 		public function load( url:String ):void
 		{
 			_url = url;
+			trace("SubTitleParser - loading " + url);
 			_loader = new URLLoader( new URLRequest( url ) );
 			_loader.addEventListener(Event.COMPLETE, onLoaded );
 			_loader.addEventListener(IOErrorEvent.IO_ERROR, onLoadError);
 			_loader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onLoadError);
+			requested = true;
 		}
 		
 		public function parse( input:String ):void
@@ -92,6 +99,50 @@ package com.kaltura.hls.subtitles
 					case STATE_PARSE_HEADERS:
 						// Only support region headers for now
 						if ( line.indexOf( "Region:" ) == 0 ) regions.push( WebVTTRegion.fromString( line ) );
+						if ( line.indexOf( "X-TIMESTAMP-MAP") == 0)
+						{
+							// Note time mapping.
+							// Example:
+							// X-TIMESTAMP-MAP=MPEGTS:1489635356,LOCAL:00:00:00.000
+
+							// Get the reference value for MPEGTS and LOCAL in ms.
+							var mpegReference:Number, localReference:Number;
+
+							// So extract the = first.
+							var halves:Array = line.split("=");
+							if(halves.length == 2)
+							{
+								// Split right half by comma.
+								var mappings:Array = halves[1].split(",");
+								for(var i:int=0; i<mappings.length; i++)
+								{
+									var pairs:Array = [];
+
+									var splitPoint:int = mappings[i].indexOf(":");
+									pairs[0] = mappings[i].substring(0, splitPoint);
+									pairs[1] = mappings[i].substring(splitPoint + 1, 0xFFFFF);
+
+									trace("Saw " + pairs[0] + " | " + pairs[1]);
+
+									if(pairs[0] == "MPEGTS")
+									{
+										mpegReference = parseInt(pairs[1]) / 90000.0;
+									}
+									else if(pairs[0] == "LOCAL")
+									{
+										localReference = parseTimeStamp(pairs[1]);
+									}
+									else
+									{
+										trace("Unknown key " + pairs[0] + " in X-TIMESTAMP-MAP");
+									}
+								}
+							}
+
+							// OK, figure out time adjustment factor. We want to output in MPEG time.
+							parseTimeOffset = mpegReference - localReference;
+							trace("SubTitleParser - mapping time offset " + parseTimeOffset + " sec");
+						}
 						break;
 					
 					case STATE_IDLE:
@@ -107,7 +158,7 @@ package com.kaltura.hls.subtitles
 						}
 						
 					case STATE_PARSE_CUE_SETTINGS:
-						textTrackCue.parse( line );
+						textTrackCue.parse( line, parseTimeOffset );
 						textTrackCue.buffer += line;
 						state = STATE_PARSE_CUE_TEXT;
 						break;
@@ -130,10 +181,10 @@ package com.kaltura.hls.subtitles
 				endTime = lastElement.endTime;
 			}
 			
+			loaded = true;
+
 			dispatchEvent( new Event( Event.COMPLETE ) );
 		}
-		
-		
 		
 		public static function parseTimeStamp( input:String ):Number
 		{
@@ -170,7 +221,7 @@ package com.kaltura.hls.subtitles
 		
 		private function onLoadError( e:Event ):void
 		{
-			trace( "CAN'T LOAD FILE" );
+			trace( "SubTitleParser - CAN'T LOAD FILE" );
 			dispatchEvent( new Event( Event.COMPLETE ) );
 		}
 	}

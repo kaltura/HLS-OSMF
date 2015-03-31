@@ -248,6 +248,13 @@ package org.osmf.net.httpstreaming
 		 */
 		public function seek(offset:Number):void
 		{
+			// Make sure we don't go past the buffer for the live edge.
+			if(_indexHandler && offset > (_indexHandler as HLSIndexHandler).liveEdge)
+			{
+				trace("Capping seek (source) to the known-safe live edge (" + offset + " < " + (_indexHandler as HLSIndexHandler).liveEdge + ").");
+				offset = (_indexHandler as HLSIndexHandler).liveEdge;
+			}
+
 			_endOfStream = false;
 			_hasErrors = false;
 			_isLiveStalled = false;
@@ -255,6 +262,7 @@ package org.osmf.net.httpstreaming
 			_seekTarget = offset;
 			_didBeginSeek = false;
 			_didCompleteSeek = false;
+
 			if (_seekTarget < 0 )
 			{
 				if (_dvrInfo != null)
@@ -609,6 +617,9 @@ package org.osmf.net.httpstreaming
 						trace("Adjusting download duration to match best effort time for " + (_fileHandler as M2TSFileHandler).segmentUri + " of " + (HLSIndexHandler._lastBestEffortFetchDuration / 1000.0) + ".");
 						downloadDuration = HLSIndexHandler._lastBestEffortFetchDuration / 1000.0;
 					}
+
+					// Cap download time to 2ms to avoid singularities.
+					downloadDuration = Math.max(downloadDuration, 0.002);
 
 					var lastFragmentDetails:FragmentDetails = new FragmentDetails(_downloader.downloadBytesCount, _fragmentDuration, downloadDuration, _qualityLevel, fragmentIdentifier);
 					trace("Submitting size=" + lastFragmentDetails.size + ", downloadDuration=" + downloadDuration + ", fragmentDuration=" + _fragmentDuration);

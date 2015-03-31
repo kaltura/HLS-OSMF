@@ -1,9 +1,13 @@
 package com.kaltura.hls
 {
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
+	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	
 	import org.osmf.traits.MediaTraitBase;
+
+	import flash.events.*;
+	import flash.utils.*;
 	
 	public class SubtitleTrait extends MediaTraitBase
 	{
@@ -12,10 +16,116 @@ package com.kaltura.hls
 		private var _playLists:Vector.<HLSManifestPlaylist> = new <HLSManifestPlaylist>[];
 		private var _languages:Vector.<String> = new <String>[];
 		private var _language:String = "";
+
+		private static var activeTrait:SubtitleTrait = null;
+		private static var activeReload:HLSManifestParser;
+		private static var reloadLanguage:String = null;
+		private static var _reloadTimer:Timer;
 		
 		public function SubtitleTrait()
 		{
 			super(TYPE);
+
+			activeTrait = this;
+
+			if(!_reloadTimer)
+			{
+				trace("SubTitleTrait - starting reload timer");
+				_reloadTimer = new Timer(1000);
+				_reloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
+				_reloadTimer.start();
+			}
+		}
+
+		private static function onReloadTimer(e:Event):void
+		{
+			// Check for any subtitles that have not been requested yet.
+			if(activeTrait == null || activeTrait.activeManifest == null)
+			{
+				trace("SubTitleTrait - skipping reload, inactive")
+				return;
+			}
+
+			// If reloading but not parsed yet.
+			if(activeReload && activeReload.timestamp == -1)
+			{
+				trace("SubTitleTrait - skipping reload, pending download");
+				return;
+			}
+
+			// Or it's a VOD or was recently reloaded.
+			var man:HLSManifestParser = activeTrait.activeManifest;
+			if(man && 
+				(man.streamEnds
+				|| (getTimer() - man.lastReloadRequestTime) < man.targetDuration * 1000 * 0.75))
+			{
+				trace("SubTitleTrait - skipping reload, waiting until targetDuration has expired.");
+				return;
+			}
+
+			if(man)
+			{
+				trace("Saw manifest with age " + (getTimer() - man.lastReloadRequestTime) + " and targetDuration " + man.targetDuration * 1000 );
+			}
+
+			trace("SubTitleTrait - initiating reload of " + man.fullUrl);
+			var manifest:HLSManifestParser = new HLSManifestParser();
+			manifest.addEventListener(Event.COMPLETE, onManifestReloaded);
+			manifest.addEventListener(IOErrorEvent.IO_ERROR, onManifestReloadFail);
+			manifest.type = HLSManifestParser.SUBTITLES;
+			manifest.reload(man);
+			activeReload = manifest;
+			reloadLanguage = activeTrait.language;
+		}
+
+		private static function onManifestReloaded(e:Event):void
+		{
+			if(e.target != activeReload || reloadLanguage != activeTrait.language)
+			{
+				trace("Got subtitle manifest reload for non-active manifest, ignoring...");
+				return;
+			}
+
+			// Instate the manifest.
+			trace("Subtitle manifest downloaded, instating " + reloadLanguage);
+			activeTrait.instateNewManifest(reloadLanguage, e.target as HLSManifestParser);
+			activeReload = null;
+			reloadLanguage = null;
+		}
+
+		private static function onManifestReloadFail(e:Event):void
+		{
+			if(e.target != activeReload || reloadLanguage != activeTrait.language)
+			{
+				trace("Got subtitle manifest reload for non-active manifest, ignoring...");
+				return;
+			}
+
+			trace("Subtitle manifest failed, clearing reload attempt.");
+			activeReload = null;
+			reloadLanguage = null;
+		}
+
+		protected function instateNewManifest(lang:String, man:HLSManifestParser):void
+		{
+			if(language != lang)
+				return;
+
+			if ( _language == "" ) return;
+			for ( var i:int = 0; i < _playLists.length; i++ )
+			{
+				// If the playlist has a language associated with it, use that language
+				var pLanguage:String;
+				if (_playLists[ i ].language && _playLists[ i ].language != "")
+					pLanguage = _playLists[ i ].language;
+				else
+					pLanguage = _playLists[ i ].name;
+				
+				if (pLanguage == _language ) 
+				{
+					_playLists[ i ].manifest = man;
+				}
+			}			
 		}
 		
 		public function set playLists( value:Vector.<HLSManifestPlaylist> ):void
@@ -50,7 +160,7 @@ package com.kaltura.hls
 			return _languages;
 		}
 		
-		public function get activeSubtitles():Vector.<SubTitleParser>
+		public function get activeManifest():HLSManifestParser
 		{
 			if ( _language == "" ) return null;
 			for ( var i:int = 0; i < _playLists.length; i++ )
@@ -62,8 +172,16 @@ package com.kaltura.hls
 				else
 					pLanguage = _playLists[ i ].name;
 				
-				if (pLanguage == _language ) return _playLists[ i ].manifest.subtitles;
+				if (pLanguage == _language ) return _playLists[ i ].manifest;
 			}
+			return null;			
+		}
+
+		public function get activeSubtitles():Vector.<SubTitleParser>
+		{
+			var man:HLSManifestParser = activeManifest;
+			if(man)
+				return man.subtitles;
 			return null;
 		}
 	}

@@ -113,7 +113,7 @@ package com.kaltura.hls.manifest
 				if(curPrefix != "#" && curLine.length > 0)
 				{
 					// Specifying a media file, note it.
-					if ( type != SUBTITLES )
+					if ( type != SUBTITLES ) 
 					{
 						var targetUrl:String = getNormalizedUrl( baseUrl, curLine );
 						var segment:HLSManifestSegment = lastHint as HLSManifestSegment;
@@ -429,6 +429,7 @@ package com.kaltura.hls.manifest
 				manifestLoaders.splice(idx, 1);
 			else
 				trace("Manifest loader not in loader list.");
+
 			announceIfComplete()
 		}		
 		
@@ -462,8 +463,9 @@ package com.kaltura.hls.manifest
 			var resourceData:String = String(manifestLoader.data);
 			trace("onManifestReloadComplete - resourceData.length = " + resourceData.length);
 			timestamp = getTimer();
+			
 			// Start parsing the manifest.
-			parse(resourceData, fullUrl);	
+			parse(resourceData, fullUrl);
 		}
 		
 		private function onSubtitleLoaded( e:Event ):void

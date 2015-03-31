@@ -834,6 +834,16 @@ package com.kaltura.hls
 			reload(targetQuality);
 			return lastQuality;
 		}
+
+		public function get liveEdge():Number
+		{
+			// Return time at least MAX_SEG_BUFFER from end of stream.
+			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
+			if(!seg || getManifestForQuality(lastQuality).streamEnds)
+				return Number.MAX_VALUE;
+			var lastSeg:HLSManifestSegment = seg[Math.max(0, seg.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
+			return lastSeg.startTime;
+		}
 		
 		public override function getFileForTime(time:Number, quality:int):HTTPStreamRequest
 		{	
@@ -903,7 +913,7 @@ package com.kaltura.hls
 			{
 				trace("getFileForTime - Got out of bound timestamp. Trying to recover...");
 
-				var lastSeg:HLSManifestSegment = segments[Math.max(0, segments.length - HLSManifestParser.MAX_SEG_BUFFER)];
+				var lastSeg:HLSManifestSegment = segments[Math.max(0, segments.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
 
 				if(time < segments[0].startTime)
 				{
