@@ -395,7 +395,7 @@ package com.kaltura.hls.m2ts
 					cue = potentials[potentials.length - 1];
 					if(cue != _lastCue)
 					{
-						_parser.createAndSendCaptionMessage( cue.startTime, cue.buffer, subtitleTrait.language );
+						_parser.createAndSendCaptionMessage( cue.startTime, cue.text, subtitleTrait.language );
 						_lastInjectedSubtitleTime = cue.startTime;
 						_lastCue = cue;						
 					}
