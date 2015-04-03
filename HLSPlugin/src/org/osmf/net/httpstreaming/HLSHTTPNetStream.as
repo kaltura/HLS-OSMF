@@ -820,8 +820,6 @@ package org.osmf.net.httpstreaming
 				maxFPS = currentFPS;
 			}
 
-			//trace("HLSHTTPNetStream is in " + _state);
-		
 			if(_state == HTTPStreamingState.WAIT || _state == HTTPStreamingState.PLAY)
 			{
 				bufferTime = 99999; // Sanity to ensure we never allow this to work. Also forces us to recalculate it.
@@ -837,7 +835,7 @@ package org.osmf.net.httpstreaming
 					// if we are getting dry then go back into
 					// active play mode and get more bytes 
 					// from the stream provider
-					if (!_waitForDRM && (this.bufferLength < _desiredBufferTime_Min || checkIfExtraBufferingNeeded()))
+					if (!_waitForDRM && (this.bufferLength < _desiredBufferTime_Max || checkIfExtraBufferingNeeded()))
 					{
 						setState(HTTPStreamingState.PLAY);
 					}
