@@ -87,6 +87,9 @@ package com.kaltura.hls.m2ts
 		
 		public override function beginProcessFile(seek:Boolean, seekTime:Number):void
 		{
+			if( key && !key.isLoading && !key.isLoaded)
+				throw new Error("Tried to process segment with key not set to load or loaded.");
+
 			if(isBestEffort)
 			{
 				trace("Doing extra flush for best effort file handler");
@@ -97,6 +100,7 @@ package com.kaltura.hls.m2ts
 			// Decryption reset
 			if ( key )
 			{
+				trace("Resetting _decryptionIV");
 				if ( key.iv ) _decryptionIV = key.retrieveStoredIV();
 				else _decryptionIV = HLSManifestEncryptionKey.createIVFromID( segmentId );
 			}
@@ -151,6 +155,7 @@ package com.kaltura.hls.m2ts
 			_segmentBeginSeconds = -1;
 			_segmentLastSeconds = -1;
 			_lastInjectedSubtitleTime = -1;
+			_encryptedDataBuffer.length = 0;
 		}
 		
 		public override function get inputBytesNeeded():Number
@@ -159,13 +164,10 @@ package com.kaltura.hls.m2ts
 			return 0;
 		}
 
-		public var tmpBuffer:ByteArray = new ByteArray();
+		public static var tmpBuffer:ByteArray = new ByteArray();
 
 		private function basicProcessFileSegment(input:IDataInput, _flush:Boolean):ByteArray
 		{
-			if( key && !key.isLoading && !key.isLoaded)
-				throw new Error("Tried to process segment with key not set to load or loaded.");
-
 			if ( key && !key.isLoaded )
 			{
 				trace("basicProcessFileSegment - Waiting on key to download.");
@@ -179,6 +181,8 @@ package com.kaltura.hls.m2ts
 			
 			if ( _encryptedDataBuffer.length > 0 )
 			{
+				// Restore any pending encrypted data.
+				trace("Restoring " + _encryptedDataBuffer.length + " bytes of encrypted data.");
 				_encryptedDataBuffer.position = 0;
 				_encryptedDataBuffer.readBytes( tmpBuffer );
 				_encryptedDataBuffer.clear();
@@ -191,9 +195,12 @@ package com.kaltura.hls.m2ts
 			
 			if ( key )
 			{
+				// We need to decrypt available data.
 				var bytesToRead:uint = tmpBuffer.length;
 				var leftoverBytes:uint = bytesToRead % 16;
 				bytesToRead -= leftoverBytes;
+
+				trace("Decrypting " + tmpBuffer.length + " bytes of encrypted data.");
 				
 				key.usePadding = false;
 				
@@ -204,6 +211,7 @@ package com.kaltura.hls.m2ts
 					tmpBuffer.position = bytesToRead;
 					tmpBuffer.readBytes( _encryptedDataBuffer );
 					tmpBuffer.length = bytesToRead;
+					trace("Storing " + _encryptedDataBuffer.length + " bytes of encrypted data.");
 				}
 				else
 				{
@@ -215,7 +223,7 @@ package com.kaltura.hls.m2ts
 				// Store our current IV so we can use it do decrypt
 				var currentIV:ByteArray = _decryptionIV;
 				
-				// Set up the IV for our next set of bytes
+				// Stash the IV for our next set of bytes - last block of the ciphertext.
 				_decryptionIV = new ByteArray();
 				tmpBuffer.position = bytesToRead - 16;
 				tmpBuffer.readBytes( _decryptionIV );
@@ -242,6 +250,7 @@ package com.kaltura.hls.m2ts
 				return _fragReadBuffer;
 			}
 			
+			// Parse it as MPEG TS data.
 			var buffer:ByteArray = new ByteArray();
 			_buffer = buffer;
 			_parser.appendBytes(tmpBuffer);
@@ -253,6 +262,7 @@ package com.kaltura.hls.m2ts
 			_buffer = null;
 			buffer.position = 0;
 
+			// Throw it out if it's a best effort fetch.
 			if(isBestEffort && buffer.length > 0)
 			{
 				trace("Discarding normal data from best effort.");

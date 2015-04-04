@@ -108,15 +108,19 @@ package com.kaltura.hls.manifest
 		
 		public function decrypt( data:ByteArray, iv:ByteArray ):void
 		{
-			//var startTime:uint = getTimer();
+			trace("got " + data.length + " bytes");
+			if(data.length == 0)
+				return;
+				
+			var startTime:uint = getTimer();
 			decryptAES( data, _keyData, iv );
 			if ( usePadding ) unpad( data );
-			//trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
+			trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
 		}
 		
 		public function retrieveStoredIV():ByteArray
 		{
-			trace("IV was " + iv + " and became " + Hex.fromArray( Hex.toArray(iv)) + " for " + url);
+			trace("IV of " + iv + " for " + url + ", key=" + Hex.fromArray(_keyData));
 			return Hex.toArray( iv );
 		}
 		
