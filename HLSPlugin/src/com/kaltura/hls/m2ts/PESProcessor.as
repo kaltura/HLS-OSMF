@@ -6,7 +6,7 @@ package com.kaltura.hls.m2ts
     import flash.utils.Endian;    
     import flash.utils.IDataInput;
     import flash.utils.IDataOutput;
-    //import com.hurlant.util.Hex;
+    import com.hurlant.util.Hex;
 
     /**
      * Process packetized elementary streams and extract NALUs and other data.
@@ -159,7 +159,7 @@ package com.kaltura.hls.m2ts
 
                 var tmp:ByteArray = new ByteArray();
                 tmp.writeInt(startCode);
-                trace("ES prefix was wrong, expected 00:00:01:xx but got "); // + Hex.fromArray(tmp, true));
+                trace("ES prefix was wrong, expected 00:00:01:xx but got " + Hex.fromArray(tmp, true));
                 return true;
             }
 

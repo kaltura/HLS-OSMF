@@ -36,6 +36,8 @@ package com.kaltura.hls.manifest
 		private var _keyData:ByteArray;
 		
 		private static var _decryptInitialized:Boolean = false;
+
+		public var isLoading:Boolean = false;
 		
 		public function HLSManifestEncryptionKey()
 		{
@@ -47,6 +49,11 @@ package com.kaltura.hls.manifest
 		}
 		
 		public function get isLoaded():Boolean { return _keyData != null; }
+
+		public override function toString():String
+		{
+			return "[HLSManifestEncryptionKey start=" + startSegmentId +", end=" + endSegmentId + ", iv=" + iv + ", url=" + url + ", loaded=" + isLoaded + "]";
+		}
 		
 		public static function fromParams( params:String ):HLSManifestEncryptionKey
 		{
@@ -109,6 +116,7 @@ package com.kaltura.hls.manifest
 		
 		public function retrieveStoredIV():ByteArray
 		{
+			trace("IV was " + iv + " and became " + Hex.fromArray( Hex.toArray(iv)) + " for " + url);
 			return Hex.toArray( iv );
 		}
 		
@@ -124,6 +132,8 @@ package com.kaltura.hls.manifest
 		
 		public function load():void
 		{
+			isLoading = true;
+
 			if ( isLoaded ) throw new Error( "Already loaded!" );
 			var loader:URLLoader = getLoader( url );
 			if ( loader.bytesTotal > 0 && loader.bytesLoaded == loader.bytesTotal ) onLoad();
@@ -132,6 +142,10 @@ package com.kaltura.hls.manifest
 		
 		private function onLoad( e:Event = null ):void
 		{
+			isLoading = false;
+
+			trace("KEY LOADED! " + url);
+
 			var loader:URLLoader = getLoader( url );
 			_keyData = loader.data as ByteArray;
 			loader.removeEventListener( Event.COMPLETE, onLoad );

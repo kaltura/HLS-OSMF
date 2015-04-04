@@ -8,6 +8,10 @@
 		<url>http://content.uplynk.com/2bc2287cdfc4429eb632f7f211eb25b9.m3u8</url>
 	</item>
 	<item>
+		<name>Olive.fr Live Captions</name>
+		<url>http://olive.fr.globecast.tv/live/disk4/sub/hls_sub/index.m3u8</url>
+	</item>
+	<item>
 		<name>Ad Stitching Example</name>
 		<url>http://lbd.kaltura.com/d2/new.m3u8</url>
 	</item>

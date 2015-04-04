@@ -159,13 +159,18 @@ package com.kaltura.hls.m2ts
 			return 0;
 		}
 
-		public static var tmpBuffer:ByteArray = new ByteArray();
+		public var tmpBuffer:ByteArray = new ByteArray();
 
 		private function basicProcessFileSegment(input:IDataInput, _flush:Boolean):ByteArray
 		{
+			if( key && !key.isLoading && !key.isLoaded)
+				throw new Error("Tried to process segment with key not set to load or loaded.");
+
 			if ( key && !key.isLoaded )
 			{
-				input.readBytes( _encryptedDataBuffer, _encryptedDataBuffer.length );
+				trace("basicProcessFileSegment - Waiting on key to download.");
+				if(input)
+					input.readBytes( _encryptedDataBuffer, _encryptedDataBuffer.length );
 				return null;
 			}
 			
@@ -204,7 +209,7 @@ package com.kaltura.hls.m2ts
 				{
 					// Attempt to unpad if our buffer is equally divisible by 16.
 					// It could mean that we've reached the end of the file segment.
-					 key.usePadding = true;
+					key.usePadding = true;
 				}
 				
 				// Store our current IV so we can use it do decrypt
@@ -215,7 +220,7 @@ package com.kaltura.hls.m2ts
 				tmpBuffer.position = bytesToRead - 16;
 				tmpBuffer.readBytes( _decryptionIV );
 				
-				// Aaaaand...decrypt!
+				// Aaaaand... decrypt!
 				key.decrypt( tmpBuffer, currentIV );
 			}
 			
@@ -280,6 +285,8 @@ package com.kaltura.hls.m2ts
 		
 		public override function endProcessFile(input:IDataInput):ByteArray
 		{
+			if ( !key.isLoaded ) trace("HIT END OF FILE WITH NO KEY!");
+
 			if ( key ) key.usePadding = true;
 			
 			var rv:ByteArray = basicProcessFileSegment(input, true);
