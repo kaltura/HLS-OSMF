@@ -583,12 +583,12 @@ package com.kaltura.hls
 			if(!checkAnySegmentKnowledge(newManifest.segments) && !isBestEffortActive())
 			{
 				trace("(A) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, reloadingQuality, newManifest.segments);
+				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, reloadingQuality, newManifest.segments, newManifest);
 			} 
 			else if(!checkAnySegmentKnowledge(currentManifest.segments) && !isBestEffortActive())
 			{
 				trace("(B) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, lastQuality, currentManifest.segments);
+				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, lastQuality, currentManifest.segments, currentManifest);
 			}
 
 			if(!checkAnySegmentKnowledge(newManifest.segments) || !checkAnySegmentKnowledge(currentManifest.segments))
@@ -871,9 +871,9 @@ package com.kaltura.hls
 						// Check if we're seeking backwards...
 						var oldSeg:HLSManifestSegment = getSegmentContainingTime(getLastSequenceSegments(), time);
 						if(oldSeg)
-							return initiateBestEffortRequest(oldSeg.id, origQuality, segments);
+							return initiateBestEffortRequest(oldSeg.id, origQuality, segments, manifest);
 						else
-							return initiateBestEffortRequest(getLastSequence() + 1, origQuality, segments);
+							return initiateBestEffortRequest(getLastSequence() + 1, origQuality, segments, manifest);
 					}
 					else
 					{
@@ -881,11 +881,11 @@ package com.kaltura.hls
 						if(segments.length > 0 && !manifest.streamEnds)
 						{
 							var bufferSeg:HLSManifestSegment = segments[Math.max(0, segments.length - HLSManifestParser.MAX_SEG_BUFFER)];
-							return initiateBestEffortRequest(bufferSeg.id, origQuality, segments);
+							return initiateBestEffortRequest(bufferSeg.id, origQuality, segments, manifest);
 						}
 						else
 						{
-							return initiateBestEffortRequest(getLastSequence() + 1, origQuality, segments);
+							return initiateBestEffortRequest(getLastSequence() + 1, origQuality, segments, manifest);
 						}
 					}
 				}
@@ -932,10 +932,26 @@ package com.kaltura.hls
 			if(seq != -1)
 			{
 				var curSegment:HLSManifestSegment = getSegmentBySequence(segments, seq);
+
+				// If we need to, stall on the decrypt key.
+				var theKey:HLSManifestEncryptionKey = getKeyForSequence( curSegment.id, manifest );
+				if(theKey)
+				{
+					if(theKey.isLoading == false && theKey.isLoaded == false)
+						theKey.load();
+
+					if(theKey.isLoaded == false)
+					{
+						// Stall on key.
+						trace("Stalling getFileForTime file request on AES key for segment " + curSegment.id + ".");
+						return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);					
+					}
+				}
+
 				updateLastSequence(getManifestForQuality(origQuality), seq);
 
 				fileHandler.segmentId = seq;
-				fileHandler.key = getKeyForIndex( seq );
+				fileHandler.key = theKey;
 				fileHandler.segmentUri = curSegment.uri;
 				trace("Getting Segment [" + seq + "] for StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri); 
 				return createHTTPStreamRequest( curSegment );
@@ -1068,7 +1084,6 @@ package com.kaltura.hls
 				return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 			}
 
-
 			if(quality != origQuality && isBestEffortActive())
 			{
 				trace("Waiting on best effort to resolve...");
@@ -1144,9 +1159,26 @@ package com.kaltura.hls
 			}
 
 			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, newSequence);
+
+			// If we need to, stall on the decrypt key.
+			var theKey:HLSManifestEncryptionKey = getKeyForSequence( curSegment.id, currentManifest);
+			if(theKey)
+			{
+				if(theKey.isLoading == false && theKey.isLoaded == false)
+					theKey.load();
+
+				if(theKey.isLoaded == false)
+				{
+					// Stall on key.
+					trace("Stalling next file request on AES key.");
+					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);					
+				}
+			}
+
 			if ( curSegment != null ) 
 			{
 				trace("Getting Next Segment[" + newSequence + "] StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri);
+
 				
 				// Note new value.
 				updateLastSequence(currentManifest, newSequence);
@@ -1154,7 +1186,7 @@ package com.kaltura.hls
 				//bumpedSeek = curSegment.startTime;
 
 				fileHandler.segmentId = newSequence;
-				fileHandler.key = getKeyForIndex( newSequence );
+				fileHandler.key = theKey;
 				fileHandler.segmentUri = curSegment.uri;
 
 				return createHTTPStreamRequest( curSegment );
@@ -1171,7 +1203,7 @@ package com.kaltura.hls
 			return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 		}
 		
-		public function getKeyForIndex(index:uint):HLSManifestEncryptionKey
+		public function getKeyForSequence(segId:uint, localManifest:HLSManifestParser = null):HLSManifestEncryptionKey
 		{
 			var keys:Vector.<HLSManifestEncryptionKey>;
 			
@@ -1180,10 +1212,24 @@ package com.kaltura.hls
 			if ( manifest.type == HLSManifestParser.AUDIO ) keys = manifest.keys;
 			else keys = getManifestForQuality( lastQuality ).keys;
 			
+			if(localManifest)
+				keys = localManifest.keys;
+
+			// What is the index of this id?
+			var foundIdx:int = -1;
+			for(var i:int=0; i<localManifest.segments.length; i++)
+			{
+				if(localManifest.segments[i].id == segId)
+					foundIdx = i;
+			}
+
+			if(foundIdx == -1)
+				return null;
+
 			for ( var i:int = 0; i < keys.length; i++ )
 			{
 				var key:HLSManifestEncryptionKey = keys[ i ];
-				if ( key.startSegmentId <= index && key.endSegmentId >= index )
+				if ( key.startSegmentId <= foundIdx && key.endSegmentId >= foundIdx )
 				{
 					if ( !key.isLoaded ) key.load();
 					return key;
@@ -1418,7 +1464,7 @@ package com.kaltura.hls
 		 * 
 		 * @return the action to take, expressed as an HTTPStreamRequest
 		 **/
-		private function initiateBestEffortRequest(nextFragmentId:uint, quality:int, segments:Vector.<HLSManifestSegment> = null):HTTPStreamRequest
+		private function initiateBestEffortRequest(nextFragmentId:uint, quality:int, segments:Vector.<HLSManifestSegment>, localManifest:HLSManifestParser):HTTPStreamRequest
 		{
 			// if we had a pending BEF download, invalidate it
 			stopListeningToBestEffortDownload();
@@ -1428,6 +1474,8 @@ package com.kaltura.hls
 			
 			// Get the manifest.
 			var newMan:HLSManifestParser = getManifestForQuality(quality);
+			if(localManifest)
+				newMan = localManifest;
 			if(newMan == null)
 			{
 				trace("initiateBestEffortRequest - No manifest found to best effort request quality level " + quality);
@@ -1466,6 +1514,21 @@ package com.kaltura.hls
 				}
 			}
 
+			// If we need to, stall on the decrypt key.
+			var theKey:HLSManifestEncryptionKey = getKeyForSequence( nextSeg.id, newMan );
+			if(theKey)
+			{
+				if(theKey.isLoading == false && theKey.isLoaded == false)
+					theKey.load();
+
+				if(theKey.isLoaded == false)
+				{
+					// Stall on key.
+					trace("Stalling best effort request on AES key.");
+					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);					
+				}
+			}
+
 			// recreate the best effort download monitor
 			// this protects us against overlapping best effort downloads
 			_bestEffortDownloaderMonitor = new EventDispatcher();
@@ -1474,7 +1537,7 @@ package com.kaltura.hls
 
 
 			_bestEffortFileHandler.segmentId = nextSeg.id;
-			_bestEffortFileHandler.key = getKeyForIndex( nextSeg.id );
+			_bestEffortFileHandler.key = theKey;
 			_bestEffortFileHandler.segmentUri = nextSeg.uri;
 
 			var streamRequest:HTTPStreamRequest =  new HTTPStreamRequest(

@@ -269,6 +269,11 @@ package com.kaltura.hls.manifest
 				timeAccum += segments[m].duration;
 			}
 			
+			for(var i:int=0; i<keys.length; i++)
+			{
+				trace("Key #" + i + " " + keys[i].toString());
+			}
+
 			announceIfComplete();
 		}
 		
