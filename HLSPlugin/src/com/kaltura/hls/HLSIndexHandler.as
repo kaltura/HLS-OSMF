@@ -1160,25 +1160,24 @@ package com.kaltura.hls
 
 			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, newSequence);
 
-			// If we need to, stall on the decrypt key.
-			var theKey:HLSManifestEncryptionKey = getKeyForSequence( curSegment.id, currentManifest);
-			if(theKey)
-			{
-				if(theKey.isLoading == false && theKey.isLoaded == false)
-					theKey.load();
-
-				if(theKey.isLoaded == false)
-				{
-					// Stall on key.
-					trace("Stalling next file request on AES key.");
-					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);					
-				}
-			}
-
 			if ( curSegment != null ) 
 			{
-				trace("Getting Next Segment[" + newSequence + "] StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri);
+				// If we need to, stall on the decrypt key.
+				var theKey:HLSManifestEncryptionKey = getKeyForSequence( curSegment.id, currentManifest);
+				if(theKey)
+				{
+					if(theKey.isLoading == false && theKey.isLoaded == false)
+						theKey.load();
 
+					if(theKey.isLoaded == false)
+					{
+						// Stall on key.
+						trace("Stalling next file request on AES key.");
+						return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);					
+					}
+				}
+
+				trace("Getting Next Segment[" + newSequence + "] StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri);
 				
 				// Note new value.
 				updateLastSequence(currentManifest, newSequence);

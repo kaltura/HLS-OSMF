@@ -295,7 +295,7 @@ package com.kaltura.hls.m2ts
 		
 		public override function endProcessFile(input:IDataInput):ByteArray
 		{
-			if ( !key.isLoaded ) trace("HIT END OF FILE WITH NO KEY!");
+			if ( key && !key.isLoaded ) trace("HIT END OF FILE WITH NO KEY!");
 
 			if ( key ) key.usePadding = true;
 			
