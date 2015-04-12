@@ -5,6 +5,11 @@ package com.kaltura.hls
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	
 	import org.osmf.traits.MediaTraitBase;
+	import org.osmf.traits.MediaTraitType;
+	import org.osmf.traits.TimeTrait;
+	import org.osmf.traits.SeekTrait;
+
+	import org.osmf.media.MediaElement;
 
 	import flash.events.*;
 	import flash.utils.*;
@@ -16,6 +21,8 @@ package com.kaltura.hls
 		private var _playLists:Vector.<HLSManifestPlaylist> = new <HLSManifestPlaylist>[];
 		private var _languages:Vector.<String> = new <String>[];
 		private var _language:String = "";
+
+		public var owningMediaElement:MediaElement;
 
 		private static var activeTrait:SubtitleTrait = null;
 		private static var activeReload:HLSManifestParser;
@@ -147,7 +154,38 @@ package com.kaltura.hls
 		
 		public function set language( value:String ):void
 		{
-			_language = value;
+			// Trigger a seek to flush buffer and get proper language.
+			if(_language != value)
+			{
+				_language = value;
+
+				trace("Triggering flush for proper subtitle language.");
+				if(owningMediaElement)
+				{
+					var st:SeekTrait = owningMediaElement.getTrait(MediaTraitType.SEEK) as SeekTrait;
+					var tt:TimeTrait = owningMediaElement.getTrait(MediaTraitType.TIME) as TimeTrait;
+					
+					if(st == null)
+					{
+						trace("   o No seek trait, skipping...");
+					}
+
+					if(tt == null)
+					{
+						trace("   o No time trait, skipping...");
+					}
+
+					if(st != null && tt != null)
+					{
+						trace("   o Initiating seek to " + tt.currentTime);
+						st.seek(tt.currentTime);
+					}
+				}
+				else
+				{
+					trace("   o No media element, skipping...");
+				}
+			}
 		}
 		
 		public function get language():String

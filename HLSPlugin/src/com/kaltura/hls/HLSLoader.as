@@ -153,6 +153,7 @@ package com.kaltura.hls
 			{
 				var subtitleTrait:SubtitleTrait = new SubtitleTrait();
 				subtitleTrait.playLists = parser.subtitlePlayLists;
+				subtitleTrait.owningMediaElement = loadedElem;
 				stream.subtitleTrait = subtitleTrait;
 			}
 			
