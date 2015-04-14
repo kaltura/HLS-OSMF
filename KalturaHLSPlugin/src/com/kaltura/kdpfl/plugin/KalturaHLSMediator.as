@@ -76,7 +76,7 @@ package com.kaltura.kdpfl.plugin
 					var langArray:Array = new Array();
 					var i:int = 0;
 					while (i < _subtitleTrait.languages.length){
-						langArray.push({"label":_subtitleTrait.languages[0], "index": i++}); // build languages array in a format that JS expects to receive
+						langArray.push({"label":_subtitleTrait.languages[i], "index": i++}); // build languages array in a format that JS expects to receive
 					}
 					
 					sendNotification("textTracksReceived", {languages:langArray}); //will triger ClosedCaptions textTracksReceived function, through kplayer onTextTracksReceived listener
