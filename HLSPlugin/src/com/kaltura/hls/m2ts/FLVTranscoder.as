@@ -252,6 +252,7 @@ package com.kaltura.hls.m2ts
             limit = cursor + length;
             
             // an AAC PES packet can contain multiple ADTS frames
+            var eaten:int = 0;
             while(cursor < limit)
             {
                 var remaining:uint = limit - cursor;
@@ -265,12 +266,32 @@ package com.kaltura.hls.m2ts
                     break;
                 
                 // search for syncword
-                if(stream[cursor] != 0xff || (stream[cursor + 1] & 0xf0) != 0xf0)
+                if(stream[cursor] != 0xff)
                 {
+                    eaten++;
                     cursor++;
                     continue;
                 }
+
+                // One of three possibilities...
+                //   0xF1 = MPEG 4, layer 0, no CRC
+                //   0xF8 = MPEG 2, layer 0, CRC
+                //   0xF9 = MPEG 2, layer 0, no CRC
+                if(stream[cursor+1] != 0xF1 
+                    && stream[cursor+1] != 0xF8 
+                    && stream[cursor+1] != 0xF9)
+                {
+                    eaten++;
+                    cursor++;
+                    continue;                    
+                }
                 
+                if(eaten > 0)
+                {
+                    trace("ATE " + eaten + " bytes to find sync!");
+                    eaten = 0;
+                }
+
                 frameLength  = (stream[cursor + 3] & 0x03) << 11;
                 frameLength += (stream[cursor + 4]) << 3;
                 frameLength += (stream[cursor + 5] >> 5) & 0x07;
