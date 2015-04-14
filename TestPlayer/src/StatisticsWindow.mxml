@@ -5,8 +5,8 @@
 	xmlns:mx="library://ns.adobe.com/flex/mx"
 	xmlns:local="*"
 	creationComplete="init()"
-	title="Digital Primates Video Player v0.0.8"
-	width="400" height="450">
+	title="HLS OSMF Test Player"
+	width="400" height="250">
 	
 	<fx:Script>
 		<![CDATA[
@@ -244,6 +244,15 @@
 				if (subtitleTrait && subtitleTrait.languages.length > 0)
 					setSubtitles(subtitleCheckBox.selected);
 			}
+
+			private var subtitleCounter:int = 0;
+
+			private function onSubtitleNextClick(event:Event):void {
+				if(!subtitleTrait || subtitleTrait.language.length == 0) return;
+				trace("Setting subtitle language to " + subtitleTrait.languages[subtitleCounter % subtitleTrait.languages.length]);
+				subtitleTrait.language = subtitleTrait.languages[subtitleCounter % subtitleTrait.languages.length];
+				subtitleCounter++;
+			}
 			
 			private function onAutoMBRChange(event:Event):void {
 				if (player)
@@ -284,11 +293,20 @@
 	
 	<mx:HRule width="100%"/>
 	
-	<s:CheckBox
-		id="subtitleCheckBox"
-		label="Subtitles"
-		selected="false"
-		change="onSubtitleChange(event)"/>
+	<s:HGroup verticalAlign="baseline" top="0" left="0">
+		
+		<s:CheckBox
+			id="subtitleCheckBox"
+			label="Subtitles"
+			selected="false"
+			change="onSubtitleChange(event)"/>
+
+		<s:Button 
+			id="subtitleNext"
+			label="Switch Language"
+			click="onSubtitleNextClick(event)"/>
+
+	</s:HGroup>
 	
 	<mx:HRule width="100%"/>
 	
@@ -330,9 +348,5 @@
 		</s:HGroup>
 		
 	</s:Group>
-	
-	<mx:HRule width="100%"/>
-	
-	<local:ReleaseNotes width="100%" height="100%"/>
 	
 </s:TitleWindow>
