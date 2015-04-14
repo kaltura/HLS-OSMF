@@ -71,6 +71,15 @@ package com.kaltura.hls.manifest
 		
 		public static function getNormalizedUrl( baseUrl:String, uri:String ):String
 		{
+			if(uri.substr(0, 1) == "/")
+			{
+				// Take the host from base and append the uri.
+				var thirdSlash:int = 0;
+				for(var i:int=0; i<3; i++)
+					thirdSlash = baseUrl.indexOf("/", thirdSlash + 1);
+				return baseUrl.substring(0, thirdSlash) + uri;
+			}
+
 			return ( uri.substr(0, 5) == "http:" || uri.substr(0, 6) == "https:" || uri.substr(0, 5) == "file:" ) ? uri : baseUrl + uri;
 		}
 
