@@ -128,7 +128,7 @@ package com.kaltura.hls.m2ts
             if(avcc)
             { 
                 //trace("Wrote AVCC at " + convertFLVTimestamp(unit.pts));
-                sendFLVTag(convertFLVTimestamp(unit.pts), FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);
+                sendFLVTag(convertFLVTimestamp(unit.dts), FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);
             }
             else
                 trace("FAILED to write out AVCC");

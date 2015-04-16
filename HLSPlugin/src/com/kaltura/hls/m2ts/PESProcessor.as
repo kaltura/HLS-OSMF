@@ -22,6 +22,8 @@ package com.kaltura.hls.m2ts
 
         public var headerSent:Boolean = false;
 
+        public var pmtStreamId:int = -1;
+
         public function logStreams():void
         {
             trace("----- PES state -----");
@@ -36,6 +38,22 @@ package com.kaltura.hls.m2ts
             streams = {};
             lastVideoNALU = null;
             transcoder.clear(clearAACConfig);
+        }
+
+        private function parseProgramAssociationTable(bytes:ByteArray, cursor:uint):Boolean
+        {
+            // Get the section length.
+            var sectionLen:uint = ((bytes[cursor+2] & 0x03) << 8) | bytes[cursor+3];
+
+            // Check the section length for a single PMT.
+            if (sectionLen > 13)
+                trace("Saw multiple PMT entries in the PAT; blindly choosing first one.");
+
+            // Grab the PMT ID.
+            pmtStreamId = ((bytes[cursor+10] << 8) | bytes[cursor+11]) & 0x1FFF;
+            trace("Saw PMT ID of " + pmtStreamId);
+
+            return true;
         }
 
         private function parseProgramMapTable(bytes:ByteArray, cursor:uint):Boolean
@@ -146,7 +164,7 @@ package com.kaltura.hls.m2ts
                 // It could be a program association table.
                 if((startCode & 0xFFFFFF00) == 0x0000b000)
                 {
-                    trace("Ignoring program association table.");
+                    parseProgramAssociationTable(b, 1);
                     return true;
                 }
 
@@ -355,8 +373,6 @@ package com.kaltura.hls.m2ts
                 return;
             
             // First walk all the video NALUs and get the correct SPS/PPS
-            //NALUProcessor.startAVCCExtraction();
-
             var firstNalu:NALU = null;
 
             for(var i:int=0; i<pendingBuffers.length; i++)
@@ -374,15 +390,11 @@ package com.kaltura.hls.m2ts
             if(firstNalu)
             {
                 transcoder.emitSPSPPS(firstNalu);
-                //NALUProcessor.startAVCCExtraction();
             }
             else
             {
                 trace("No first NALU, failed to output SPS/PPS in AVCC form.");
             }
-
-            // Sort.
-            //pendingBuffers.sort(naluSortFunc);
 
             // Then iterate the packet again.
             for(var i:int=0; i<pendingBuffers.length; i++)

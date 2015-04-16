@@ -183,7 +183,15 @@ package com.kaltura.hls.m2ts
             stream.lastContinuity = raw_continuity;
             
             // Check to see if we can optimistically fire a complete PES packet...
+            var timeToComplete:Boolean = false;
             if(stream.packetLength > 0 && stream.buffer.length >= stream.packetLength + 6)
+                timeToComplete = true;
+            if(raw_pid == 0) // It's a PAT.
+                timeToComplete = true;
+            if(raw_pid == pesProcessor.pmtStreamId)
+                timeToComplete = true;
+
+            if(timeToComplete)
             {
                 if(stream.buffer.length > stream.packetLength + 6)
                     trace("WARNING: Got buffer strictly longer (" + (stream.buffer.length - (stream.packetLength + 6)) + " bytes longer) than expected. This is OK when on first packet of stream.");
