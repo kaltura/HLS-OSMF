@@ -3,6 +3,7 @@ package com.kaltura.hls
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
 	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
+	import com.kaltura.hls.subtitles.TextTrackCue;
 	
 	import org.osmf.traits.MediaTraitBase;
 	import org.osmf.traits.MediaTraitType;
@@ -178,7 +179,8 @@ package com.kaltura.hls
 					if(st != null && tt != null)
 					{
 						trace("   o Initiating seek to " + tt.currentTime);
-						st.seek(tt.currentTime);
+						//st.seek(tt.currentTime);
+						sentCaptionMessage(tt.currentTime); 
 					}
 				}
 				else
@@ -221,6 +223,35 @@ package com.kaltura.hls
 			if(man)
 				return man.subtitles;
 			return null;
+		}
+		
+		private function sentCaptionMessage(currentTime:Number):void
+		{
+			var _lastCue:TextTrackCue = null;
+			var subtitles:Vector.<SubTitleParser> = activeTrait.activeSubtitles;
+			if ( !subtitles ) return;
+			
+			var text:String = "";
+			var subtitleCount:int = subtitles.length;
+			for ( var i:int = 0; i < subtitleCount; i++ )
+			{
+				var subtitle:SubTitleParser = subtitles[ i ];
+				if ( currentTime < subtitle.startTime || currentTime > subtitle.endTime ) break;
+
+				var cues:Vector.<TextTrackCue> = subtitle.textTrackCues;
+				var cueCount:int = cues.length;
+				
+				var potentials:Vector.<TextTrackCue> = new Vector.<TextTrackCue>();
+				
+				for ( var j:int = 0; j < cueCount; j++ )
+				{
+					var cue:TextTrackCue = cues[ j ];
+					if ( currentTime >= cue.startTime &&  currentTime < cue.endTime ){
+						dispatchEvent( new Event( "onTextData", { "language" : activeTrait.language, "text" : cue.text, "trackid" : 99 } ) );
+						break;
+					}
+				}
+			}
 		}
 	}
 }
