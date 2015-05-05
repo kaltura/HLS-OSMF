@@ -156,11 +156,13 @@ package com.kaltura.hls.m2ts
 			_segmentLastSeconds = -1;
 			_lastInjectedSubtitleTime = -1;
 			_encryptedDataBuffer.length = 0;
+
+			// Note the start as a debug event.
+			_parser.sendDebugEvent( {type:"segmentStart", uri:segmentUri});
 		}
 		
 		public override function get inputBytesNeeded():Number
 		{
-			// Get TS packets!
 			return 0;
 		}
 
@@ -298,6 +300,9 @@ package com.kaltura.hls.m2ts
 			if ( key && !key.isLoaded ) trace("HIT END OF FILE WITH NO KEY!");
 
 			if ( key ) key.usePadding = true;
+
+			// Note the start as a debug event.
+			_parser.sendDebugEvent( {type:"segmentEnd", uri:segmentUri});
 			
 			var rv:ByteArray = basicProcessFileSegment(input, true);
 			

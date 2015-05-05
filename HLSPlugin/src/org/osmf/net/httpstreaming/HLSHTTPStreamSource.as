@@ -61,6 +61,12 @@ package org.osmf.net.httpstreaming
 	 */ 
 	public class HLSHTTPStreamSource implements IHTTPStreamSource, IHTTPStreamHandler
 	{
+		// Listen to this to receive HTTPStreamingEvents related to segment start/end.
+		//
+		// Note this occurs in realtime as the segments are downloaded - not as they are played,
+		// which may happen much later.
+		public static var debugBus:EventDispatcher = new EventDispatcher();
+
 		/**
 		 * Default constructor.
 		 */
@@ -555,6 +561,18 @@ package org.osmf.net.httpstreaming
 						)
 					);
 
+					debugBus.dispatchEvent( 
+						new HTTPStreamingEvent(
+							HTTPStreamingEvent.BEGIN_FRAGMENT, 
+							false,
+							true,
+							NaN,
+							null,
+							null,
+							_streamName
+						)
+					);
+
 					setState(HTTPStreamingState.READ);
 					break;
 				
@@ -628,6 +646,18 @@ package org.osmf.net.httpstreaming
 					
 					
 					_dispatcher.dispatchEvent( 
+						new HTTPStreamingEvent(
+							HTTPStreamingEvent.END_FRAGMENT,
+							false,
+							true,
+							NaN,
+							null,
+							null,
+							_streamName
+						)
+					);
+
+					debugBus.dispatchEvent( 
 						new HTTPStreamingEvent(
 							HTTPStreamingEvent.END_FRAGMENT,
 							false,
