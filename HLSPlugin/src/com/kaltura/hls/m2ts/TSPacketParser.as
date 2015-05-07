@@ -251,6 +251,14 @@ package com.kaltura.hls.m2ts
         }
 
         /**
+         * Fire off a debug event.
+         */
+        public function sendDebugEvent( data:Object):void
+        {
+            pesProcessor.transcoder.sendDebugEvent(data);
+        }
+
+        /**
          * Allocate or retrieve the packet stream state for a given packet ID.
          */
         protected function getPacketStream(pid:int):TSPacketStream

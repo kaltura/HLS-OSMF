@@ -29,9 +29,12 @@ package com.kaltura.hls.m2ts
             _aacTimestamp = 0;
         }
 
+        protected var sendingDebugEvents:Boolean = false;
+
         private function sendFLVTag(flvts:uint, type:uint, codec:int, mode:int, bytes:ByteArray, offset:uint, length:uint):void
         {
             var tag:ByteArray = new ByteArray();
+            
             tag.position = 0;
             var msgLength:uint = length + ((codec >= 0) ? 1 : 0) + ((mode >= 0) ? 1 : 0);
             var cursor:uint = 0;
@@ -39,9 +42,10 @@ package com.kaltura.hls.m2ts
             if(msgLength > 0xffffff)
                 return; // too big for the length field
             
-            //trace("FLV @ " + flvts);
-
             tag.length = FLVTags.HEADER_LENGTH + msgLength;
+
+            trace("FLV @ " + flvts + " len=" + tag.length + " type=" + type);
+
             tag[cursor++] = type;
             tag[cursor++] = (msgLength >> 16) & 0xff;
             tag[cursor++] = (msgLength >>  8) & 0xff;
@@ -71,6 +75,18 @@ package com.kaltura.hls.m2ts
             if(callback != null)
                 callback(flvts, tag);
 
+            // Also process any debug events.
+            if(pendingDebugEvents.length > 0 && !sendingDebugEvents)
+            {
+                sendingDebugEvents = true;
+                for(var i:int=0; i<pendingDebugEvents.length; i++)
+                {
+                    var debugArgs:Array = ["hlsDebug", pendingDebugEvents[i]];
+                    sendScriptDataFLVTag( flvts, debugArgs);
+                }
+                pendingDebugEvents.length = 0;
+                sendingDebugEvents = false;
+            }
         }
 
         public function convertFLVTimestamp(pts:Number):Number 
@@ -398,6 +414,14 @@ package com.kaltura.hls.m2ts
 
             var subtitleObject:Array = ["onTextData", { text:captionBuffer, language:lang, trackid:textid }];
             sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
+        }
+
+        protected var pendingDebugEvents:Array = [];
+
+        // Send debug events in the FLV stream, primarily used to note when segment boundaries are played.
+        public function sendDebugEvent( data:Object):void
+        {
+            pendingDebugEvents.push(data);
         }
 
 
