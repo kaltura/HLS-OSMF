@@ -9,7 +9,8 @@ package com.kaltura.hls.m2ts
 
     /**
      * Responsible for emitting FLV data. Also handles AAC conversion
-     * config and buffering.
+     * config and buffering. FLV tags are buffered for later emission
+     * so that we can properly capture and emit starting SPS/PPS state.
      */
     public class FLVTranscoder
     {
@@ -21,6 +22,15 @@ package com.kaltura.hls.m2ts
         private var _aacRemainder:ByteArray;
         private var _aacTimestamp:Number = 0;
 
+        private var bufferedTagData:Vector.<ByteArray> = new Vector.<ByteArray>();
+        private var bufferedTagTimestamp:Vector.<Number> = new Vector.<Number>();
+
+        protected var naluProcessor:NALUProcessor = new NALUProcessor();
+
+        private var flvGenerationBuffer:ByteArray = new ByteArray();
+        private var keyFrame:Boolean = false;
+        private var totalAppended:int = 0;
+
         public function clear(clearAACConfig:Boolean = false):void
         {
             if(clearAACConfig)
@@ -31,7 +41,7 @@ package com.kaltura.hls.m2ts
 
         protected var sendingDebugEvents:Boolean = false;
 
-        private function sendFLVTag(flvts:uint, type:uint, codec:int, mode:int, bytes:ByteArray, offset:uint, length:uint):void
+        private function sendFLVTag(flvts:uint, type:uint, codec:int, mode:int, bytes:ByteArray, offset:uint, length:uint, buffer:Boolean = true):void
         {
             var tag:ByteArray = new ByteArray();
             
@@ -71,8 +81,10 @@ package com.kaltura.hls.m2ts
 
             tag.writeUnsignedInt(tag.length);
 
-            // Dispatch tag.
-            if(callback != null)
+            // Buffer the tag.
+            if(buffer == true)
+                bufferTag(flvts, tag);
+            else if(callback != null)
                 callback(flvts, tag);
 
             // Also process any debug events.
@@ -89,17 +101,37 @@ package com.kaltura.hls.m2ts
             }
         }
 
+        protected function bufferTag(flvts:Number, tag:ByteArray):void
+        {
+            bufferedTagTimestamp.push(flvts);
+            bufferedTagData.push(tag);
+        }
+
+        public function emitBufferedTags():void
+        {
+            for(var i:int=0; i<bufferedTagTimestamp.length; i++)
+            {
+                if(callback != null)
+                    callback(bufferedTagTimestamp[i], bufferedTagData[i]);
+                else
+                    trace("Discarding buffered FLV tag due to no callback!");
+            }
+
+            // Clear the buffer.
+            bufferedTagTimestamp.length = 0;
+            bufferedTagData.length = 0;
+        }
+
         public function convertFLVTimestamp(pts:Number):Number 
         {
             return pts / 90.0;
         }
 
-        private static var flvGenerationBuffer:ByteArray = new ByteArray();
-        private static var keyFrame:Boolean = false;
-        private static var totalAppended:int = 0;
-
         private function naluConverter(bytes:ByteArray, cursor:uint, length:uint):void
         {
+            // Let the NALU processor at it.
+            naluProcessor.extractAVCCInner(bytes, cursor, length);
+
             // Check for a NALU that is keyframe type.
             var naluType:uint = bytes[cursor] & 0x1f;
             //trace(naluType + " length=" + length);
@@ -138,20 +170,25 @@ package com.kaltura.hls.m2ts
             totalAppended += length;
         }
 
-        public function emitSPSPPS(unit:NALU):void
+        public function emitSPSPPSUnbuffered():void
         {
-            var avcc:ByteArray = NALUProcessor.serializeAVCC();
+            var avcc:ByteArray = naluProcessor.serializeAVCC();
             if(avcc)
             { 
                 //trace("Wrote AVCC at " + convertFLVTimestamp(unit.pts));
-                sendFLVTag(convertFLVTimestamp(unit.dts), FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length);
+                sendFLVTag(bufferedTagTimestamp[0], 
+                    FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, 
+                    FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length, false);
             }
             else
                 trace("FAILED to write out AVCC");
+
+            // Wipe processor state.
+            naluProcessor.resetAVCCExtraction();
         }
 
         /**
-         * Convert and amit AVC NALU data.
+         * Convert and emit AVC NALU data.
          */
         public function convert(unit:NALU):void
         {
