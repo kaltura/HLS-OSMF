@@ -4,6 +4,9 @@
     <compilerSourcePath/>
     <libraryPath defaultLinkType="0">
       <libraryPathEntry kind="4" path="">
+        <modifiedEntries>
+          <libraryPathEntry index="2" kind="3" linkType="2" path="${PROJECT_FRAMEWORKS}/libs/osmf.swc" useDefaultLinkType="false"/>
+        </modifiedEntries>
         <excludedEntries>
           <libraryPathEntry kind="3" linkType="1" path="${PROJECT_FRAMEWORKS}/libs/automation_charts.swc" useDefaultLinkType="false"/>
           <libraryPathEntry kind="1" linkType="1" path="${PROJECT_FRAMEWORKS}/locale/{locale}"/>
@@ -29,7 +32,7 @@
         </excludedEntries>
       </libraryPathEntry>
       <libraryPathEntry kind="3" linkType="1" path="/hlsPlugin/bin/hlsPlugin.swc" useDefaultLinkType="false"/>
-      <libraryPathEntry kind="3" linkType="1" path="/lightKdp3Lib/bin/lightKdp3Lib.swc" useDefaultLinkType="false"/>
+      <libraryPathEntry kind="3" linkType="2" path="/lightKdp3Lib/bin/lightKdp3Lib.swc" useDefaultLinkType="false"/>
     </libraryPath>
     <sourceAttachmentPath/>
   </compiler>
