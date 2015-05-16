@@ -1,9 +1,7 @@
 package com.kaltura.hls.manifest
 {
 	import com.hurlant.util.Hex;
-	import com.kaltura.crypto.DecryptUtil.CModule;
-	import com.kaltura.crypto.DecryptUtil.decryptAES;
-	import com.kaltura.crypto.DecryptUtil.unpad;
+	import com.kaltura.hls.crypto.FastAESKey;
 	
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
@@ -24,10 +22,14 @@ package com.kaltura.hls.manifest
 	public class HLSManifestEncryptionKey extends EventDispatcher
 	{
 		private static const LOADER_CACHE:Dictionary = new Dictionary();
-		
+		private var _key:  FastAESKey;
 		public var usePadding:Boolean = false;
 		public var iv:String = "";
 		public var url:String = "";
+		private var iv0 : uint;
+		private var iv1 : uint;
+		private var iv2 : uint;
+		private var iv3 : uint;
 		
 		// Keep track of the segments this key applies to
 		public var startSegmentId:uint = 0;
@@ -43,7 +45,6 @@ package com.kaltura.hls.manifest
 		{
 			if ( !_decryptInitialized )
 			{
-				CModule.startAsync();
 				_decryptInitialized = true;
 			}
 		}
@@ -113,11 +114,65 @@ package com.kaltura.hls.manifest
 				return;
 				
 			var startTime:uint = getTimer();
-			decryptAES( data, _keyData, iv );
+			_key = new FastAESKey(_keyData);
+			iv.position = 0;
+			iv0 = iv.readUnsignedInt();
+			iv1 = iv.readUnsignedInt();
+			iv2 = iv.readUnsignedInt();
+			iv3 = iv.readUnsignedInt();
+			data.position = 0;
+			data = _decryptCBC(data,data.length);
+			//decryptAES( data, _keyData, iv );
 			if ( usePadding ) unpad( data );
 			trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
 		}
 		
+		
+		/* Cypher Block Chaining Decryption, refer to
+		* http://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher-block_chaining_
+		* for algorithm description
+		*/
+		private function _decryptCBC(crypt : ByteArray, len : uint) : ByteArray {
+			var src : Vector.<uint> = new Vector.<uint>(4);
+			var dst : Vector.<uint> = new Vector.<uint>(4);
+			var decrypt : ByteArray = new ByteArray();
+			decrypt.length = len;
+			
+			for (var i : uint = 0; i < len / 16; i++) {
+				// read src byte array
+				src[0] = crypt.readUnsignedInt();
+				src[1] = crypt.readUnsignedInt();
+				src[2] = crypt.readUnsignedInt();
+				src[3] = crypt.readUnsignedInt();
+				
+				// AES decrypt src vector into dst vector
+				_key.decrypt128(src, dst);
+				
+				// CBC : write output = XOR(decrypted,IV)
+				decrypt.writeUnsignedInt(dst[0] ^ iv0);
+				decrypt.writeUnsignedInt(dst[1] ^ iv1);
+				decrypt.writeUnsignedInt(dst[2] ^ iv2);
+				decrypt.writeUnsignedInt(dst[3] ^ iv3);
+				
+				// CBC : next IV = (input)
+				iv0 = src[0];
+				iv1 = src[1];
+				iv2 = src[2];
+				iv3 = src[3];
+			}
+			//decrypt.position = 0;
+			return decrypt;
+		}
+		public function unpad(a : ByteArray) : void {
+			var c : uint = a.length % 16;
+			if (c != 0) throw new Error("PKCS#5::unpad: ByteArray.length isn't a multiple of the blockSize");
+			c = a[a.length - 1];
+			for (var i : uint = c; i > 0; i--) {
+				var v : uint = a[a.length - 1];
+				a.length--;
+				if (c != v) throw new Error("PKCS#5:unpad: Invalid padding value. expected [" + c + "], found [" + v + "]");
+			}
+		}
 		public function retrieveStoredIV():ByteArray
 		{
 			trace("IV of " + iv + " for " + url + ", key=" + Hex.fromArray(_keyData));
