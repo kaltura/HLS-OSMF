@@ -107,11 +107,11 @@ package com.kaltura.hls.manifest
 		 * Decrypts a video or audio stream using AES-128 with the provided initialization vector.
 		 */
 		
-		public function decrypt( data:ByteArray, iv:ByteArray ):void
+		public function decrypt( data:ByteArray, iv:ByteArray ):ByteArray
 		{
 			trace("got " + data.length + " bytes");
 			if(data.length == 0)
-				return;
+				return data;
 				
 			var startTime:uint = getTimer();
 			_key = new FastAESKey(_keyData);
@@ -123,8 +123,11 @@ package com.kaltura.hls.manifest
 			data.position = 0;
 			data = _decryptCBC(data,data.length);
 			//decryptAES( data, _keyData, iv );
-			if ( usePadding ) unpad( data );
+			if ( usePadding ){
+				data = unpad( data );
+			}
 			trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
+			return data;
 		}
 		
 		
@@ -163,7 +166,7 @@ package com.kaltura.hls.manifest
 			//decrypt.position = 0;
 			return decrypt;
 		}
-		public function unpad(a : ByteArray) : void {
+		public function unpad(a : ByteArray) : ByteArray {
 			var c : uint = a.length % 16;
 			if (c != 0) throw new Error("PKCS#5::unpad: ByteArray.length isn't a multiple of the blockSize");
 			c = a[a.length - 1];
@@ -172,6 +175,7 @@ package com.kaltura.hls.manifest
 				a.length--;
 				if (c != v) throw new Error("PKCS#5:unpad: Invalid padding value. expected [" + c + "], found [" + v + "]");
 			}
+			return a;
 		}
 		public function retrieveStoredIV():ByteArray
 		{
