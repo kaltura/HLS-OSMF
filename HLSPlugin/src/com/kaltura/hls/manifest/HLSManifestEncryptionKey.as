@@ -36,17 +36,12 @@ package com.kaltura.hls.manifest
 		public var endSegmentId:uint = uint.MAX_VALUE;
 		
 		private var _keyData:ByteArray;
-		
-		private static var _decryptInitialized:Boolean = false;
 
 		public var isLoading:Boolean = false;
 		
 		public function HLSManifestEncryptionKey()
 		{
-			if ( !_decryptInitialized )
-			{
-				_decryptInitialized = true;
-			}
+			
 		}
 		
 		public function get isLoaded():Boolean { return _keyData != null; }
@@ -109,7 +104,7 @@ package com.kaltura.hls.manifest
 		
 		public function decrypt( data:ByteArray, iv:ByteArray ):ByteArray
 		{
-			trace("got " + data.length + " bytes");
+			//trace("got " + data.length + " bytes");
 			if(data.length == 0)
 				return data;
 				
@@ -122,11 +117,10 @@ package com.kaltura.hls.manifest
 			iv3 = iv.readUnsignedInt();
 			data.position = 0;
 			data = _decryptCBC(data,data.length);
-			//decryptAES( data, _keyData, iv );
 			if ( usePadding ){
 				data = unpad( data );
 			}
-			trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
+			//trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
 			return data;
 		}
 		
