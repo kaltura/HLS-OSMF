@@ -1,12 +1,12 @@
 package com.kaltura.hls.m2ts
 {
+	import com.kaltura.hls.HLSIndexHandler;
 	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.SubtitleTrait;
 	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.muxing.AACParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	import com.kaltura.hls.subtitles.TextTrackCue;
-	import com.kaltura.hls.HLSIndexHandler;
 	
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
@@ -54,6 +54,7 @@ package com.kaltura.hls.m2ts
 
 			_parser = new TSPacketParser();
 			_parser.callback = handleFLVMessage;
+			_parser.id3Callback = handleID3;
 			
 			_timeOrigin = 0;
 			_timeOriginNeeded = true;
@@ -322,6 +323,28 @@ package com.kaltura.hls.m2ts
 		{
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
+		
+		private function handleID3(message:ByteArray):void{
+			if (message ){
+				message.position = 0;
+				
+			_parser.createAndSendID3Message(_segmentBeginSeconds,encode(message));
+			}
+		}
+		
+		private  function encode(ba:ByteArray):String {
+			var origPos:uint = ba.position;
+			var result:Array = new Array();
+			
+			for (ba.position = 0; ba.position < ba.length - 1; )
+				result.push(ba.readByte());
+			
+			if (ba.position != ba.length)
+				result.push(ba.readByte() << 8);
+			
+			ba.position = origPos;
+			return result.join(" ");
+		}
 				
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
@@ -369,6 +392,8 @@ package com.kaltura.hls.m2ts
 			
 			// Inject any subtitle tags between messages
 			injectSubtitles( _lastInjectedSubtitleTime + 0.001, timestampSeconds );
+			
+			
 			
 			//trace( "MESSAGE RECEIVED " + timestampSeconds );
 			

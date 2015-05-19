@@ -1,9 +1,10 @@
 package com.kaltura.hls.m2ts
 {
-    import flash.utils.ByteArray;
+    import com.kaltura.hls.muxing.AACParser;
+    
     import flash.net.ObjectEncoding;
     import flash.utils.ByteArray;
-    import flash.utils.Endian;    
+    import flash.utils.Endian;
     import flash.utils.IDataInput;
     import flash.utils.IDataOutput;
 
@@ -12,7 +13,7 @@ package com.kaltura.hls.m2ts
      */
     public class PESPacket
     {
-        public function PESPacket(id:int, bytes:ByteArray)
+        public function PESPacket(id:int, bytes:ByteArray	)
         {
             packetID = id;
             buffer = bytes;
