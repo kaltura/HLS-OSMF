@@ -870,6 +870,7 @@ package com.kaltura.hls
 					{
 						// Check if we're seeking backwards...
 						var oldSeg:HLSManifestSegment = getSegmentContainingTime(getLastSequenceSegments(), time);
+						trace("getFileForTime - (A) found " + oldSeg + " for time " + time);
 						if(oldSeg)
 							return initiateBestEffortRequest(oldSeg.id, origQuality, segments, manifest);
 						else
@@ -885,7 +886,13 @@ package com.kaltura.hls
 						}
 						else
 						{
-							return initiateBestEffortRequest(getLastSequence() + 1, origQuality, segments, manifest);
+							// Check if we're seeking backwards...
+							var beSeg:HLSManifestSegment = getSegmentContainingTime(segments, time);
+							trace("getFileForTime - (B) found " + beSeg + " for time " + time);
+							if(beSeg)
+								return initiateBestEffortRequest(beSeg.id, origQuality, segments, manifest);
+							else
+								return initiateBestEffortRequest(getLastSequence() + 1, origQuality, segments, manifest);
 						}
 					}
 				}
@@ -1091,16 +1098,21 @@ package com.kaltura.hls
 			}
 
 			// If no old manifest, it's a new play session.
+			var didWeSeedLastSequence:Boolean = false;
 			if(oldManifest == null)
 			{
 				trace("SEEDING LAST SEQUENCE");
+				didWeSeedLastSequence = true;
+
 				if(currentManifest.streamEnds == true)
 				{
 					updateLastSequence(currentManifest, 0);
 				}
 				else
 				{
-					updateLastSequence(currentManifest, currentManifest.segments[Math.max(0, currentManifest.segments.length - HLSManifestParser.MAX_SEG_BUFFER + -1)].id);
+					updateLastSequence(currentManifest, 
+						currentManifest.segments[Math.max(0, 
+							currentManifest.segments.length - HLSManifestParser.MAX_SEG_BUFFER - 1)].id);
 				}
 			}
 
@@ -1141,8 +1153,9 @@ package com.kaltura.hls
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 2);
 			}
 
-			// Advance sequence number.
-			newSequence++;
+			// Advance sequence number if we didn't seed.
+			if(!didWeSeedLastSequence)
+				newSequence++;
 
 			var segments:Vector.<HLSManifestSegment> = currentManifest.segments;
 
