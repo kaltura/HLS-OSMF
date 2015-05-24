@@ -12,6 +12,8 @@ package com.kaltura.hls.m2ts
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
 	
+	import mx.utils.Base64Encoder;
+	
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
 	import org.osmf.net.httpstreaming.flv.FLVTagAudio;
@@ -327,8 +329,9 @@ package com.kaltura.hls.m2ts
 		private function handleID3(message:ByteArray):void{
 			if (message ){
 				message.position = 0;
-				
-			_parser.createAndSendID3Message(_segmentBeginSeconds,encode(message));
+				var b64:Base64Encoder = new Base64Encoder();
+				b64.encodeBytes(message);
+				_parser.createAndSendID3Message(_segmentBeginSeconds,b64.toString());
 			}
 		}
 		
