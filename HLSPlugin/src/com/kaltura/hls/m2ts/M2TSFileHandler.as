@@ -231,7 +231,7 @@ package com.kaltura.hls.m2ts
 				tmpBuffer.readBytes( _decryptionIV );
 				
 				// Aaaaand... decrypt!
-				key.decrypt( tmpBuffer, currentIV );
+				tmpBuffer = key.decrypt( tmpBuffer, currentIV );
 			}
 			
 			// If it's AAC, process it.
