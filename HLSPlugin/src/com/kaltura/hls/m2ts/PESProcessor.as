@@ -24,6 +24,10 @@ package com.kaltura.hls.m2ts
 
         public var pmtStreamId:int = -1;
 
+        protected var pendingBuffers:Vector.<Object> = new Vector.<Object>();
+        protected var pendingLastConvertedIndex:int = 0;
+
+
         public function logStreams():void
         {
             trace("----- PES state -----");
@@ -354,50 +358,21 @@ package com.kaltura.hls.m2ts
                 trace("Unknown packet ID type " + types[packet.packetID] + ", ignoring (A).");
             }
 
+            bufferPendingNalus();
+
             return true;
         }
 
-        var pendingBuffers:Vector.<Object> = new Vector.<Object>();
-
-        public function processAllNalus():void
+        /**
+         * To avoid transcoding all content on flush, we buffer it into FLV
+         * tags as we go. However, they remain undelivered until we can gather
+         * final SPS/PPS information. This method is responsible for
+         * incrementally buffering in the FLV transcoder as we go.
+         */
+        public function bufferPendingNalus():void
         {
-            // Consume any unposted video NALUs.
-            if(lastVideoNALU)
-            {
-                pendingBuffers.push(lastVideoNALU.clone());
-                lastVideoNALU = null;
-            }
-
-            // First walk all the video NALUs and get the correct SPS/PPS
-            if(pendingBuffers.length == 0)
-                return;
-            
-            // First walk all the video NALUs and get the correct SPS/PPS
-            var firstNalu:NALU = null;
-
-            for(var i:int=0; i<pendingBuffers.length; i++)
-            {
-                if(!(pendingBuffers[i] is NALU))
-                    continue;
-
-                if(!firstNalu)
-                    firstNalu = pendingBuffers[i] as NALU;
-
-                NALUProcessor.pushAVCData(pendingBuffers[i] as NALU);
-            }
-
-            // Then emit SPS/PPS
-            if(firstNalu)
-            {
-                transcoder.emitSPSPPS(firstNalu);
-            }
-            else
-            {
-                trace("No first NALU, failed to output SPS/PPS in AVCC form.");
-            }
-
-            // Then iterate the packet again.
-            for(var i:int=0; i<pendingBuffers.length; i++)
+            // Iterate and buffer new NALUs.
+            for(var i:int=pendingLastConvertedIndex; i<pendingBuffers.length; i++)
             {
                 if(pendingBuffers[i] is NALU)
                 {
@@ -423,8 +398,33 @@ package com.kaltura.hls.m2ts
                 }
             }
 
+            // Note the last item we converted so we can avoid duplicating work.
+            pendingLastConvertedIndex = pendingBuffers.length;
+        }
+
+        public function processAllNalus():void
+        {
+            // Consume any unposted video NALUs.
+            if(lastVideoNALU)
+            {
+                pendingBuffers.push(lastVideoNALU.clone());
+                lastVideoNALU = null;
+            }
+
+            // First walk all the video NALUs and get the correct SPS/PPS
+            if(pendingBuffers.length == 0)
+                return;
+            
+            // Then emit SPS/PPS
+            transcoder.emitSPSPPSUnbuffered();
+
+            // Complete buffering and emit it all.
+            bufferPendingNalus();
+            transcoder.emitBufferedTags();
+
             // Don't forget to clear the pending list.
             pendingBuffers.length = 0;
+            pendingLastConvertedIndex = 0;
         }
     }
 }
