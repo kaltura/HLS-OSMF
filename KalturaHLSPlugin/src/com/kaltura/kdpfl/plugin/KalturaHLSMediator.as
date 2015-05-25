@@ -16,6 +16,7 @@ package com.kaltura.kdpfl.plugin
 		public static const NAME:String = "KalturaHLSMediator";
 		public static const HLS_END_LIST:String = "hlsEndList";
 		public static const HLS_TRACK_SWITCH:String = "doTextTrackSwitch";
+		public static const PLUGIN_VERSION:String = "v2.31.rc6";
 		
 		private var _mediaProxy:MediaProxy;
 		private var _subtitleTrait:SubtitleTrait;
@@ -55,6 +56,7 @@ package com.kaltura.kdpfl.plugin
 			
 			if ( notification.getName() == NotificationType.MEDIA_ELEMENT_READY ) {
 				_mediaProxy.vo.media.addEventListener(MediaElementEvent.TRAIT_ADD, getSubtitleTrait); // catch and save SubtitleTrait the moment video object is ready
+				sendNotification("versionReceived", {pluginName : "KalturaHLSPlugin" , versionNumber : PLUGIN_VERSION});
 			}
 			
 			if ( notification.getName() == HLS_TRACK_SWITCH ) { //trigered by JS changeEmbeddedTextTrack helper in order to change language
