@@ -120,7 +120,7 @@ package com.kaltura.hls.manifest
 			if ( usePadding ){
 				data = unpad( data );
 			}
-			//trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
+		//	trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
 			return data;
 		}
 		
@@ -157,17 +157,28 @@ package com.kaltura.hls.manifest
 				iv2 = src[2];
 				iv3 = src[3];
 			}
-			//decrypt.position = 0;
 			return decrypt;
 		}
 		public function unpad(a : ByteArray) : ByteArray {
 			var c : uint = a.length % 16;
-			if (c != 0) throw new Error("PKCS#5::unpad: ByteArray.length isn't a multiple of the blockSize");
+			if (c != 0) {
+				trace("PKCS#5::unpad: ByteArray.length isn't a multiple of the blockSize");
+				return a;
+			}
 			c = a[a.length - 1];
+			var success:Boolean = true;
+			var newLength:uint = a.length;
 			for (var i : uint = c; i > 0; i--) {
 				var v : uint = a[a.length - 1];
-				a.length--;
-				if (c != v) throw new Error("PKCS#5:unpad: Invalid padding value. expected [" + c + "], found [" + v + "]");
+				if (c != v) {
+					trace("PKCS#5:unpad: Invalid padding value. expected [" + c + "], found [" + v + "]");
+					success = false;
+					break;
+				}
+				newLength--;
+			}
+			if (success){
+				a.length = newLength;
 			}
 			return a;
 		}
