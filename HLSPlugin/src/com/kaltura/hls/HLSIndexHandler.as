@@ -177,6 +177,10 @@ package com.kaltura.hls
 					continue;
 
 				segments[i].startTime = startTimeWitnesses[segments[i].uri];
+
+				if(endTimeWitnesses.hasOwnProperty(segments[i].uri))
+					segments[i].duration = endTimeWitnesses[segments[i].uri] - segments[i].startTime;
+
 				setSegments[i] = 1;
 			}
 
@@ -837,9 +841,10 @@ package com.kaltura.hls
 
 		public function get liveEdge():Number
 		{
+			trace("Getting live edge using targetQuality=" + targetQuality);
 			// Return time at least MAX_SEG_BUFFER from end of stream.
-			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
-			if(!seg || getManifestForQuality(lastQuality).streamEnds)
+			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(targetQuality);
+			if(!seg || getManifestForQuality(targetQuality).streamEnds)
 				return Number.MAX_VALUE;
 			var lastSeg:HLSManifestSegment = seg[Math.max(0, seg.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
 			return lastSeg.startTime;

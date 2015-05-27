@@ -308,6 +308,15 @@ package com.kaltura.hls.m2ts
 			
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			
+			// Also update end time - don't trace it as we'll increase it incrementally.
+			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null)
+			{
+				trace("Noting segment end time for " + segmentUri + " of " + _segmentLastSeconds);
+				if(_segmentLastSeconds != _segmentLastSeconds)
+					throw new Error("Got a NaN _segmentLastSeconds for " + segmentUri + "!");
+				HLSIndexHandler.endTimeWitnesses[segmentUri] = _segmentLastSeconds;
+			}
+
 			if(elapsed <= 0.0 && _extendedIndexHandler)
 			{
 				elapsed = _extendedIndexHandler.getTargetSegmentDuration(); // XXX fudge hack!
