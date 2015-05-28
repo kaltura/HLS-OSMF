@@ -913,7 +913,7 @@ package org.osmf.net.httpstreaming
 						// Make sure we don't go past the buffer for the live edge.
 						if(indexHandler && _seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
 						{
-							trace("Capping seek (source) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+							trace("Capping seek (HTTPStreamingState.SEEK) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
 							_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
 						}
 

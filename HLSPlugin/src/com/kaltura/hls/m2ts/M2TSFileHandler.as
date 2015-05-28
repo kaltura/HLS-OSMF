@@ -312,6 +312,8 @@ package com.kaltura.hls.m2ts
 			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null)
 			{
 				trace("Noting segment end time for " + segmentUri + " of " + _segmentLastSeconds);
+				if(_segmentLastSeconds != _segmentLastSeconds)
+					throw new Error("Got a NaN _segmentLastSeconds for " + segmentUri + "!");
 				HLSIndexHandler.endTimeWitnesses[segmentUri] = _segmentLastSeconds;
 			}
 
