@@ -140,7 +140,7 @@ package com.kaltura.hls
 		// seg if known.  Since all segments are immutable, we can keep this
 		// as a global cache.
 		public static var startTimeWitnesses:Object = {};
-
+		public static var endTimeWitnesses:Object = {};
 
 		CONFIG::LOGGING
 		{
@@ -176,7 +176,7 @@ package com.kaltura.hls
 				if(!startTimeWitnesses.hasOwnProperty(segments[i].uri))
 					continue;
 
-				segments[i].startTime = startTimeWitnesses[segments[i].uri];
+				segments[i].startTime = Math.max(0, startTimeWitnesses[segments[i].uri]);
 
 				if(endTimeWitnesses.hasOwnProperty(segments[i].uri))
 					segments[i].duration = endTimeWitnesses[segments[i].uri] - segments[i].startTime;
@@ -193,7 +193,7 @@ package com.kaltura.hls
 					if(!setSegments.hasOwnProperty(i-1) || setSegments.hasOwnProperty(i))
 						continue;
 
-					segments[i].startTime = segments[i-1].startTime + segments[i-1].duration;
+					segments[i].startTime = Math.max(0, segments[i-1].startTime + segments[i-1].duration);
 					setSegments[i] = 1;
 				}
 
@@ -204,7 +204,7 @@ package com.kaltura.hls
 					if(!setSegments.hasOwnProperty(i+1) || setSegments.hasOwnProperty(i))
 						continue;
 
-					segments[i].startTime = segments[i+1].startTime - segments[i].duration;
+					segments[i].startTime = Math.max(0, segments[i+1].startTime - segments[i].duration);
 					setSegments[i] = 1;
 				}
 			}
@@ -214,8 +214,8 @@ package com.kaltura.hls
 			for(i=Math.max(0, segments.length - 100); i<segments.length; i++)
 			{
 				trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + "uri=" + segments[i].uri);
-			}*/
-			trace("Reconstructed manifest time with knowledge=" + checkAnySegmentKnowledge(segments) + " firstTime=" + (segments.length > 1 ? segments[0].startTime : -1) + " lastTime=" + (segments.length > 1 ? segments[segments.length-1].startTime : -1));
+			}
+			trace("Reconstructed manifest time with knowledge=" + checkAnySegmentKnowledge(segments) + " firstTime=" + (segments.length > 1 ? segments[0].startTime : -1) + " lastTime=" + (segments.length > 1 ? segments[segments.length-1].startTime : -1));*/
 
 			// Done!
 			return segments;
