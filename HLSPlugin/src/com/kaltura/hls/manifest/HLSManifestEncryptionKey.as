@@ -22,7 +22,7 @@ package com.kaltura.hls.manifest
 	public class HLSManifestEncryptionKey extends EventDispatcher
 	{
 		private static const LOADER_CACHE:Dictionary = new Dictionary();
-		private var _key:  FastAESKey;
+		private var _key:FastAESKey;
 		public var usePadding:Boolean = false;
 		public var iv:String = "";
 		public var url:String = "";
@@ -159,29 +159,30 @@ package com.kaltura.hls.manifest
 			}
 			return decrypt;
 		}
-		public function unpad(a : ByteArray) : ByteArray {
-			var c : uint = a.length % 16;
-			if (c != 0) {
-				trace("PKCS#5::unpad: ByteArray.length isn't a multiple of the blockSize");
+		public function unpad(bytesToUnpad : ByteArray) : ByteArray {
+			if ((bytesToUnpad.length % 16) != 0)
+			{
+				throw new Error("PKCS#5::unpad: ByteArray.length isn't a multiple of the blockSize");
 				return a;
 			}
-			c = a[a.length - 1];
-			var success:Boolean = true;
-			var newLength:uint = a.length;
-			for (var i : uint = c; i > 0; i--) {
-				var v : uint = a[a.length - 1];
-				if (c != v) {
-					trace("PKCS#5:unpad: Invalid padding value. expected [" + c + "], found [" + v + "]");
-					success = false;
-					break;
+
+			const paddingValue:int = bytesToUnpad[bytesToUnpad.length - 1];
+			var doUnpad:Boolean = true;
+			for (var i:int = 0; i<paddingValue; i++) {
+				var readValue:int = bytesToUnpad[bytesToUnpad.length - (1 + i)];
+				if (paddingValue != readValue) {
+					//throw new Error("PKCS#5:unpad: Invalid padding value. expected [" + paddingValue + "], found [" + readValue + "]");
+					//break;
+					doUnpad = false;
 				}
-				newLength--;
 			}
-			if (success){
-				a.length = newLength;
-			}
-			return a;
+
+			if(doUnpad)
+				bytesToUnpad.length -= paddingValue;
+
+			return bytesToUnpad;
 		}
+
 		public function retrieveStoredIV():ByteArray
 		{
 			trace("IV of " + iv + " for " + url + ", key=" + Hex.fromArray(_keyData));
