@@ -61,6 +61,11 @@ package com.kaltura.hls
 			return _dvrInfo.curLength;
 		}
 		
+		public function get absoluteTime():Number
+		{
+			return _stream.absoluteTime;
+		}
+
 		override public function get currentTime():Number
 		{
 			return _stream.time;

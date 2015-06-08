@@ -103,6 +103,10 @@ package com.kaltura.hls.subtitles
 						// Not yet implemented
 						break;
 					
+					case "align":
+						// Not yet implemented
+						break;
+
 					case "size":
 						// Not yet implemented
 						break;
