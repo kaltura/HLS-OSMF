@@ -80,7 +80,9 @@ package com.kaltura.hls
 			var curTime:Number = tt.currentTime;
 			if(tt is HLSDVRTimeTrait)
 				curTime = (tt as HLSDVRTimeTrait).absoluteTime;
-			trace("onSubtitleTimer - Current time is: " + curTime);
+			
+			// This is quite verbose but useful for debugging.
+			// trace("onSubtitleTimer - Current time is: " + curTime);
 
 			// Now, fire off any subtitles that are new.
 			activeTrait.emitSubtitles(activeTrait._lastInjectedSubtitleTime, curTime);
@@ -97,7 +99,7 @@ package com.kaltura.hls
 			for ( var i:int = 0; i < subtitleCount; i++ )
 			{
 				var subtitle:SubTitleParser = subtitles[ i ];
-				if ( subtitle.startTime > endTime ) break;
+				if ( subtitle.startTime > endTime ) continue;
 				if ( subtitle.endTime < startTime ) continue;
 				var cues:Vector.<TextTrackCue> = subtitle.textTrackCues;
 				var cueCount:int = cues.length;
@@ -120,8 +122,8 @@ package com.kaltura.hls
 					cue = potentials[potentials.length - 1];
 					if(cue != _lastCue)
 					{
-						//_parser.createAndSendCaptionMessage( cue.startTime, cue.text, subtitleTrait.language );
-						trace("SUBTITLE " + cue.text );
+						dispatchEvent(new SubtitleEvent(cue.startTime, cue.text, language));
+
 						_lastInjectedSubtitleTime = cue.startTime;
 						_lastCue = cue;						
 					}
