@@ -389,6 +389,11 @@ package org.osmf.net.httpstreaming
 
 		}
 		
+		public function get absoluteTime():Number
+		{
+			return super.time + _seekTime;
+		}
+
 		/**
 		 * @inheritDoc
 		 */

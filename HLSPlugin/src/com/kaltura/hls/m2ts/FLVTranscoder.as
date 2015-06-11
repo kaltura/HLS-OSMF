@@ -447,10 +447,10 @@ package com.kaltura.hls.m2ts
             //sendScriptDataFLVTag( timeStamp * 1000, captionObject);
 
             // We need to strip the timestamp off of the text data
-            captionBuffer = captionBuffer.slice(captionBuffer.indexOf('\n') + 1);
+            //captionBuffer = captionBuffer.slice(captionBuffer.indexOf('\n') + 1);
 
-            var subtitleObject:Array = ["onTextData", { text:captionBuffer, language:lang, trackid:textid }];
-            sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
+            //var subtitleObject:Array = ["onTextData", { text:captionBuffer, language:lang, trackid:textid }];
+            //sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
         }
 
         protected var pendingDebugEvents:Array = [];

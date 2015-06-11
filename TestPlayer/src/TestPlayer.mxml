@@ -10,6 +10,7 @@
 	<fx:Script>
 		<![CDATA[
 			import com.kaltura.hls.SubtitleTrait;
+			import com.kaltura.hls.SubtitleEvent;
 			import com.kaltura.hls.manifest.HLSManifestParser;
 			
 			import mx.collections.ArrayList;
@@ -307,12 +308,14 @@
 				}
 				
 				var subtitleTrait:SubtitleTrait = element.getTrait( SubtitleTrait.TYPE ) as SubtitleTrait;
-				
+
 				// Give the statistics window the subtitle Trait so it can turn them on and off
 				statisticsWindow.subtitleTrait = subtitleTrait;
 				
 				if ( subtitleTrait && subtitleTrait.languages.length > 0 )
 				{
+					subtitleTrait.addEventListener(SubtitleEvent.CUE, onSubtitleCue);
+
 					// Listen for the onTextData event
 					var localElem:MediaElement = element;
 					while (localElem is ProxyElement)
@@ -324,6 +327,12 @@
 					}
 				}
 				
+			}
+
+			private function onSubtitleCue(e:SubtitleEvent):void
+			{
+				trace("SUBTITLE: " + e.text);
+				subtitleLabel.text = e.text;
 			}
 			
 			private function onWrapperResize(event:ResizeEvent):void {
@@ -363,11 +372,19 @@
 			}
 			
 			private function onPlayChange(event:Event):void {
-				if (player.paused) {
-					player.play();
+				try 
+				{
+					if (player.paused) {
+						player.play();
+					}
+					else 
+					{
+						player.pause();
+					}					
 				}
-				else {
-					player.pause();
+				catch(e:*)
+				{
+					trace("Could not pause.");
 				}
 			}
 			
@@ -460,6 +477,10 @@
 				horizontalCenter="0"/>
 			
 		</s:Group>
+
+		<s:HGroup width="100%" verticalAlign="middle" gap="0" height="32">
+			<s:Label id="subtitleLabel" text="CAPTIONS" color="0xFFFFFF" width="100%" height="100%"/>
+		</s:HGroup>
 		
 		<s:HGroup width="100%" verticalAlign="middle" gap="0">
 			
