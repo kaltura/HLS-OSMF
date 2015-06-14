@@ -1,6 +1,7 @@
 package com.kaltura.kdpfl.plugin
 {
 	import com.kaltura.hls.SubtitleTrait;
+	import com.kaltura.hls.SubtitleEvent;
 	import com.kaltura.kdpfl.model.MediaProxy;
 	import com.kaltura.kdpfl.model.type.NotificationType;
 	import com.kaltura.kdpfl.view.controls.KTrace;
@@ -78,11 +79,16 @@ package com.kaltura.kdpfl.plugin
 					while (i < _subtitleTrait.languages.length){
 						langArray.push({"label":_subtitleTrait.languages[i], "index": i++}); // build languages array in a format that JS expects to receive
 					}
-					
+					_subtitleTrait.addEventListener(SubtitleEvent.CUE, sendSubtitleNotification); 
 					sendNotification("textTracksReceived", {languages:langArray}); //will triger ClosedCaptions textTracksReceived function, through kplayer onTextTracksReceived listener
 				}	
 			}
-		}		
+		}
+		
+		protected function sendSubtitleNotification(event:SubtitleEvent):void
+		{
+			sendNotification("loadEmbeddedCaptions", {language: event.language, text: event.text, trackid: 99}); // will triger onLoadEmbeddedCaptions function inside kplayer
+		}
 		
 	}
 }
