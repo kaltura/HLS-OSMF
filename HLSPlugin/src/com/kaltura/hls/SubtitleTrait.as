@@ -95,6 +95,7 @@ package com.kaltura.hls
 		{
 			var subtitles:Vector.<SubTitleParser> = activeSubtitles;
 			var subtitleCount:int = subtitles.length;
+			var potentials:Vector.<TextTrackCue> = new Vector.<TextTrackCue>();
 
 			for ( var i:int = 0; i < subtitleCount; i++ )
 			{
@@ -103,8 +104,6 @@ package com.kaltura.hls
 				if ( subtitle.endTime < startTime ) continue;
 				var cues:Vector.<TextTrackCue> = subtitle.textTrackCues;
 				var cueCount:int = cues.length;
-				
-				var potentials:Vector.<TextTrackCue> = new Vector.<TextTrackCue>();
 
 				for ( var j:int = 0; j < cueCount; j++ )
 				{
@@ -115,20 +114,24 @@ package com.kaltura.hls
 						potentials.push(cue);
 					}
 				}
+			}
 
-				if(potentials.length > 0)
+			if(potentials.length > 0)
+			{
+				// TODO: Add support for trackid
+				cue = potentials[potentials.length - 1];
+				if(cue != _lastCue)
 				{
-					// TODO: Add support for trackid
-					cue = potentials[potentials.length - 1];
-					if(cue != _lastCue)
-					{
-						dispatchEvent(new SubtitleEvent(cue.startTime, cue.text, language));
+					dispatchEvent(new SubtitleEvent(cue.startTime, cue.text, language));
 
-						_lastInjectedSubtitleTime = cue.startTime;
-						_lastCue = cue;						
-					}
+					_lastInjectedSubtitleTime = cue.startTime;
+					_lastCue = cue;						
 				}
 			}
+
+			// Force last time so we eventually show proper subtitles.
+			_lastInjectedSubtitleTime = endTime;
+
 		}
 
 		/**
@@ -244,38 +247,8 @@ package com.kaltura.hls
 		
 		public function set language( value:String ):void
 		{
-			// Trigger a seek to flush buffer and get proper language.
-			if(_language != value)
-			{
-				_language = value;
-
-				trace("Triggering flush for proper subtitle language.");
-				if(owningMediaElement)
-				{
-					var st:SeekTrait = owningMediaElement.getTrait(MediaTraitType.SEEK) as SeekTrait;
-					var tt:TimeTrait = owningMediaElement.getTrait(MediaTraitType.TIME) as TimeTrait;
-					
-					if(st == null)
-					{
-						trace("   o No seek trait, skipping...");
-					}
-
-					if(tt == null)
-					{
-						trace("   o No time trait, skipping...");
-					}
-
-					if(st != null && tt != null)
-					{
-						trace("   o Initiating seek to " + tt.currentTime);
-						//st.seek(tt.currentTime);
-					}
-				}
-				else
-				{
-					trace("   o No media element, skipping...");
-				}
-			}
+			// No special logic required, we will sort it out elsewhere.
+			_language = value;
 		}
 		
 		public function get language():String
