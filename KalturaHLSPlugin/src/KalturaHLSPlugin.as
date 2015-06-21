@@ -2,23 +2,22 @@ package
 {
 	import com.kaltura.hls.HLSPluginInfo;
 	import com.kaltura.hls.manifest.HLSManifestParser;
-    import com.kaltura.kdpfl.model.MediaProxy;
-    import com.kaltura.kdpfl.plugin.IPlugin;
-    import com.kaltura.kdpfl.plugin.IPluginFactory;
-    import flash.utils.getDefinitionByName;
-    
-    import org.osmf.events.MediaFactoryEvent;
-    import org.osmf.media.MediaFactory;
-    import org.osmf.media.MediaResourceBase;
-    import org.osmf.media.PluginInfoResource;
-    import org.puremvc.as3.interfaces.IFacade;
-    import com.kaltura.kdpfl.plugin.KPluginEvent;
+	import com.kaltura.kdpfl.model.MediaProxy;
+	import com.kaltura.kdpfl.plugin.IPlugin;
+	import com.kaltura.kdpfl.plugin.IPluginFactory;
+	import com.kaltura.kdpfl.plugin.KPluginEvent;
 	import com.kaltura.kdpfl.plugin.KalturaHLSMediator;
 	
 	import flash.display.Sprite;
+	import flash.system.Security;
+	import flash.utils.getDefinitionByName;
 	
+	import org.osmf.events.MediaFactoryEvent;
+	import org.osmf.media.MediaFactory;
+	import org.osmf.media.MediaResourceBase;
 	import org.osmf.media.PluginInfo;
-    import flash.system.Security;
+	import org.osmf.media.PluginInfoResource;
+	import org.puremvc.as3.interfaces.IFacade;
     
 	public class KalturaHLSPlugin extends Sprite implements IPluginFactory, IPlugin
 	{
@@ -27,12 +26,21 @@ package
 		private var _pluginResource:MediaResourceBase;
 
 		private var _segmentBuffer:int = -1;
+		private var _overrideTargetDuration:int = -1;
         
         public function KalturaHLSPlugin()
         {
             Security.allowDomain("*");
             _pluginInfo = new HLSPluginInfo();	
         }
+		
+		public function get overrideTargetDuration():int{
+			return _overrideTargetDuration;
+		}
+		
+		public function set overrideTargetDuration(value:int):void{
+			_overrideTargetDuration = value;
+		}
         
 		public function get segmentBuffer():int
 		{
@@ -75,6 +83,9 @@ package
 				e.target.removeEventListener(MediaFactoryEvent.PLUGIN_LOAD, onOSMFPluginLoaded);
 				if (segmentBuffer != -1){ 
 					HLSManifestParser.MAX_SEG_BUFFER = segmentBuffer; // if passed by JS, update static MAX_SEG_BUFFER with the new value 
+				}
+				if (overrideTargetDuration != -1){
+					HLSManifestParser.OVERRIDE_TARGET_DURATION = overrideTargetDuration;
 				}
 				dispatchEvent( new KPluginEvent (KPluginEvent.KPLUGIN_INIT_COMPLETE) );
 			}
