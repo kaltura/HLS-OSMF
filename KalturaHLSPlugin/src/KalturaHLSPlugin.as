@@ -27,6 +27,7 @@ package
 		private var _pluginResource:MediaResourceBase;
 
 		private var _segmentBuffer:int = -1;
+		private var _overrideTargetDuration:int = -1;
         
         public function KalturaHLSPlugin()
         {
@@ -42,6 +43,14 @@ package
 		public function set segmentBuffer(value:int):void
 		{
 			_segmentBuffer = value;
+		}
+		
+		public function get overrideTargetDuration():int{
+			return _overrideTargetDuration;
+		}
+				
+		public function set overrideTargetDuration(value:int):void{
+			_overrideTargetDuration = value;
 		}
 
         public function create (pluginName : String =null) : IPlugin
@@ -75,6 +84,9 @@ package
 				e.target.removeEventListener(MediaFactoryEvent.PLUGIN_LOAD, onOSMFPluginLoaded);
 				if (segmentBuffer != -1){ 
 					HLSManifestParser.MAX_SEG_BUFFER = segmentBuffer; // if passed by JS, update static MAX_SEG_BUFFER with the new value 
+				}
+				if (overrideTargetDuration != -1){
+					HLSManifestParser.OVERRIDE_TARGET_DURATION = overrideTargetDuration;
 				}
 				dispatchEvent( new KPluginEvent (KPluginEvent.KPLUGIN_INIT_COMPLETE) );
 			}

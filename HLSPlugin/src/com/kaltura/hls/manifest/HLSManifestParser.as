@@ -8,7 +8,6 @@ package com.kaltura.hls.manifest
 	import flash.events.SecurityErrorEvent;
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
-
 	import flash.utils.getTimer;
 	
 	/**
@@ -22,6 +21,7 @@ package com.kaltura.hls.manifest
 		public static const SUBTITLES:String = "SUBTITLES";
 		
 		public static var MAX_SEG_BUFFER:int = 4;
+		public static var OVERRIDE_TARGET_DURATION:int = -1;
 		
 		public var type:String = DEFAULT;
 		public var version:int;
@@ -155,6 +155,9 @@ package com.kaltura.hls.manifest
 					
 					case "EXT-X-TARGETDURATION":
 						targetDuration = parseInt(tagParams);
+						if (HLSManifestParser.OVERRIDE_TARGET_DURATION > 0){
+							targetDuration = HLSManifestParser.OVERRIDE_TARGET_DURATION;
+						}
 						break;
 					
 					case "EXT-X-ENDLIST":
