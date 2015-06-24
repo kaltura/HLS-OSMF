@@ -193,7 +193,11 @@ package com.kaltura.hls.m2ts
 			if(!input)
 				input = new ByteArray();
 			
-			input.readBytes( tmpBuffer, tmpBuffer.length );
+			var amountToRead:int = input.bytesAvailable;
+			if(amountToRead > 1024*128) amountToRead = 1024*128;
+			trace("READING " + amountToRead + " OF " + input.bytesAvailable);
+			if(amountToRead > 0)
+				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
 			
 			if ( key )
 			{
