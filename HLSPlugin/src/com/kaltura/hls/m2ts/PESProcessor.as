@@ -302,6 +302,7 @@ package com.kaltura.hls.m2ts
 
             // Note the type at this moment in time.
             packet.type = types[packet.packetID];
+            packet.headerLength = cursor;
 
             // And process.
             if(MediaClass.calculate(types[packet.packetID]) == MediaClass.VIDEO)
