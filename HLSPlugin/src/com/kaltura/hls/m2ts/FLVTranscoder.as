@@ -282,8 +282,8 @@ package com.kaltura.hls.m2ts
             var limit:uint;
             var stream:ByteArray;
             var hadRemainder:Boolean = false;
-            var cursor:int = 0;
-            var length:int = pes.buffer.length;
+            var cursor:int = pes.headerLength;
+            var length:int = pes.buffer.length - pes.headerLength;
             var bytes:ByteArray = pes.buffer;
             var timestamp:Number = pes.pts;
             

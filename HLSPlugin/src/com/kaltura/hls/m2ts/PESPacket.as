@@ -27,6 +27,7 @@ package com.kaltura.hls.m2ts
             p.pts = pts;
             p.dts = dts;
             p.type = type;
+            p.headerLength = headerLength;
             return p;
         }
 
@@ -35,5 +36,7 @@ package com.kaltura.hls.m2ts
         public var pts:Number, dts:Number;
         public var packetID:int = -1;
         public var buffer:ByteArray = null;
+
+        public var headerLength:int = NaN;
     }
 }
