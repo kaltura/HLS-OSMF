@@ -1,0 +1,4 @@
+import redbean.*;
+
+compile("M2TSTest.as");
+shell("M2TSTest.abc");
