@@ -25,9 +25,6 @@ package com.kaltura.kdpfl.plugin
 	import org.puremvc.as3.interfaces.INotification;
 	import org.puremvc.as3.patterns.mediator.Mediator;
 	
-	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
-	import org.osmf.events.HTTPStreamingEvent;
-	
 	public class KalturaHLSMediator extends Mediator
 	{
 		public static const NAME:String = "KalturaHLSMediator";
@@ -202,6 +199,11 @@ package com.kaltura.kdpfl.plugin
 			}			
 			
 			if( _dynamicTrait && _currentBitrateValue != _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex) ){
+				_currentBitrateValue = _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex);
+				debugInfo['currentBitrate'] = _currentBitrateValue;
+			}
+			
+			if( _currentBitrateValue != _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex) ){
 				_currentBitrateValue = _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex);
 				debugInfo['currentBitrate'] = _currentBitrateValue;
 			}
