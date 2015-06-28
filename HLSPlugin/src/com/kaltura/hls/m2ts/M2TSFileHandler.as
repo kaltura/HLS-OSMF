@@ -193,7 +193,11 @@ package com.kaltura.hls.m2ts
 			if(!input)
 				input = new ByteArray();
 			
-			input.readBytes( tmpBuffer, tmpBuffer.length );
+			var amountToRead:int = input.bytesAvailable;
+			if(amountToRead > 1024*128) amountToRead = 1024*128;
+			trace("READING " + amountToRead + " OF " + input.bytesAvailable);
+			if(amountToRead > 0)
+				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
 			
 			if ( key )
 			{
@@ -308,6 +312,15 @@ package com.kaltura.hls.m2ts
 			
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			
+			// Also update end time - don't trace it as we'll increase it incrementally.
+			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null)
+			{
+				trace("Noting segment end time for " + segmentUri + " of " + _segmentLastSeconds);
+				if(_segmentLastSeconds != _segmentLastSeconds)
+					throw new Error("Got a NaN _segmentLastSeconds for " + segmentUri + "!");
+				HLSIndexHandler.endTimeWitnesses[segmentUri] = _segmentLastSeconds;
+			}
+
 			if(elapsed <= 0.0 && _extendedIndexHandler)
 			{
 				elapsed = _extendedIndexHandler.getTargetSegmentDuration(); // XXX fudge hack!

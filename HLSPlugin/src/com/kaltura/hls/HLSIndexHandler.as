@@ -140,6 +140,7 @@ package com.kaltura.hls
 		// seg if known.  Since all segments are immutable, we can keep this
 		// as a global cache.
 		public static var startTimeWitnesses:Object = {};
+		public static var endTimeWitnesses:Object = {};
 
 
 		CONFIG::LOGGING
@@ -161,11 +162,10 @@ package com.kaltura.hls
 		}
 
 
+		// Using our witnesses, fill in as much knowledge as we can about 
+		// segment start/end times.
 		public function updateSegmentTimes(segments:Vector.<HLSManifestSegment>):Vector.<HLSManifestSegment>
 		{
-			// Using our witnesses, fill in as much knowledge as we can about 
-			// segment start/end times.
-
 			// Keep track of whatever segments we've assigned to.
 			var setSegments:Object = {};
 
@@ -176,7 +176,11 @@ package com.kaltura.hls
 				if(!startTimeWitnesses.hasOwnProperty(segments[i].uri))
 					continue;
 
-				segments[i].startTime = startTimeWitnesses[segments[i].uri];
+				segments[i].startTime = Math.max(0, startTimeWitnesses[segments[i].uri]);
+
+				if(endTimeWitnesses.hasOwnProperty(segments[i].uri))
+					segments[i].duration = endTimeWitnesses[segments[i].uri] - segments[i].startTime;
+				
 				setSegments[i] = 1;
 			}
 
@@ -189,7 +193,7 @@ package com.kaltura.hls
 					if(!setSegments.hasOwnProperty(i-1) || setSegments.hasOwnProperty(i))
 						continue;
 
-					segments[i].startTime = segments[i-1].startTime + segments[i-1].duration;
+					segments[i].startTime = Math.max(0, segments[i-1].startTime + segments[i-1].duration);
 					setSegments[i] = 1;
 				}
 
@@ -200,7 +204,7 @@ package com.kaltura.hls
 					if(!setSegments.hasOwnProperty(i+1) || setSegments.hasOwnProperty(i))
 						continue;
 
-					segments[i].startTime = segments[i+1].startTime - segments[i].duration;
+					segments[i].startTime = Math.max(0, segments[i+1].startTime - segments[i].duration);
 					setSegments[i] = 1;
 				}
 			}
@@ -210,8 +214,8 @@ package com.kaltura.hls
 			for(i=Math.max(0, segments.length - 100); i<segments.length; i++)
 			{
 				trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + "uri=" + segments[i].uri);
-			}*/
-			trace("Reconstructed manifest time with knowledge=" + checkAnySegmentKnowledge(segments) + " firstTime=" + (segments.length > 1 ? segments[0].startTime : -1) + " lastTime=" + (segments.length > 1 ? segments[segments.length-1].startTime : -1));
+			}
+			trace("Reconstructed manifest time with knowledge=" + checkAnySegmentKnowledge(segments) + " firstTime=" + (segments.length > 1 ? segments[0].startTime : -1) + " lastTime=" + (segments.length > 1 ? segments[segments.length-1].startTime : -1));*/
 
 			// Done!
 			return segments;
@@ -287,6 +291,15 @@ package com.kaltura.hls
 			return -1;
 		}
 
+		/** 
+		 * Find the segment from a time-ordered list containing the specified time.
+		 *
+		 * We don't check for exact containment because segments may have slight
+		 * gaps between them. Therefore the user provides a bias flag - when 
+		 * biasing backwards, we look for the first segment which has extents 
+		 * ahead of time, while when biasing forwards we look for first segment
+		 * which has extents behind time.
+		 */ 
 		public static function getSegmentContainingTime(segments:Vector.<HLSManifestSegment>, time:Number, biasBackward:Boolean = false):HLSManifestSegment
 		{
 			if(biasBackward)
@@ -316,7 +329,7 @@ package com.kaltura.hls
 					if(segments[i].startTime > time)
 						return segments[i-1];
 					
-					// The first index is a special case
+					// The last index (first checked) is a special case
 					if (i == segments.length && segments[i].startTime + segments[i].duration < time)
 						return segments[i];
 				}				
@@ -837,9 +850,10 @@ package com.kaltura.hls
 
 		public function get liveEdge():Number
 		{
+			trace("Getting live edge using targetQuality=" + targetQuality);
 			// Return time at least MAX_SEG_BUFFER from end of stream.
-			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
-			if(!seg || getManifestForQuality(lastQuality).streamEnds)
+			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(targetQuality);
+			if(!seg || getManifestForQuality(targetQuality).streamEnds)
 				return Number.MAX_VALUE;
 			var lastSeg:HLSManifestSegment = seg[Math.max(0, seg.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
 			return lastSeg.startTime;
@@ -1153,7 +1167,9 @@ package com.kaltura.hls
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 2);
 			}
 
-			// Advance sequence number if we didn't seed.
+			// Advance sequence number if we didn't seed. This prevensts us from
+			// inadvertantly advancing past the first segment of a video in streams 
+			// with non-zero start times.
 			if(!didWeSeedLastSequence)
 				newSequence++;
 

@@ -13,8 +13,8 @@ package com.kaltura.hls.m2ts
      */
     public class NALUProcessor
     {
-        private static var ppsList:Vector.<ByteArray> = new Vector.<ByteArray>;
-        private static var spsList:Vector.<ByteArray> = new Vector.<ByteArray>;
+        private var ppsList:Vector.<ByteArray> = new Vector.<ByteArray>;
+        private var spsList:Vector.<ByteArray> = new Vector.<ByteArray>;
         
         private static function sortSPS(a:ByteArray, b:ByteArray):int
         {
@@ -47,7 +47,7 @@ package com.kaltura.hls.m2ts
         /**
          * Actually perform serialization of the AVCC.
          */
-        public static function serializeAVCC():ByteArray
+        public function serializeAVCC():ByteArray
         {            
             // Some sanity checking, easier than special casing loops.
             if(ppsList == null)
@@ -122,7 +122,7 @@ package com.kaltura.hls.m2ts
         /**
          * Update our internal list of SPS entries, merging as needed.
          */
-        private static function setAVCSPS(bytes:ByteArray, cursor:uint, length:uint):void
+        private function setAVCSPS(bytes:ByteArray, cursor:uint, length:uint):void
         {
             var sps:ByteArray = new ByteArray();
             sps.writeBytes(bytes, cursor, length);
@@ -158,7 +158,7 @@ package com.kaltura.hls.m2ts
         /**
          * Update our internal list of PPS entries, merging as needed.
          */
-        private static function setAVCPPS(bytes:ByteArray, cursor:uint, length:uint):void
+        private function setAVCPPS(bytes:ByteArray, cursor:uint, length:uint):void
         {
             var pps:ByteArray = new ByteArray;
             pps.writeBytes(bytes, cursor, length);
@@ -251,7 +251,7 @@ package com.kaltura.hls.m2ts
             return tmp;
         }
 
-        private static function extractAVCCInner(bytes:ByteArray, cursor:uint, length:uint):void
+        public function extractAVCCInner(bytes:ByteArray, cursor:uint, length:uint):void
         {
             // What's the type?
             var naluType:uint = bytes[cursor] & 0x1f;
@@ -272,13 +272,13 @@ package com.kaltura.hls.m2ts
             }
         }
 
-        public static function startAVCCExtraction():void
+        public function resetAVCCExtraction():void
         {
             spsList = new Vector.<ByteArray>();
             ppsList = new Vector.<ByteArray>();            
         }
 
-        public static function pushAVCData(unit:NALU):void
+        public function pushAVCData(unit:NALU):void
         {
             // Go through each buffer and find all the SPS/PPS info.
             walkNALUs(unit.buffer, 0, extractAVCCInner, true)

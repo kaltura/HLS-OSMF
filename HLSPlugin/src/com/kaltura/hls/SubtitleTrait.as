@@ -3,7 +3,9 @@ package com.kaltura.hls
 	import com.kaltura.hls.manifest.HLSManifestPlaylist;
 	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
-	
+	import com.kaltura.hls.subtitles.TextTrackCue;
+	import com.kaltura.hls.HLSDVRTimeTrait;
+
 	import org.osmf.traits.MediaTraitBase;
 	import org.osmf.traits.MediaTraitType;
 	import org.osmf.traits.TimeTrait;
@@ -24,10 +26,14 @@ package com.kaltura.hls
 
 		public var owningMediaElement:MediaElement;
 
+		private var _lastCue:TextTrackCue;
+		private var _lastInjectedSubtitleTime:Number = -1;
+
 		private static var activeTrait:SubtitleTrait = null;
 		private static var activeReload:HLSManifestParser;
 		private static var reloadLanguage:String = null;
 		private static var _reloadTimer:Timer;
+		private static var _subtitleTimer:Timer;
 		
 		public function SubtitleTrait()
 		{
@@ -42,8 +48,95 @@ package com.kaltura.hls
 				_reloadTimer.addEventListener(TimerEvent.TIMER, onReloadTimer);
 				_reloadTimer.start();
 			}
+
+			if(!_subtitleTimer)
+			{
+				trace("SubTitleTrait - starting subtitle timer");
+				_subtitleTimer = new Timer(50);
+				_subtitleTimer.addEventListener(TimerEvent.TIMER, onSubtitleTimer);
+				_subtitleTimer.start();
+			}
+
 		}
 
+		/**
+		 * Fired frequently to emit any new subtitle events based on playhead position.
+		 */
+		private static function onSubtitleTimer(e:Event):void
+		{
+			// If no trait/no titles, ignore it.
+			if(activeTrait == null || activeTrait.activeSubtitles == null)
+				return;
+
+			// Otherwise, attempt to get the time trait and determine our current playtime.
+			if(!activeTrait.owningMediaElement)
+				return;
+
+			var tt:TimeTrait = activeTrait.owningMediaElement.getTrait(MediaTraitType.TIME) as TimeTrait;
+			if(!tt)
+				return;
+
+			// Great, time is knowable - so what is it?
+			var curTime:Number = tt.currentTime;
+			if(tt is HLSDVRTimeTrait)
+				curTime = (tt as HLSDVRTimeTrait).absoluteTime;
+			
+			// This is quite verbose but useful for debugging.
+			// trace("onSubtitleTimer - Current time is: " + curTime);
+
+			// Now, fire off any subtitles that are new.
+			activeTrait.emitSubtitles(activeTrait._lastInjectedSubtitleTime, curTime);
+		}
+
+		/**
+		 * Actually fire subtitle events for any subtitles in the specified period.
+		 */
+		private function emitSubtitles( startTime:Number, endTime:Number ):void
+		{
+			var subtitles:Vector.<SubTitleParser> = activeSubtitles;
+			var subtitleCount:int = subtitles.length;
+			var potentials:Vector.<TextTrackCue> = new Vector.<TextTrackCue>();
+
+			for ( var i:int = 0; i < subtitleCount; i++ )
+			{
+				var subtitle:SubTitleParser = subtitles[ i ];
+				if ( subtitle.startTime > endTime ) continue;
+				if ( subtitle.endTime < startTime ) continue;
+				var cues:Vector.<TextTrackCue> = subtitle.textTrackCues;
+				var cueCount:int = cues.length;
+
+				for ( var j:int = 0; j < cueCount; j++ )
+				{
+					var cue:TextTrackCue = cues[ j ];
+					if ( cue.startTime > endTime ) break;
+					else if ( cue.startTime >= startTime )
+					{
+						potentials.push(cue);
+					}
+				}
+			}
+
+			if(potentials.length > 0)
+			{
+				// TODO: Add support for trackid
+				cue = potentials[potentials.length - 1];
+				if(cue != _lastCue)
+				{
+					dispatchEvent(new SubtitleEvent(cue.startTime, cue.text, language));
+
+					_lastInjectedSubtitleTime = cue.startTime;
+					_lastCue = cue;						
+				}
+			}
+
+			// Force last time so we eventually show proper subtitles.
+			_lastInjectedSubtitleTime = endTime;
+
+		}
+
+		/**
+		 * Fired intermittently to check for new subtitle segments to download.
+		 */
 		private static function onReloadTimer(e:Event):void
 		{
 			// Check for any subtitles that have not been requested yet.
@@ -154,38 +247,8 @@ package com.kaltura.hls
 		
 		public function set language( value:String ):void
 		{
-			// Trigger a seek to flush buffer and get proper language.
-			if(_language != value)
-			{
-				_language = value;
-
-				trace("Triggering flush for proper subtitle language.");
-				if(owningMediaElement)
-				{
-					var st:SeekTrait = owningMediaElement.getTrait(MediaTraitType.SEEK) as SeekTrait;
-					var tt:TimeTrait = owningMediaElement.getTrait(MediaTraitType.TIME) as TimeTrait;
-					
-					if(st == null)
-					{
-						trace("   o No seek trait, skipping...");
-					}
-
-					if(tt == null)
-					{
-						trace("   o No time trait, skipping...");
-					}
-
-					if(st != null && tt != null)
-					{
-						trace("   o Initiating seek to " + tt.currentTime);
-						st.seek(tt.currentTime);
-					}
-				}
-				else
-				{
-					trace("   o No media element, skipping...");
-				}
-			}
+			// No special logic required, we will sort it out elsewhere.
+			_language = value;
 		}
 		
 		public function get language():String
