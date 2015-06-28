@@ -25,6 +25,9 @@ package com.kaltura.kdpfl.plugin
 	import org.puremvc.as3.interfaces.INotification;
 	import org.puremvc.as3.patterns.mediator.Mediator;
 	
+	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
+	import org.osmf.events.HTTPStreamingEvent;
+	
 	public class KalturaHLSMediator extends Mediator
 	{
 		public static const NAME:String = "KalturaHLSMediator";
