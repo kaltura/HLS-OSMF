@@ -1,0 +1,221 @@
+//--------------------------------------
+//--- 010 Editor v4.0.3 Binary Template
+//
+// File: TSTemplate.bt
+// Author: @RReverser
+// Revision: 201302281430
+// Purpose: Parse MPEG-TS (Transport Stream) files and records.
+//--------------------------------------
+
+BigEndian();
+BitfieldDisablePadding();
+
+typedef enum <ubyte> {
+    no,
+    yes
+} bool;
+
+typedef struct {
+    uint64 base : 33 <name = "Base", comment = "System time clock divided by 90000">;
+    ubyte reserved : 6 <hidden = true>;
+    uint16 extension : 9 <name = "Extension", comment = "Lowest nine bits from the system time clock at the moment of arrival of the last byte of the packet">;
+} PCR <name = "Program Clock Reference", size = 6, read = ReadPCR, write = WritePCR, comment = "Periodically transmitted value of 42 bits which is used to properly demultiplex packets and to assure that audio matches video">;
+
+string ReadPCR(PCR &pcr) {
+    string s;
+    SPrintf(s, "%Lu", 300 * (300 * pcr.base + pcr.extension));
+    return s;
+}
+
+void WritePCR(PCR &pcr, string s) {
+    uint64 t;
+    SScanf(s, "%Lu", t);
+    t /= 300;
+    pcr.base = t / 300;
+    pcr.extension = t % 300;
+}
+
+typedef struct {
+    ubyte length <hidden = true>;
+    ubyte data[length] <name = "Data", format = hex>;
+} Field <size = GetFieldSize>;
+
+int GetFieldSize(Field &field) {
+    return ReadUByte(startof(field)) + 1;
+}
+
+typedef struct {
+    ubyte length <hidden = true>;
+    bool discontinuity : 1 <name = "Discontinuity indicator", comment = "Current TS packet is in a discontinuity state with respect to either the continuity counter or the program clock reference">;
+    bool randomAccess : 1 <name = "Random access indicator", comment = "PES packet in this TS packet starts a video/audio sequence">;
+    bool priority : 1 <name = "Elementary stream priority indicator">;
+    bool hasPCR : 1 <name = "PCR flag", comment = "Contains PCR field", hidden = true>;
+    bool hasOPCR : 1 <name = "OPCR flag", comment = "Contains OPCR field", hidden = true>;
+    bool hasSplicingPoint : 1 <name = "Splicing point flag", comment = "Contains splice countdown field in adaptation field", hidden = true>;
+    bool hasTransportPrivateData : 1 <name = "Transport private data flag", comment = "Contains private data bytes in adaptation field", hidden = true>;
+    bool hasExtension : 1 <name = "Extension flag", comment = "Contains adaptation field extension", hidden = true>;
+} TSAdaptationHeader <name = "Header", size = 2>;
+
+typedef struct {
+    TSAdaptationHeader header;
+
+    if (header.hasPCR) {
+        PCR pcr;
+    }
+
+    if (header.hasOPCR) {
+        PCR opcr <name = "Original Program Clock Reference">;
+    }
+
+    if (header.hasSplicingPoint) {
+        byte spliceCountdown <name = "Splice countdown", comment = "Indicates how many TS packets from this one a slicing point occurs">;
+    }
+
+    if (header.hasTransportPrivateData) {
+        Field privateData <name = "Private data">;
+    }
+
+    if (header.hasExtension) {
+        Field extension <name = "Extension">;
+    }
+} TSAdaptationField <name = "Adaptation Field", size = GetAdaptationFieldSize>;
+
+int GetAdaptationFieldSize(TSAdaptationField &field) {
+    return ReadUByte(startof(field)) + 1;
+}
+
+typedef struct {
+    ubyte syncByte <hidden = true>;
+    Assert(syncByte == 0x47, "Lost stream synchronization byte.");
+
+    bool transportError : 1 <name = "Transport error", comment = "Set if bit error exists in packet">;
+    bool payloadStart : 1 <name = "Payload start", comment = "Start of PES data or PSI otherwise zero only">;
+    bool transportPriority : 1 <name = "Transport priority", comment = "Higher priority than other packets with the same PID">;
+    uint16 pid : 13 <name = "Packet ID", format = hex, comment = "Packet Identifier describes stream number or type of data">;
+
+    enum <ubyte> {not_scrambled} scramblingControl : 2 <name = "Scrambling control">;
+    bool hasAdaptationField : 1 <name = "Adaptation Field Exists", hidden = true>;
+    bool hasPayload : 1 <name = "Payload Exists", hidden = true>;
+    ubyte contCounter : 4 <name = "Continuity Counter", comment = "Increments for payloads only">;
+} TSHeader <name = "Header", size = 4>;
+
+typedef struct (TSHeader &tsHeader) {
+    if (tsHeader.payloadStart) {
+        enum <ubyte> {no_pointer} pointerField <name = "Pointer Field", comment = "Number of bytes from the end of this field to the start of payload data">;
+    }
+
+    enum <ubyte> {PAT, CAT, PMT} tableId <name = "Table ID", format = hex>;
+    bool isLongSection : 1 <name = "Section syntax indicator", hidden = true, comment = "Long-section format">;
+    bool isPrivate : 1 <name = "Private indicator", hidden = true, comment = "No more used">;
+    ubyte reserved : 2 <hidden = true>;
+    uint16 sectionLength : 12 <hidden = true>;
+
+    if (!isLongSection) {
+        ubyte data[sectionLength] <name = "Private data", format = hex>;
+    } else {
+        uint16 tableIdExt <name = "Table ID Extension", format = hex>;
+        ubyte reserved : 2 <hidden = true>;
+        ubyte versionNumber : 5 <name = "Version number", comment = "Incremented by 1 mod 32 each time the table data changes">;
+        bool currentNextIndicator : 1 <name = "Current Next indicator", comment = "If 1, this table is currently valid. If 0, this table will become valid next.">;
+        ubyte sectionNumber <name = "Section number", comment = "Index of this section in the sequence of this table's sections">;
+        ubyte lastSectionNumber <name = "Last section number", comment = "Index of last section of table">;
+        local uint16 dataLength = sectionLength - 9;
+
+        switch (tableId) {
+            case PAT:
+                struct {
+                    enum <uint16> {network_program} programNumber <name = "Program Number", format = hex>;
+                    ubyte reserved : 3 <hidden = true>;
+                    if (programNumber) {
+                        uint16 programMapPID : 13 <name = "PMT Packet ID", format = hex>;
+                    } else {
+                        uint16 networkPID : 13 <name = "NIT Packet ID", format = hex>;
+                    }
+                } tablePIDs[dataLength / 4] <name = "Table PIDs", size = 4, optimize = true>;
+                break;
+
+            case PMT:
+                ubyte reserved : 3 <hidden = true>;
+                uint16 pcr_pid : 13 <name = "PCR PID", comment = "PID of general timecode stream, or 0x1FFF">;
+                ubyte reserved : 4 <hidden = true>;
+                uint16 programInfoLength : 12 <hidden = true>;
+                ubyte programDescriptors[programInfoLength] <name = "Program descriptors", format = hex>;
+                dataLength -= 4 + programInfoLength;
+                while (dataLength > 0) {
+                    struct {
+                        ubyte streamType <name = "Stream type", format = hex>;
+                        ubyte reserved : 3 <hidden = true>;
+                        uint16 elementaryPID : 13 <name = "Elementary PID", format = hex>;
+                        ubyte reserved : 4 <hidden = true>;
+                        uint16 esInfoLength : 12 <hidden = true>;
+                        ubyte esInfo[esInfoLength] <name = "Elementary stream descriptors", format = hex>;
+                    } mappings <name = "Program mappings">;
+                    dataLength -= 5 + mappings.esInfoLength;
+                }
+                break;
+
+            default:
+                ubyte data[dataLength] <name = "Private data", format = hex>;
+                break;
+        }
+
+        uint32 crc32 <name = "CRC32", format = hex>;
+    }
+} TSPrivateSection <name = GetTSPSName>;
+
+string GetTSPSName(TSPrivateSection &tsps) {
+    switch (tsps.tableId) {
+        case PAT: return "Program Association Table";
+        case CAT: return "Conditional Access Table";
+        case PMT: return "Program Map Table";
+        default: return "Program-Specific Information";
+    }
+}
+
+typedef struct {
+    ubyte prefix[3] <hidden = true>;
+    ubyte streamId <name = "Stream ID", format = hex, comment = "0xC0 - 0xDF = audio stream, 0xE0 - 0xEF = video stream, 0xFA = MPEG-4 Part 1 SL (Synchronization Layer) stream">;
+    uint16 length <hidden = true>;
+    // TODO: add other fields
+} PES <name = "Packetized Elementary Stream", size = GetPESSize>;
+
+int GetPESSize(PES &pes) {
+    return ReadUShort(startof(pes) + 4) + 6;
+}
+
+typedef struct {
+    TSHeader header;
+
+    if (header.hasAdaptationField) {
+        TSAdaptationField adaptationField;
+    }
+
+    if (header.hasPayload) {
+        switch (header.pid) {
+            case 0x0000:
+            case 0x0001:
+                TSPrivateSection tsps(header);
+                break;
+
+            default:
+                local ubyte pesPrefix[3];
+                ReadBytes(pesPrefix, FTell(), 3);
+                if (pesPrefix[0] == 0x00 && pesPrefix[1] == 0x00 && pesPrefix[2] == 0x01) {
+                    PES pes;
+                } else {
+                    ubyte data[188 - (FTell() - startof(this))] <name = "Payload Data", format = hex, comment = "Not compliant with MPEG-2 Part 1 (Systems) (ISO/IEC 13818-1) and ITU-T H.222.0">;
+                }
+                break;
+        }
+    }
+} TSPacket <name = "Transport Stream Packets", size = 188, optimize = false>;
+
+TSPacket tsPackets[FileSize() / 188];
+
+// Below is variant for record of unsynced transport stream.
+/*
+while (!FEof()) {
+    while (ReadUByte(FTell()) != 0x47) FSkip(1);
+    TSPacket tsPacket;
+}
+*/
