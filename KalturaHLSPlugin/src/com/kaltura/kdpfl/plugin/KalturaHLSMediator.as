@@ -7,17 +7,17 @@ package com.kaltura.kdpfl.plugin
 	import com.kaltura.kdpfl.view.controls.KTrace;
 	
 	import org.osmf.elements.ProxyElement;
+	import org.osmf.events.DynamicStreamEvent;
+	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.events.MediaElementEvent;
 	import org.osmf.media.MediaElement;
 	import org.osmf.net.NetStreamLoadTrait;
+	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
 	import org.osmf.traits.DVRTrait;
 	import org.osmf.traits.DynamicStreamTrait;
 	import org.osmf.traits.MediaTraitType;
 	import org.puremvc.as3.interfaces.INotification;
 	import org.puremvc.as3.patterns.mediator.Mediator;
-	
-	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
-	import org.osmf.events.HTTPStreamingEvent;
 	
 	public class KalturaHLSMediator extends Mediator
 	{
@@ -31,6 +31,7 @@ package com.kaltura.kdpfl.plugin
 		private var _dynamicTrait:DynamicStreamTrait;
 		private var _bufferLength:Number;
 		private var _droppedFrames:Number;
+		private var _currentBitrateValue:Number;
 		
 		public function KalturaHLSMediator( viewComponent:Object=null)
 		{
@@ -142,6 +143,8 @@ package com.kaltura.kdpfl.plugin
 		protected function setupDynamicStreamTrait(trait:DynamicStreamTrait):void
 		{
 			_dynamicTrait = trait;
+			_dynamicTrait.addEventListener(DynamicStreamEvent.AUTO_SWITCH_CHANGE, onAutoBitrateSwitchChange);
+			_dynamicTrait.addEventListener(DynamicStreamEvent.SWITCHING_CHANGE, onBitrateSwitchingChange);
 		}
 		
 		protected function sendHLSDebug(debugInfo:Object):void
@@ -157,6 +160,11 @@ package com.kaltura.kdpfl.plugin
 				debugInfo['droppedFrames'] = _droppedFrames;
 			}
 			
+			if( _currentBitrateValue != _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex) ){
+				_currentBitrateValue = _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex);
+				debugInfo['currentBitrate'] = _currentBitrateValue;
+			}
+			
 			sendNotification("debugInfoReceived", debugInfo);
 		}
 		
@@ -164,12 +172,10 @@ package com.kaltura.kdpfl.plugin
 		{
 			var debugInfo:Object = new Object();
 			if( info['type'] == "segmentStart" ){
-				debugInfo['info'] = 'Start playing segment';
-			}//else if ( info['type'] == "segmentEnd" ){
-				//debugInfo['type'] = 'End playing segment';
-			//}
-			debugInfo['uri'] = info['uri'];
-			sendHLSDebug(debugInfo);
+				debugInfo['info'] = 'Playing segment';
+				debugInfo['uri'] = info['uri'];
+				sendHLSDebug(debugInfo);
+			}
 		}
 		
 		protected function handleDebugBusEvents(event:HTTPStreamingEvent):void
@@ -182,6 +188,16 @@ package com.kaltura.kdpfl.plugin
 			}
 			debugInfo['uri'] = event.url;
 			sendHLSDebug(debugInfo);
+		}
+		
+		protected function onAutoBitrateSwitchChange(event:DynamicStreamEvent):void
+		{
+			sendHLSDebug(new Object());
+		}
+		
+		protected function onBitrateSwitchingChange(event:DynamicStreamEvent):void
+		{
+			sendHLSDebug(new Object());
 		}
 		
 		protected function sendSubtitleNotification(event:SubtitleEvent):void
