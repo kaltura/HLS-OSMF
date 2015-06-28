@@ -569,7 +569,7 @@ package org.osmf.net.httpstreaming
 							NaN,
 							null,
 							null,
-							_streamName
+							(_fileHandler as M2TSFileHandler).segmentUri
 						)
 					);
 
@@ -665,7 +665,7 @@ package org.osmf.net.httpstreaming
 							NaN,
 							null,
 							null,
-							_streamName
+							(_fileHandler as M2TSFileHandler).segmentUri
 						)
 					);
 					
