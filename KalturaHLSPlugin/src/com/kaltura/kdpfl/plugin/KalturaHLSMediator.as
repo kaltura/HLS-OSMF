@@ -1,13 +1,20 @@
 package com.kaltura.kdpfl.plugin
 {
-	import com.kaltura.hls.SubtitleTrait;
 	import com.kaltura.hls.SubtitleEvent;
+	import com.kaltura.hls.SubtitleTrait;
 	import com.kaltura.kdpfl.model.MediaProxy;
 	import com.kaltura.kdpfl.model.type.NotificationType;
 	import com.kaltura.kdpfl.view.controls.KTrace;
 	
+	import org.osmf.elements.ProxyElement;
+	import org.osmf.events.DynamicStreamEvent;
+	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.events.MediaElementEvent;
+	import org.osmf.media.MediaElement;
+	import org.osmf.net.NetStreamLoadTrait;
+	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
 	import org.osmf.traits.DVRTrait;
+	import org.osmf.traits.DynamicStreamTrait;
 	import org.osmf.traits.MediaTraitType;
 	import org.puremvc.as3.interfaces.INotification;
 	import org.puremvc.as3.patterns.mediator.Mediator;
@@ -20,6 +27,11 @@ package com.kaltura.kdpfl.plugin
 		
 		private var _mediaProxy:MediaProxy;
 		private var _subtitleTrait:SubtitleTrait;
+		private var _loadTrait:NetStreamLoadTrait;
+		private var _dynamicTrait:DynamicStreamTrait;
+		private var _bufferLength:Number;
+		private var _droppedFrames:Number;
+		private var _currentBitrateValue:Number;
 		
 		public function KalturaHLSMediator( viewComponent:Object=null)
 		{
@@ -30,6 +42,8 @@ package com.kaltura.kdpfl.plugin
 		{
 			_mediaProxy = facade.retrieveProxy(MediaProxy.NAME) as MediaProxy;
 			super.onRegister();
+			
+
 		}
 		
 		override public function listNotificationInterests():Array
@@ -37,6 +51,7 @@ package com.kaltura.kdpfl.plugin
 			return [
 				NotificationType.DURATION_CHANGE,
 				NotificationType.MEDIA_ELEMENT_READY,
+				NotificationType.MEDIA_LOADED,
 				HLS_TRACK_SWITCH
 			];
 		}
@@ -55,7 +70,7 @@ package com.kaltura.kdpfl.plugin
 			}
 			
 			if ( notification.getName() == NotificationType.MEDIA_ELEMENT_READY ) {
-				_mediaProxy.vo.media.addEventListener(MediaElementEvent.TRAIT_ADD, getSubtitleTrait); // catch and save SubtitleTrait the moment video object is ready
+				_mediaProxy.vo.media.addEventListener(MediaElementEvent.TRAIT_ADD, onTraitAdd); // catch and save relevant traits the moment video object is ready
 			}
 			
 			if ( notification.getName() == HLS_TRACK_SWITCH ) { //trigered by JS changeEmbeddedTextTrack helper in order to change language
@@ -65,24 +80,124 @@ package com.kaltura.kdpfl.plugin
 					KTrace.getInstance().log("KalturaHLSMediator :: doTextTrackSwitch >> subtitleTrait or textIndex error.");
 			}
 			
+			if ( NotificationType.MEDIA_LOADED ){
+				//get debug info, if exists
+				var media : MediaElement = _mediaProxy.vo.media;
+				while (media is ProxyElement)
+				{
+					media = (media as ProxyElement).proxiedElement;
+				} 
+				if (media.hasOwnProperty("client") && media["client"]) {
+					media["client"].addHandler( "hlsDebug", handleHLSDebug );
+				}
+				HLSHTTPStreamSource.debugBus.addEventListener(HTTPStreamingEvent.BEGIN_FRAGMENT, handleDebugBusEvents);
+				HLSHTTPStreamSource.debugBus.addEventListener(HTTPStreamingEvent.END_FRAGMENT, handleDebugBusEvents);
+			}
+			
 		}
 		
-		protected function getSubtitleTrait(event:MediaElementEvent):void
+		protected function onTraitAdd(event:MediaElementEvent):void
 		{
-			if(event.traitType == SubtitleTrait.TYPE){
-				_mediaProxy.vo.media.removeEventListener(MediaElementEvent.TRAIT_ADD, getSubtitleTrait);
-				_subtitleTrait = _mediaProxy.vo.media.getTrait( SubtitleTrait.TYPE ) as SubtitleTrait; // save SubtitleTrait in order to read languages
-				if ( _subtitleTrait && _subtitleTrait.languages.length > 0 )
-				{
-					var langArray:Array = new Array();
-					var i:int = 0;
-					while (i < _subtitleTrait.languages.length){
-						langArray.push({"label":_subtitleTrait.languages[i], "index": i++}); // build languages array in a format that JS expects to receive
-					}
-					_subtitleTrait.addEventListener(SubtitleEvent.CUE, sendSubtitleNotification); 
-					sendNotification("textTracksReceived", {languages:langArray}); //will triger ClosedCaptions textTracksReceived function, through kplayer onTextTracksReceived listener
-				}	
+			switch (event.traitType) {
+				case MediaTraitType.DYNAMIC_STREAM:
+					setupDynamicStreamTrait(_mediaProxy.vo.media.getTrait(MediaTraitType.DYNAMIC_STREAM) as DynamicStreamTrait);
+					break;
+				case MediaTraitType.LOAD:
+					setupLoadTrait(_mediaProxy.vo.media.getTrait(MediaTraitType.LOAD) as NetStreamLoadTrait);
+					break;
+				case SubtitleTrait.TYPE:
+					setupSubtitleTrait(_mediaProxy.vo.media.getTrait( SubtitleTrait.TYPE ) as SubtitleTrait);
+					break;
 			}
+			
+			if ( _subtitleTrait && _loadTrait && _dynamicTrait ){
+				_mediaProxy.vo.media.removeEventListener(MediaElementEvent.TRAIT_ADD, onTraitAdd);
+			}
+		}
+		
+		protected function setupSubtitleTrait(trait:SubtitleTrait):void
+		{
+			_subtitleTrait = trait; // save SubtitleTrait in order to read languages
+			if ( _subtitleTrait && _subtitleTrait.languages.length > 0 )
+			{
+				var langArray:Array = new Array();
+				var i:int = 0;
+				while (i < _subtitleTrait.languages.length){
+					langArray.push({"label":_subtitleTrait.languages[i], "index": i++}); // build languages array in a format that JS expects to receive
+				}
+				_subtitleTrait.addEventListener(SubtitleEvent.CUE, sendSubtitleNotification); 
+				sendNotification("textTracksReceived", {languages:langArray}); //will triger ClosedCaptions textTracksReceived function, through kplayer onTextTracksReceived listener
+			}	
+		}
+		//var trait:NetStreamLoadTrait = element.getTrait(MediaTraitType.LOAD) as NetStreamLoadTrait;
+		protected function setupLoadTrait(trait:NetStreamLoadTrait):void
+		{
+			_loadTrait = trait;
+			if (!trait)
+				return;
+			
+			_bufferLength = trait.netStream.bufferLength | 0;
+			_droppedFrames = trait.netStream.info.droppedFrames;
+		}
+		
+		protected function setupDynamicStreamTrait(trait:DynamicStreamTrait):void
+		{
+			_dynamicTrait = trait;
+			_dynamicTrait.addEventListener(DynamicStreamEvent.AUTO_SWITCH_CHANGE, onAutoBitrateSwitchChange);
+			_dynamicTrait.addEventListener(DynamicStreamEvent.SWITCHING_CHANGE, onBitrateSwitchingChange);
+		}
+		
+		protected function sendHLSDebug(debugInfo:Object):void
+		{
+			//check for buffer and droppedFrames values
+			if ( _bufferLength != _loadTrait.netStream.bufferLength ){
+				_bufferLength = _loadTrait.netStream.bufferLength;
+				debugInfo['bufferLength'] = _bufferLength;
+			}
+			
+			if ( _droppedFrames != _loadTrait.netStream.info.droppedFrames ){
+				_droppedFrames = _loadTrait.netStream.info.droppedFrames;
+				debugInfo['droppedFrames'] = _droppedFrames;
+			}
+			
+			if( _currentBitrateValue != _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex) ){
+				_currentBitrateValue = _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex);
+				debugInfo['currentBitrate'] = _currentBitrateValue;
+			}
+			
+			sendNotification("debugInfoReceived", debugInfo);
+		}
+		
+		protected function handleHLSDebug(info:Object):void
+		{
+			var debugInfo:Object = new Object();
+			if( info['type'] == "segmentStart" ){
+				debugInfo['info'] = 'Playing segment';
+				debugInfo['uri'] = info['uri'];
+				sendHLSDebug(debugInfo);
+			}
+		}
+		
+		protected function handleDebugBusEvents(event:HTTPStreamingEvent):void
+		{
+			var debugInfo:Object = new Object();
+			if( event.type == HTTPStreamingEvent.BEGIN_FRAGMENT ){
+				debugInfo['info'] = 'Downloading segment';
+			}else if ( event.type == HTTPStreamingEvent.END_FRAGMENT ){
+				debugInfo['info'] = 'Finished processing segment';
+			}
+			debugInfo['uri'] = event.url;
+			sendHLSDebug(debugInfo);
+		}
+		
+		protected function onAutoBitrateSwitchChange(event:DynamicStreamEvent):void
+		{
+			sendHLSDebug(new Object());
+		}
+		
+		protected function onBitrateSwitchingChange(event:DynamicStreamEvent):void
+		{
+			sendHLSDebug(new Object());
 		}
 		
 		protected function sendSubtitleNotification(event:SubtitleEvent):void
