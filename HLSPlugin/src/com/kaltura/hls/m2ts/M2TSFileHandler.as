@@ -371,7 +371,7 @@ package com.kaltura.hls.m2ts
 				}
 
 
-				if(timestamp < flvLowWater - 100 && !alwaysPass)
+				if(timestamp < flvLowWater - 750 && !alwaysPass)
 				{
 					trace("SKIPPING TOO LOW FLV TS @ " + timestamp);
 					return;
