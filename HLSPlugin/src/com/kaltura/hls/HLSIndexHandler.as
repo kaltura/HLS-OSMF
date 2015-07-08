@@ -910,18 +910,8 @@ package com.kaltura.hls
 						}
 					}
 				}
-				else
+				else 
 				{
-
-					// Fire any pending best effort requests.
-					if(_pendingBestEffortRequest)
-					{
-						trace("Firing pending best effort request (2): " + _pendingBestEffortRequest);
-						var pber:HTTPStreamRequest = _pendingBestEffortRequest;
-						_pendingBestEffortRequest = null;
-						return pber;
-					}
-
 					trace("getFileForTime - Waiting on knowledge!");
 					return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 				}
