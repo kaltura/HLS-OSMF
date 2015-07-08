@@ -12,6 +12,8 @@ package com.kaltura.hls.m2ts
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
+
+	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
