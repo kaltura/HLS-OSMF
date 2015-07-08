@@ -61,7 +61,7 @@ package com.kaltura.hls.m2ts
 			_timeOrigin = 0;
 			_timeOriginNeeded = true;
 			
-			_segmentBeginSeconds = Number.MAX_VALUE;
+			_segmentBeginSeconds = -1;
 			_segmentLastSeconds = -1;
 			
 			_firstSeekTime = 0;
@@ -163,7 +163,7 @@ package com.kaltura.hls.m2ts
 				}
 			}
 			
-			_segmentBeginSeconds = Number.MAX_VALUE;
+			_segmentBeginSeconds = -1;
 			_segmentLastSeconds = -1;
 			_lastInjectedSubtitleTime = -1;
 			_encryptedDataBuffer.length = 0;
@@ -351,40 +351,11 @@ package com.kaltura.hls.m2ts
 		public static var flvLowWaterVideo:uint = 0;
 		public const filterThresholdMs:uint = 0;
 				
-
-		public static var flvLowWater:uint = 0;
-
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
-			if(isBestEffort == false)
-			{
-				// Alway pass through SPS/PPS...
-				var alwaysPass:Boolean = false
-				if(message[0] == 9)
-				{
-					if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
-						&& message[12] == FLVTags.AVC_MODE_AVCC)
-					{
-						trace("Got AVCC, always pass");
-						alwaysPass = true;
-					}
-				}
-
-
-				if(timestamp < flvLowWater - 100 && !alwaysPass)
-				{
-					trace("SKIPPING TOO LOW FLV TS @ " + timestamp);
-					return;
-				}
-
-				// Don't update low water if it's an always pass.
-				if(!alwaysPass)
-					flvLowWater = timestamp;				
-			}
-
 			var timestampSeconds:Number = timestamp / 1000.0;
 
-			if(_segmentBeginSeconds > timestampSeconds)
+			if(_segmentBeginSeconds < 0)
 			{
 				_segmentBeginSeconds = timestampSeconds;
 				trace("Noting segment start time for " + segmentUri + " of " + timestampSeconds);
