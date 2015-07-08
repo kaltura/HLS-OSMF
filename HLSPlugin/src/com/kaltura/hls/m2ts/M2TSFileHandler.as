@@ -11,6 +11,8 @@ package com.kaltura.hls.m2ts
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
+
+	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
@@ -352,6 +354,9 @@ package com.kaltura.hls.m2ts
 
 			if(isBestEffort)
 				return;
+
+			var type:int = message[0];
+			ExternalInterface.call("tag(" + timestampSeconds + ", " + type + ")");
 
 			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 

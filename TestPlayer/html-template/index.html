@@ -59,6 +59,99 @@
             // JavaScript enabled so display the flashContent div in case it is not replaced with a swf object.
             swfobject.createCSS("#flashContent", "display:block;text-align:left;");
         </script>
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
+        
+        <script>
+            var tags=[];
+            var bufferDirty = true;
+
+            var isSetup = false;
+            var howFarBack = 20;
+            var width = 2048, height = 1024;
+
+            // Initiate buffer rendering.
+            setInterval(redrawBuffer, 100);
+
+            function tag(time, type)
+            {
+                // Note tag.
+                tags.push({time: time, type: type});
+                
+                // Mark redraw needed.
+                bufferDirty = true;
+            }
+            
+            function adjustZoom(e)
+            {
+                var delta = -e.detail || e.wheelDelta;
+                
+                if(delta < 0)
+                    howFarBack = Math.max(1, howFarBack - 0.5);
+                else
+                    howFarBack = Math.min(45, howFarBack + 0.5);
+                    
+                bufferDirty = true;
+                e.preventDefault();
+                return false;
+            }
+            
+            function redrawBuffer()
+            {
+                if(bufferDirty == false)
+                    return;
+
+                bufferDirty = false;
+
+                // Set up canvas.
+                var canvas = document.getElementById("canvas");
+                var ctx = canvas.getContext("2d");
+                if(!isSetup)
+                {
+                    console.log("Initializing tag debug view.");
+                    this.window.addEventListener("mousewheel", adjustZoom, false);
+                    this.window.addEventListener("DOMMouseScroll", adjustZoom, false);
+                    isSetup = true;
+                }
+
+                ctx.clearRect(0, 0, width, height)                
+                
+                if(tags.length == 0)
+                    return;
+                
+                // Get last time.
+                var lastItem = tags[tags.length-1];
+                
+                // Draw up to a certain number of seconds back.
+                var secondsToPixels = width / howFarBack;
+                var lastTimestamp = lastItem.time;
+                
+                var currentItemIdx = tags.length - 1;
+                
+                var highwater = {};
+                
+                while(currentItemIdx >= 0 && tags[currentItemIdx].time >= (lastTimestamp - howFarBack))
+                {
+                    var tagType = tags[currentItemIdx].type;
+                    var tagTime = tags[currentItemIdx].time;
+                    
+                    var wasBackwards = false;
+
+                    if(highwater[tagType] > tagTime)
+                        wasBackwards = true;
+                    
+                    if(highwater[tagType] < tagTime)
+                        highwater[tagType] = tagTime;
+                    
+                    ctx.fillStyle = wasBackwards ? "red" : "green";
+                    ctx.fillRect(
+                        width - (lastTimestamp - tags[currentItemIdx].time) * secondsToPixels,
+                        tags[currentItemIdx].type * 10, 1, wasBackwards ? 30 : 10);
+                        
+                    currentItemIdx--;
+                }
+            }
+        </script>
     </head>
     <body>
         <!-- SWFObject's dynamic embed method replaces this alternative HTML content with Flash content when enough 
@@ -104,6 +197,9 @@
                 </object>
                 <!--<![endif]-->
             </object>
-        </noscript>     
+        </noscript>
+        
+        <!-- debug visualization -->
+        <canvas id="canvas" width="2048" height="1024"></canvas>     
    </body>
 </html>
