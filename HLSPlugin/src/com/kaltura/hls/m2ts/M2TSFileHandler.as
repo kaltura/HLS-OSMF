@@ -356,7 +356,7 @@ package com.kaltura.hls.m2ts
 				return;
 
 			var type:int = message[0];
-			ExternalInterface.call("tag(" + timestampSeconds + ", " + type + ")");
+			ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + ")");
 
 			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 

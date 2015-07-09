@@ -69,23 +69,49 @@
              * Draggable timeline of converted samples.
              */
             var tags=[];
+            var lastTagSubmission = -1;
+            var playheadTime = 0;
             var bufferDirty = true;
 
             var isSetup = false;
             var howFarBack = 20;
-            var width = 2048, height = 1024;
+            var howFarBack_max = 120;
+            var howFarBack_min = 1;
+            var howFarBack_step = 0.5;
+            var timeOffset_max = 120;
+            var width = 1024, height = 256;
             var rowHeight = 15;
+
+            var flvRowMap = {};
+            flvRowMap[0x08] = 1;
+            flvRowMap[0x09] = 2;
+            flvRowMap[0x12] = 3;
+
+            // Drag state.
+            var dragStartX, dragStartY;
+            var isDrag = false;
+            var dragStartTime;
+            
+            var timeOffset = 0; // seconds back from live to show
 
             // Initiate buffer rendering.
             requestAnimationFrame(redrawBuffer);
 
-            function tag(time, type, debugStr)
+            function onCurrentTime(t, isAbsolute)
+            {
+                playheadTime = t;
+                
+                bufferDirty = true;
+            }
+
+            function onTag(time, type, debugStr)
             {
                 // Note tag.
                 tags.push({time: time, type: type});
                 
                 // Mark redraw needed.
                 bufferDirty = true;
+                lastTagSubmission = Date.now();
             }
             
             function adjustZoom(e)
@@ -93,20 +119,15 @@
                 var delta = -e.detail || e.wheelDelta;
                 
                 if(delta < 0)
-                    howFarBack = Math.max(1, howFarBack - 0.5);
+                    howFarBack = Math.max(howFarBack_min, howFarBack - howFarBack_step);
                 else
-                    howFarBack = Math.min(45, howFarBack + 0.5);
+                    howFarBack = Math.min(howFarBack_max, howFarBack + howFarBack_step);
                     
                 bufferDirty = true;
                 e.preventDefault();
                 return false;
             }
             
-            var dragStartX, dragStartY;
-            var isDrag = false;
-            var dragStartTime;
-            
-            var timeOffset = 0; // seconds back from live to show
             
             function onMouseDown(e)
             {
@@ -129,7 +150,7 @@
                 var localOffset = deltaX / secondsToPixels;
                 timeOffset = dragStartTime + localOffset;
                 timeOffset = Math.max(0, timeOffset);
-                timeOffset = Math.min(45, timeOffset);
+                timeOffset = Math.min(timeOffset_max, timeOffset);
                 
                 bufferDirty = true;
             }
@@ -143,6 +164,10 @@
             {
                 // Keep processing.
                 requestAnimationFrame(redrawBuffer);
+                
+                // Suppress if we've gotten new tags really recently.
+                if(Date.now() - lastTagSubmission < 64)
+                    return;
                 
                 // nop if no dirty.
                 if(bufferDirty == false)
@@ -201,16 +226,22 @@
                     ctx.fillStyle = wasBackwards ? "red" : "green";
                     ctx.fillRect(
                         width - (lastTimestamp - tags[currentItemIdx].time) * secondsToPixels,
-                        tags[currentItemIdx].type * rowHeight, 1, rowHeight);
+                        flvRowMap[tags[currentItemIdx].type] * rowHeight, 1, rowHeight);
                     
                     currentItemIdx--;
                 }
                 
+                // Draw playhead.
+                ctx.fillStyle = "blue";
+                ctx.fillRect(
+                    width - (lastTimestamp - playheadTime) * secondsToPixels,
+                    0, 2, height);
+                
                 // Draw row headers.
                 ctx.fillStyle = "black";
-                ctx.fillText("Audio", 0, 8 * rowHeight);
-                ctx.fillText("Video", 0, 9 * rowHeight);
-                ctx.fillText("Script", 0, 0x12 * rowHeight);
+                ctx.fillText("Audio", 0, flvRowMap[8] * rowHeight);
+                ctx.fillText("Video", 0, flvRowMap[9] * rowHeight);
+                ctx.fillText("Script", 0, flvRowMap[0x12] * rowHeight);
             }
         </script>
     </head>
@@ -261,6 +292,6 @@
         </noscript>
         
         <!-- debug visualization -->
-        <canvas id="canvas" width="2048" height="1024"></canvas>     
+        <canvas id="canvas" width="1024" height="256"></canvas>     
    </body>
 </html>
