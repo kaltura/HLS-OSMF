@@ -12,6 +12,7 @@
 			import com.kaltura.hls.SubtitleTrait;
 			import com.kaltura.hls.SubtitleEvent;
 			import com.kaltura.hls.manifest.HLSManifestParser;
+			import com.kaltura.hls.HLSDVRTimeTrait;
 			
 			import mx.collections.ArrayList;
 			import mx.collections.IList;
@@ -371,8 +372,7 @@
 					curTime = (tt as HLSDVRTimeTrait).absoluteTime;
 				
 				ExternalInterface.call("onCurrentTime(" + curTime + ", " + ((tt is HLSDVRTimeTrait) ? "true" : "false") + ")");
-				
-				
+
 				if (!scrubbing && !seeking) {
 					scrubber.value = currentTime;
 				}
