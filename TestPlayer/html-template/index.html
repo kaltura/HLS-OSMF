@@ -285,7 +285,7 @@
                 e.preventDefault();
                 return false;
             }
-            
+
             function onMouseDown(e)
             {
                 dragStartX = e.clientX;
@@ -310,7 +310,6 @@
                 timeOffset = dragStartTime + localOffset;
                 timeOffset = Math.max(0, timeOffset);
                 timeOffset = Math.min(timeOffset_max, timeOffset);
-                
                 bufferDirty = true;
             }
 
@@ -567,8 +566,13 @@
                     ctx.fillRect(
                         timeToPixel(playheadTime),
                         0, 2, rowHeight * curManIndex * 2);
-                    
                 }
+                
+                // Draw row headers.
+                ctx.fillStyle = "black";
+                ctx.fillText("Audio", 0, 8 * rowHeight);
+                ctx.fillText("Video", 0, 9 * rowHeight);
+                ctx.fillText("Script", 0, 0x12 * rowHeight);
             }
             
             // Event handler for the toggle button, to switch views.
