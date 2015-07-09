@@ -63,17 +63,23 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
         
         <script>
+            /***
+             * Debug interface.
+             * 
+             * Draggable timeline of converted samples.
+             */
             var tags=[];
             var bufferDirty = true;
 
             var isSetup = false;
             var howFarBack = 20;
             var width = 2048, height = 1024;
+            var rowHeight = 15;
 
             // Initiate buffer rendering.
-            setInterval(redrawBuffer, 100);
+            requestAnimationFrame(redrawBuffer);
 
-            function tag(time, type)
+            function tag(time, type, debugStr)
             {
                 // Note tag.
                 tags.push({time: time, type: type});
@@ -96,11 +102,51 @@
                 return false;
             }
             
+            var dragStartX, dragStartY;
+            var isDrag = false;
+            var dragStartTime;
+            
+            var timeOffset = 0; // seconds back from live to show
+            
+            function onMouseDown(e)
+            {
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                dragStartTime = timeOffset;
+                isDrag = true;                
+            }
+            
+            function onMouseMove(e)
+            {
+                if(isDrag == false)
+                    return false;
+                    
+                var deltaX = e.clientX - dragStartX;
+                var deltaY = e.clientY - dragStartY;
+                
+                // adjust time offset by deltaX.
+                var secondsToPixels = width / howFarBack;
+                var localOffset = deltaX / secondsToPixels;
+                timeOffset = dragStartTime + localOffset;
+                timeOffset = Math.max(0, timeOffset);
+                timeOffset = Math.min(45, timeOffset);
+                
+                bufferDirty = true;
+            }
+
+            function onMouseUp(e)
+            {
+                isDrag = false;
+            }
+            
             function redrawBuffer()
             {
+                // Keep processing.
+                requestAnimationFrame(redrawBuffer);
+                
+                // nop if no dirty.
                 if(bufferDirty == false)
                     return;
-
                 bufferDirty = false;
 
                 // Set up canvas.
@@ -111,9 +157,12 @@
                     console.log("Initializing tag debug view.");
                     this.window.addEventListener("mousewheel", adjustZoom, false);
                     this.window.addEventListener("DOMMouseScroll", adjustZoom, false);
+                    canvas.addEventListener("mousedown", onMouseDown, false);
+                    canvas.addEventListener("mousemove", onMouseMove, false);
+                    canvas.addEventListener("mouseup", onMouseUp, false);
                     isSetup = true;
                 }
-
+                
                 ctx.clearRect(0, 0, width, height)                
                 
                 if(tags.length == 0)
@@ -129,6 +178,12 @@
                 var currentItemIdx = tags.length - 1;
                 
                 var highwater = {};
+                
+                // Skip back by the requested offset.
+                while(currentItemIdx >= 1 && tags[currentItemIdx].time > (lastTimestamp - timeOffset))
+                    currentItemIdx--;
+               
+                lastTimestamp = tags[currentItemIdx].time;
                 
                 while(currentItemIdx >= 0 && tags[currentItemIdx].time >= (lastTimestamp - howFarBack))
                 {
@@ -146,10 +201,16 @@
                     ctx.fillStyle = wasBackwards ? "red" : "green";
                     ctx.fillRect(
                         width - (lastTimestamp - tags[currentItemIdx].time) * secondsToPixels,
-                        tags[currentItemIdx].type * 10, 1, wasBackwards ? 30 : 10);
-                        
+                        tags[currentItemIdx].type * rowHeight, 1, rowHeight);
+                    
                     currentItemIdx--;
                 }
+                
+                // Draw row headers.
+                ctx.fillStyle = "black";
+                ctx.fillText("Audio", 0, 8 * rowHeight);
+                ctx.fillText("Video", 0, 9 * rowHeight);
+                ctx.fillText("Script", 0, 0x12 * rowHeight);
             }
         </script>
     </head>
