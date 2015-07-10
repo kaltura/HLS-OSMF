@@ -315,7 +315,7 @@ package com.kaltura.hls.m2ts
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			
 			// Also update end time - don't trace it as we'll increase it incrementally.
-			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null)
+			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null && !isBestEffort)
 			{
 				trace("Noting segment end time for " + segmentUri + " of " + _segmentLastSeconds);
 				if(_segmentLastSeconds != _segmentLastSeconds)
