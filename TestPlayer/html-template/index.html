@@ -86,6 +86,7 @@
             flvRowMap[0x08] = 1;
             flvRowMap[0x09] = 2;
             flvRowMap[0x12] = 3;
+            flvRowMap["downloads"] = 4;
 
             // Drag state.
             var dragStartX, dragStartY;
@@ -94,8 +95,38 @@
             
             var timeOffset = 0; // seconds back from live to show
 
+            var downloadState = {};
+
             // Initiate buffer rendering.
             requestAnimationFrame(redrawBuffer);
+            setInterval(function() { bufferDirty = true; }, 100);
+
+            
+            function onDownload(payload)
+            {                
+                payload = JSON.parse(payload);   
+                // Events are:
+                //      open - just opened.
+                //      opened - open completed.
+                //      closed - code requested close.
+                //      complete - successful complete.
+                //      error - got an error and failed
+                //      timeout - timed out and failed.
+                
+                if(payload.event == "closed")
+                    return;
+                
+                if(payload.url.indexOf("?") != -1)
+                    payload.url = payload.url.split("?")[0];
+                
+                if(!downloadState[payload.url])
+                    downloadState[payload.url] = [];
+                
+                // Log the active state.
+                downloadState[payload.url].push({event: payload.event, time: Date.now()});
+                
+                bufferDirty = true;
+            }
 
             function onCurrentTime(t, isAbsolute)
             {
@@ -108,7 +139,7 @@
             {
                 // Note tag.
                 tags.push({time: time, type: type});
-                
+                                
                 // Mark redraw needed.
                 bufferDirty = true;
                 lastTagSubmission = Date.now();
@@ -165,7 +196,7 @@
                 // Keep processing.
                 requestAnimationFrame(redrawBuffer);
                 
-                // Suppress if we've gotten new tags really recently.
+                // Suppress if we've gotten new tags really recently to avoid chug.
                 if(Date.now() - lastTagSubmission < 64)
                     return;
                 
@@ -173,6 +204,11 @@
                 if(bufferDirty == false)
                     return;
                 bufferDirty = false;
+
+                // Truncate the buffer to last few items.
+                var cleanThreshold = 25000;
+                if(tags.length > cleanThreshold * 1.1)
+                    tags = tags.slice(Math.max(tags.length - cleanThreshold, 1))
 
                 // Set up canvas.
                 var canvas = document.getElementById("canvas");
@@ -189,7 +225,8 @@
                 }
                 
                 ctx.clearRect(0, 0, width, height)                
-                
+                ctx.textBaseline = "top";
+               
                 if(tags.length == 0)
                     return;
                 
@@ -231,17 +268,63 @@
                     currentItemIdx--;
                 }
                 
+                // Layout and draw downloads.
+                var msToPixels = secondsToPixels / 1000;
+                                
+                // Get the set of visible downloads.
+                var visibleDownloads = [];
+                for(var downloadName in downloadState)
+                {
+                    var stateArray = downloadState[downloadName];
+                    if(!stateArray || stateArray.length == 0)
+                        continue;
+                        
+                    var firstTime = stateArray[0].time;
+                    var lastTime = stateArray[stateArray.length - 1].time;
+                    
+                    if(Math.max(firstTime, Date.now() - (width / msToPixels)) <= Math.min(lastTime, Date.now()))
+                    {
+                        visibleDownloads.push(downloadName);                     
+                    }
+                }
+                
+                // Draw active downloads.
+                for(var i=0; i<visibleDownloads.length; i++)
+                {
+                    var downloadName = visibleDownloads[i];
+                    var stateArray = downloadState[downloadName];
+
+                    var firstTime = stateArray[0].time;
+                    var lastState = stateArray[stateArray.length - 1].event;
+                    var lastTime = stateArray[stateArray.length - 1].time;
+                    
+                    if(lastState == "open" || lastState == "opened")
+                        lastTime = Date.now();
+                    
+                    var firstX = width - (Date.now() - firstTime) * msToPixels; 
+                    var lastX = width - (Date.now() - lastTime) * msToPixels;
+                    
+                    // Get just the filename.
+                    var truncatedFile = downloadName.replace(/^.*[\\\/]/, '');
+                    
+                    ctx.fillStyle = "orange";
+                    ctx.fillRect(firstX, (flvRowMap["downloads"] + i) * rowHeight, lastX - firstX, rowHeight);
+                    ctx.fillStyle = "black";
+                    ctx.fillText(truncatedFile + ":" + lastState, firstX + 2, (flvRowMap["downloads"] + i) * rowHeight);
+                }
+                
                 // Draw playhead.
                 ctx.fillStyle = "blue";
                 ctx.fillRect(
                     width - (lastTimestamp - playheadTime) * secondsToPixels,
-                    0, 2, height);
+                    0, 2, rowHeight * 3);
                 
                 // Draw row headers.
                 ctx.fillStyle = "black";
                 ctx.fillText("Audio", 0, flvRowMap[8] * rowHeight);
                 ctx.fillText("Video", 0, flvRowMap[9] * rowHeight);
                 ctx.fillText("Script", 0, flvRowMap[0x12] * rowHeight);
+                ctx.fillText("Downloads", 0, flvRowMap["downloads"] * rowHeight);
             }
         </script>
     </head>
