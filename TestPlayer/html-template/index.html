@@ -68,6 +68,9 @@
              * 
              * Draggable timeline of converted samples.
              */
+             
+            var mode="manifest";
+            
             var tags=[];
             var lastTagSubmission = -1;
             var playheadTime = 0;
@@ -96,11 +99,26 @@
             var timeOffset = 0; // seconds back from live to show
 
             var downloadState = {};
+            
+            var manifestState = {};
 
             // Initiate buffer rendering.
             requestAnimationFrame(redrawBuffer);
             setInterval(function() { bufferDirty = true; }, 100);
 
+            function onManifest(payload)
+            {
+                // We expect list of manifests...
+                /**
+                 * {
+                 *     "submanifest.m3u8": [
+                 *          { id: 1, url: "seg.ts", startTime: 0.0, endTime: 10.0 }
+                 *      ]
+                 * }
+                 */
+                 manifestState = JSON.parse(payload);
+                 bufferDirty = true;                 
+            }
             
             function onDownload(payload)
             {                
@@ -224,107 +242,186 @@
                     isSetup = true;
                 }
                 
+                // Clear the canvas.
                 ctx.clearRect(0, 0, width, height)                
                 ctx.textBaseline = "top";
-               
-                if(tags.length == 0)
-                    return;
-                
-                // Get last time.
-                var lastItem = tags[tags.length-1];
-                
-                // Draw up to a certain number of seconds back.
-                var secondsToPixels = width / howFarBack;
-                var lastTimestamp = lastItem.time;
-                
-                var currentItemIdx = tags.length - 1;
-                
-                var highwater = {};
-                
-                // Skip back by the requested offset.
-                while(currentItemIdx >= 1 && tags[currentItemIdx].time > (lastTimestamp - timeOffset))
-                    currentItemIdx--;
-               
-                lastTimestamp = tags[currentItemIdx].time;
-                
-                while(currentItemIdx >= 0 && tags[currentItemIdx].time >= (lastTimestamp - howFarBack))
-                {
-                    var tagType = tags[currentItemIdx].type;
-                    var tagTime = tags[currentItemIdx].time;
-                    
-                    var wasBackwards = false;
 
-                    if(highwater[tagType] > tagTime)
-                        wasBackwards = true;
-                    
-                    if(highwater[tagType] < tagTime)
-                        highwater[tagType] = tagTime;
-                    
-                    ctx.fillStyle = wasBackwards ? "red" : "green";
-                    ctx.fillRect(
-                        width - (lastTimestamp - tags[currentItemIdx].time) * secondsToPixels,
-                        flvRowMap[tags[currentItemIdx].type] * rowHeight, 1, rowHeight);
-                    
-                    currentItemIdx--;
-                }
-                
-                // Layout and draw downloads.
-                var msToPixels = secondsToPixels / 1000;
-                                
-                // Get the set of visible downloads.
-                var visibleDownloads = [];
-                for(var downloadName in downloadState)
+                if(mode == "tags")
                 {
-                    var stateArray = downloadState[downloadName];
-                    if(!stateArray || stateArray.length == 0)
-                        continue;
-                        
-                    var firstTime = stateArray[0].time;
-                    var lastTime = stateArray[stateArray.length - 1].time;
+                    // Draw FLV/download state.
                     
-                    if(Math.max(firstTime, Date.now() - (width / msToPixels)) <= Math.min(lastTime, Date.now()))
+                    if(tags.length == 0)
+                        return;
+                    
+                    // Get last time.
+                    var lastItem = tags[tags.length-1];
+                    
+                    // Draw up to a certain number of seconds back.
+                    var secondsToPixels = width / howFarBack;
+                    var lastTimestamp = lastItem.time;
+                    
+                    var currentItemIdx = tags.length - 1;
+                    
+                    var highwater = {};
+                    
+                    // Skip back by the requested offset.
+                    while(currentItemIdx >= 1 && tags[currentItemIdx].time > (lastTimestamp - timeOffset))
+                        currentItemIdx--;
+                   
+                    lastTimestamp = tags[currentItemIdx].time;
+                    
+                    while(currentItemIdx >= 0 && tags[currentItemIdx].time >= (lastTimestamp - howFarBack))
                     {
-                        visibleDownloads.push(downloadName);                     
+                        var tagType = tags[currentItemIdx].type;
+                        var tagTime = tags[currentItemIdx].time;
+                        
+                        var wasBackwards = false;
+    
+                        if(highwater[tagType] > tagTime)
+                            wasBackwards = true;
+                        
+                        if(highwater[tagType] < tagTime)
+                            highwater[tagType] = tagTime;
+                        
+                        ctx.fillStyle = wasBackwards ? "red" : "green";
+                        ctx.fillRect(
+                            width - (lastTimestamp - tags[currentItemIdx].time) * secondsToPixels,
+                            flvRowMap[tags[currentItemIdx].type] * rowHeight, 1, rowHeight);
+                        
+                        currentItemIdx--;
                     }
-                }
-                
-                // Draw active downloads.
-                for(var i=0; i<visibleDownloads.length; i++)
-                {
-                    var downloadName = visibleDownloads[i];
-                    var stateArray = downloadState[downloadName];
-
-                    var firstTime = stateArray[0].time;
-                    var lastState = stateArray[stateArray.length - 1].event;
-                    var lastTime = stateArray[stateArray.length - 1].time;
                     
-                    if(lastState == "open" || lastState == "opened")
-                        lastTime = Date.now();
+                    // Layout and draw downloads.
+                    var msToPixels = secondsToPixels / 1000;
+                                    
+                    // Get the set of visible downloads.
+                    var visibleDownloads = [];
+                    for(var downloadName in downloadState)
+                    {
+                        var stateArray = downloadState[downloadName];
+                        if(!stateArray || stateArray.length == 0)
+                            continue;
+                            
+                        var firstTime = stateArray[0].time;
+                        var lastTime = stateArray[stateArray.length - 1].time;
+                        
+                        if(Math.max(firstTime, Date.now() - (width / msToPixels)) <= Math.min(lastTime, Date.now()))
+                        {
+                            visibleDownloads.push(downloadName);                     
+                        }
+                    }
                     
-                    var firstX = width - (Date.now() - firstTime) * msToPixels; 
-                    var lastX = width - (Date.now() - lastTime) * msToPixels;
+                    // Draw active downloads.
+                    for(var i=0; i<visibleDownloads.length; i++)
+                    {
+                        var downloadName = visibleDownloads[i];
+                        var stateArray = downloadState[downloadName];
+    
+                        var firstTime = stateArray[0].time;
+                        var lastState = stateArray[stateArray.length - 1].event;
+                        var lastTime = stateArray[stateArray.length - 1].time;
+                        
+                        if(lastState == "open" || lastState == "opened")
+                            lastTime = Date.now();
+                        
+                        var firstX = width - (Date.now() - firstTime) * msToPixels; 
+                        var lastX = width - (Date.now() - lastTime) * msToPixels;
+                        
+                        // Get just the filename.
+                        var truncatedFile = downloadName.replace(/^.*[\\\/]/, '');
+                        
+                        ctx.fillStyle = "orange";
+                        ctx.fillRect(firstX, (flvRowMap["downloads"] + i) * rowHeight, lastX - firstX, rowHeight);
+                        ctx.fillStyle = "black";
+                        ctx.fillText(truncatedFile + ":" + lastState, firstX + 2, (flvRowMap["downloads"] + i) * rowHeight);
+                    }
                     
-                    // Get just the filename.
-                    var truncatedFile = downloadName.replace(/^.*[\\\/]/, '');
+                    // Draw playhead.
+                    ctx.fillStyle = "blue";
+                    ctx.fillRect(
+                        width - (lastTimestamp - playheadTime) * secondsToPixels,
+                        0, 2, rowHeight * 3);
                     
-                    ctx.fillStyle = "orange";
-                    ctx.fillRect(firstX, (flvRowMap["downloads"] + i) * rowHeight, lastX - firstX, rowHeight);
+                    // Draw row headers.
                     ctx.fillStyle = "black";
-                    ctx.fillText(truncatedFile + ":" + lastState, firstX + 2, (flvRowMap["downloads"] + i) * rowHeight);
+                    ctx.fillText("Audio", 0, flvRowMap[8] * rowHeight);
+                    ctx.fillText("Video", 0, flvRowMap[9] * rowHeight);
+                    ctx.fillText("Script", 0, flvRowMap[0x12] * rowHeight);
+                    ctx.fillText("Downloads", 0, flvRowMap["downloads"] * rowHeight);                    
                 }
-                
-                // Draw playhead.
-                ctx.fillStyle = "blue";
-                ctx.fillRect(
-                    width - (lastTimestamp - playheadTime) * secondsToPixels,
-                    0, 2, rowHeight * 3);
-                
-                // Draw row headers.
-                ctx.fillStyle = "black";
-                ctx.fillText("Audio", 0, flvRowMap[8] * rowHeight);
-                ctx.fillText("Video", 0, flvRowMap[9] * rowHeight);
-                ctx.fillText("Script", 0, flvRowMap[0x12] * rowHeight);
-                ctx.fillText("Downloads", 0, flvRowMap["downloads"] * rowHeight);
+                else
+                {
+                    // Determine overall start/end times of all submanifests.
+                    var manGlobalMin = Number.MAX_VALUE;
+                    var manGlobalMax = 0;
+                    for(var manName in manifestState)
+                    {
+                        var localMin = Number.MAX_VALUE;
+                        var localMax = 0;
+                        
+                        var curManArray = manifestState[manName];
+                        for(var i=0; i<curManArray.length; i++)
+                        {
+                            var curManItem = curManArray[i];
+
+                            if(curManItem.start < 70000)
+                                continue;
+
+                            localMin = Math.min(localMin, curManItem.start);
+                            localMax = Math.max(localMax, curManItem.end);
+                        }
+                        
+                        manGlobalMin = Math.min(manGlobalMin, localMin);
+                        manGlobalMax = Math.max(manGlobalMax, localMax);
+                    }
+                    
+                    manGlobalMax = playheadTime + howFarBack;
+                    manGlobalMin = playheadTime - howFarBack;
+                    
+                    function timeToPixel(t)
+                    {
+                        var n = (t - manGlobalMin) / (manGlobalMax - manGlobalMin);
+                        return n * width; 
+                    }
+                    
+                    // Draw manifest state.
+                    var curManIndex = 0;
+                    for(var manName in manifestState)
+                    {
+                        // Rows are submanifests                        
+                        var curManArray = manifestState[manName];
+                        ctx.fillStyle = "DarkKhaki";
+                        for(var i=0; i<curManArray.length; i++)
+                        {
+                            var curManItem = curManArray[i];
+                            
+                            ctx.fillRect(
+                                timeToPixel(curManItem.start), 
+                                rowHeight * curManIndex * 2, 
+                                timeToPixel(curManItem.end) - timeToPixel(curManItem.start), 
+                                rowHeight * 2);
+                        }
+                        
+                        ctx.fillStyle = "black";
+                        for(var i=0; i<curManArray.length; i++)
+                        {
+                            var curManItem = curManArray[i];
+                            ctx.fillText("#" + curManItem.id, timeToPixel(curManItem.start) + 5, rowHeight * curManIndex * 2);
+                        }
+
+                        ctx.fillStyle = "black";
+                        ctx.fillText(manName, 0, rowHeight * curManIndex * 2 + rowHeight);
+                        
+                        curManIndex++;
+                    }
+                    
+                    // Draw playhead.
+                    ctx.fillStyle = "blue";
+                    ctx.fillRect(
+                        timeToPixel(playheadTime),
+                        0, 2, rowHeight * curManIndex * 2);
+                    
+                }
             }
         </script>
     </head>
