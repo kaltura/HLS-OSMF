@@ -198,6 +198,8 @@
             // Maximum amount to allow scrolling back.
             var timeOffset_max = 120;
 
+            var downloadState = {};
+
             // Initiate buffer rendering.
             requestAnimationFrame(redrawBuffer);
             setInterval(function() { bufferDirty = true; }, 100);
@@ -361,6 +363,11 @@
                         i--;                         
                     }
                 }
+
+                // Truncate the buffer to last few items.
+                var cleanThreshold = 25000;
+                if(tags.length > cleanThreshold * 1.1)
+                    tags = tags.slice(Math.max(tags.length - cleanThreshold, 1))
 
                 // Set up canvas.
                 var canvas = document.getElementById("canvas");
@@ -570,17 +577,63 @@
                         0, 2, rowHeight * curManIndex * 2);
                 }
                 
+                // Layout and draw downloads.
+                var msToPixels = secondsToPixels / 1000;
+                                
+                // Get the set of visible downloads.
+                var visibleDownloads = [];
+                for(var downloadName in downloadState)
+                {
+                    var stateArray = downloadState[downloadName];
+                    if(!stateArray || stateArray.length == 0)
+                        continue;
+                        
+                    var firstTime = stateArray[0].time;
+                    var lastTime = stateArray[stateArray.length - 1].time;
+                    
+                    if(Math.max(firstTime, Date.now() - (width / msToPixels)) <= Math.min(lastTime, Date.now()))
+                    {
+                        visibleDownloads.push(downloadName);                     
+                    }
+                }
+                
+                // Draw active downloads.
+                for(var i=0; i<visibleDownloads.length; i++)
+                {
+                    var downloadName = visibleDownloads[i];
+                    var stateArray = downloadState[downloadName];
+
+                    var firstTime = stateArray[0].time;
+                    var lastState = stateArray[stateArray.length - 1].event;
+                    var lastTime = stateArray[stateArray.length - 1].time;
+                    
+                    if(lastState == "open" || lastState == "opened")
+                        lastTime = Date.now();
+                    
+                    var firstX = width - (Date.now() - firstTime) * msToPixels; 
+                    var lastX = width - (Date.now() - lastTime) * msToPixels;
+                    
+                    // Get just the filename.
+                    var truncatedFile = downloadName.replace(/^.*[\\\/]/, '');
+                    
+                    ctx.fillStyle = "orange";
+                    ctx.fillRect(firstX, (flvRowMap["downloads"] + i) * rowHeight, lastX - firstX, rowHeight);
+                    ctx.fillStyle = "black";
+                    ctx.fillText(truncatedFile + ":" + lastState, firstX + 2, (flvRowMap["downloads"] + i) * rowHeight);
+                }
+                
                 // Draw playhead.
                 ctx.fillStyle = "blue";
                 ctx.fillRect(
                     width - (lastTimestamp - playheadTime) * secondsToPixels,
-                    0, 2, height);
+                    0, 2, rowHeight * 3);
                 
                 // Draw row headers.
                 ctx.fillStyle = "black";
                 ctx.fillText("Audio", 0, flvRowMap[8] * rowHeight);
                 ctx.fillText("Video", 0, flvRowMap[9] * rowHeight);
                 ctx.fillText("Script", 0, flvRowMap[0x12] * rowHeight);
+                ctx.fillText("Downloads", 0, flvRowMap["downloads"] * rowHeight);
             }
             
             // Event handler for the toggle button, to switch views.
