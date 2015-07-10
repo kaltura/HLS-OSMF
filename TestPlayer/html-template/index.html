@@ -685,6 +685,14 @@
                                 rowHeight * curManIndex * 2, 
                                 timeToPixel(curManItem.end) - timeToPixel(curManItem.start), 
                                 rowHeight * 2);
+                                
+                            ctx.lineStyle = "black";
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(
+                                timeToPixel(curManItem.start), 
+                                rowHeight * curManIndex * 2, 
+                                timeToPixel(curManItem.end) - timeToPixel(curManItem.start), 
+                                rowHeight * 2);
                         }
                         
                         ctx.fillStyle = "black";
