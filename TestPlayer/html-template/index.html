@@ -69,7 +69,7 @@
              * Draggable timeline of converted samples.
              */
              
-            var mode="manifest";
+            var mode="tags";
             
             var tags=[];
             var lastTagSubmission = -1;
@@ -423,6 +423,16 @@
                     
                 }
             }
+            
+            function onSwitchClick()
+            {
+                if(mode == "tags")
+                    mode = "manifest";
+                else
+                    mode = "tags";
+                console.log("Now showing" + mode);
+                bufferDirty = true;
+            }
         </script>
     </head>
     <body>
@@ -472,6 +482,8 @@
         </noscript>
         
         <!-- debug visualization -->
+        <br><hr>
+        <input type="button" value="Switch Mode" onclick="onSwitchClick()"/>
         <canvas id="canvas" width="1024" height="256"></canvas>     
    </body>
 </html>
