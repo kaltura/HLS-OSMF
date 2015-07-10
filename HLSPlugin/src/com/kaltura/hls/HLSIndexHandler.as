@@ -782,7 +782,7 @@ package com.kaltura.hls
 
 			stalled = false;
 			HLSHTTPNetStream.hasGottenManifest = true;
-			
+
 			// Debug to JS.
 			manifest.postToJS();
 		}
@@ -922,7 +922,7 @@ package com.kaltura.hls
 
 			// Debug to JS.
 			manifest.postToJS();
-			
+
 			if(time < segments[0].startTime)
 			{
 				trace("getFileForTime - SequenceSkip - time: " + time + " playlistStartTime: " + segments[0].startTime);				
@@ -1152,7 +1152,7 @@ package com.kaltura.hls
 			
 			// Debug to JS.
 			manifest.postToJS();
-			
+
 			if(newSequence == -1)
 			{
 				if(_pendingBestEffortRequest && !isBestEffortActive())

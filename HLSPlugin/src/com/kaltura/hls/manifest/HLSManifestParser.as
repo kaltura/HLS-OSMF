@@ -2,6 +2,7 @@ package com.kaltura.hls.manifest
 {
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	
+	import flash.external.ExternalInterface;
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.events.IOErrorEvent;
