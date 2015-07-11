@@ -433,7 +433,7 @@ package org.osmf.net.httpstreaming
 					}
 
 					// Log the request.
-					ExternalInterface.call("onNextRequest", JSON.stringify({ url: _request.url }));
+					ExternalInterface.call("onNextRequest", JSON.stringify({ kind: _request.kind, url: _request.url }));
 					
 					// update _isLiveStalled so HTTPNetStream can access it.
 					// request.kind will always be LIVE_STALL as long as we are live stalled. 

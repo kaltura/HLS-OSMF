@@ -131,7 +131,7 @@
             {
                 // Note the last requests so we can animate their state.
                 payload = JSON.parse(payload);
-                if(payload.url == null)
+                if(payload.url == null || payload.kind == "bestEffortDownload")
                     return;
                     
                 payload.time = Date.now();
@@ -423,12 +423,14 @@
                     {
                         // Rows are submanifests                        
                         var curManArray = manifestState[manName];
+                        var requestNotes = {};
 
                         for(var i=0; i<curManArray.length; i++)
                         {
                             var curManItem = curManArray[i];
                             
                             var color = {r: 128, g: 128, b: 128};
+                            
                             
                             // Apply animation to show requests.
                             for(var q=0; q<requestLog.length; q++)
@@ -442,6 +444,8 @@
                                 color.r = 200;
                                 color.g = gFactor;
                                 color.b = 200;
+                                
+                                requestNotes[curRequestItem.url] = " #" + q;
                                 break;
                             }                            
                             
@@ -465,10 +469,9 @@
                         for(var i=0; i<curManArray.length; i++)
                         {
                             var curManItem = curManArray[i];
-                            ctx.fillText("#" + curManItem.id, timeToPixel(curManItem.start) + 5, rowHeight * curManIndex * 2);
+                            ctx.fillText("#" + curManItem.id + (requestNotes[curManItem.url] ? requestNotes[curManItem.url] : ""), timeToPixel(curManItem.start) + 5, rowHeight * curManIndex * 2);
                         }
 
-                        ctx.fillStyle = "black";
                         ctx.fillText(manName, 0, rowHeight * curManIndex * 2 + rowHeight);
                         
                         curManIndex++;
