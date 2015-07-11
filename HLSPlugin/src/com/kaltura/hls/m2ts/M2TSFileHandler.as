@@ -353,6 +353,10 @@ package com.kaltura.hls.m2ts
 		public static var flvLowWaterVideo:uint = 0;
 		public const filterThresholdMs:uint = 0;
 				
+		public static var flvLowWaterAudio:uint = 0;
+		public static var flvLowWaterVideo:uint = 0;
+		public const filterThresholdMs:uint = 0;
+
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
 			var timestampSeconds:Number = timestamp / 1000.0;

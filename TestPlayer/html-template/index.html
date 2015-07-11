@@ -60,12 +60,6 @@
             swfobject.createCSS("#flashContent", "display:block;text-align:left;");
         </script>
         
-<<<<<<< HEAD
-=======
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
-        <script src="https://raw.githubusercontent.com/bgrins/TinyColor/master/tinycolor.js"></script>
-        
->>>>>>> Viz requests, updated tag tracking.
         <script>
             /***
              * HLS OSMF plugin debug module.
@@ -134,14 +128,6 @@
             
             // What was the last reported playhead time from HLS plugin?
             var playheadTime = 0;
-<<<<<<< HEAD
-=======
-            var bufferDirty = true;
-            var lastBufferRender = 0;
-            
-            var audioLowWatermark = 0;
-            var videoLowWatermark = 0;
->>>>>>> Viz requests, updated tag tracking.
 
             // Set from HLS plugin, showing the cutoff for rejecting audio tags in ms.
             var audioLowWatermark = 0;
@@ -240,23 +226,7 @@
                 requestLog.push(payload);
             }
             
-<<<<<<< HEAD
             // Called by HLS plugin to note download events for segments.
-=======
-            var requestLog = []; // Contains {url:, time: }
-            
-            function onNextRequest(payload)
-            {
-                // Note the last requests so we can animate their state.
-                payload = JSON.parse(payload);
-                if(payload.url == null)
-                    return;
-                    
-                payload.time = Date.now();
-                requestLog.push(payload);
-            }
-            
->>>>>>> Viz requests, updated tag tracking.
             function onDownload(payload)
             {                
                 payload = JSON.parse(payload);   
@@ -289,7 +259,6 @@
                 playheadTime = t;
                 bufferDirty = true;
             }
-<<<<<<< HEAD
             
             // Called by HLS plugin to note tag conversion state.
             function onTag(time, type, audioLow, videoLow, kept, isKey)
@@ -298,14 +267,6 @@
                 tags.push({time: time, type: type, reject: !kept, key: isKey});
 
                 // Update watermarks.
-=======
-
-            function onTag(time, type, audioLow, videoLow)
-            {
-                // Note tag.
-                tags.push({time: time, type: type});
-
->>>>>>> Viz requests, updated tag tracking.
                 audioLowWatermark = audioLow / 1000;
                 videoLowWatermark = videoLow / 1000;
                                                 
@@ -379,20 +340,15 @@
                 requestAnimationFrame(redrawBuffer);
                 
                 // Suppress if we've gotten new tags really recently to avoid chug.
-                if(Date.now() - lastTagSubmission < 64 && Date.now() - lastBufferRender < 200)
+                if(Date.now() - lastTagSubmission < 64)
                     return;
-<<<<<<< HEAD
 
-=======
-                                    
->>>>>>> Viz requests, updated tag tracking.
                 // nop if no dirty.
                 if(bufferDirty == false)
                     return;
 
                 bufferDirty = false;
                 lastBufferRender = Date.now();
-<<<<<<< HEAD
 
                 // Truncate the buffer to 2*howFarBack if we exceed some max...
                 var cleanThreshold = 25000;
@@ -409,8 +365,6 @@
                         i--;                         
                     }
                 }
-=======
->>>>>>> Viz requests, updated tag tracking.
 
                 // Truncate the buffer to 2*howFarBack if we exceed some max...
                 var cleanThreshold = 25000;
@@ -462,19 +416,9 @@
                     
                     var currentItemIdx = tags.length - 1;
                     
-<<<<<<< HEAD
                     // Just draw all tags to avoid ordering issues making us drop tags as 
                     // we scroll.                    
                     while(currentItemIdx >= 0)
-=======
-                    var highwater = {};
-                    
-                    // Skip back by the requested offset.
-                    //while(currentItemIdx >= 1 && tags[currentItemIdx].time > (lastTimestamp - timeOffset))
-                    // currentItemIdx--;
-                   
-                    while(currentItemIdx >= 0) // && tags[currentItemIdx].time >= (lastTimestamp - howFarBack))
->>>>>>> Viz requests, updated tag tracking.
                     {
                         var tagType = tags[currentItemIdx].type;
                         var tagTime = tags[currentItemIdx].time;
