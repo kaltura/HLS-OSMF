@@ -61,6 +61,7 @@
         </script>
         
         <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
+        <script src="https://raw.githubusercontent.com/bgrins/TinyColor/master/tinycolor.js"></script>
         
         <script>
             /***
@@ -75,6 +76,10 @@
             var lastTagSubmission = -1;
             var playheadTime = 0;
             var bufferDirty = true;
+            var lastBufferRender = 0;
+            
+            var audioLowWatermark = 0;
+            var videoLowWatermark = 0;
 
             var isSetup = false;
             var howFarBack = 20;
@@ -120,6 +125,19 @@
                  bufferDirty = true;                 
             }
             
+            var requestLog = []; // Contains {url:, time: }
+            
+            function onNextRequest(payload)
+            {
+                // Note the last requests so we can animate their state.
+                payload = JSON.parse(payload);
+                if(payload.url == null)
+                    return;
+                    
+                payload.time = Date.now();
+                requestLog.push(payload);
+            }
+            
             function onDownload(payload)
             {                
                 payload = JSON.parse(payload);   
@@ -153,11 +171,14 @@
                 bufferDirty = true;
             }
 
-            function onTag(time, type, debugStr)
+            function onTag(time, type, audioLow, videoLow)
             {
                 // Note tag.
                 tags.push({time: time, type: type});
-                                
+
+                audioLowWatermark = audioLow / 1000;
+                videoLowWatermark = videoLow / 1000;
+                                                
                 // Mark redraw needed.
                 bufferDirty = true;
                 lastTagSubmission = Date.now();
@@ -215,18 +236,30 @@
                 requestAnimationFrame(redrawBuffer);
                 
                 // Suppress if we've gotten new tags really recently to avoid chug.
-                if(Date.now() - lastTagSubmission < 64)
+                if(Date.now() - lastTagSubmission < 64 && Date.now() - lastBufferRender < 200)
                     return;
-                
+                                    
                 // nop if no dirty.
                 if(bufferDirty == false)
                     return;
                 bufferDirty = false;
+                lastBufferRender = Date.now();
 
-                // Truncate the buffer to last few items.
+                // Truncate the buffer to 2*howFarBack if we exceed some max...
                 var cleanThreshold = 25000;
                 if(tags.length > cleanThreshold * 1.1)
-                    tags = tags.slice(Math.max(tags.length - cleanThreshold, 1))
+                {
+                    var lastTime = tags[tags.length-1].time;
+                    for(var i=0; i<tags.length; i++)
+                    {
+                        if((lastTime - tags[i].time) < howFarBack_max)
+                            continue;
+                        
+                        // Remove.
+                        tags.splice(i, 1);
+                        i--;                         
+                    }
+                }
 
                 // Set up canvas.
                 var canvas = document.getElementById("canvas");
@@ -258,19 +291,17 @@
                     
                     // Draw up to a certain number of seconds back.
                     var secondsToPixels = width / howFarBack;
-                    var lastTimestamp = lastItem.time;
+                    var lastTimestamp = lastItem.time - timeOffset;
                     
                     var currentItemIdx = tags.length - 1;
                     
                     var highwater = {};
                     
                     // Skip back by the requested offset.
-                    while(currentItemIdx >= 1 && tags[currentItemIdx].time > (lastTimestamp - timeOffset))
-                        currentItemIdx--;
+                    //while(currentItemIdx >= 1 && tags[currentItemIdx].time > (lastTimestamp - timeOffset))
+                    // currentItemIdx--;
                    
-                    lastTimestamp = tags[currentItemIdx].time;
-                    
-                    while(currentItemIdx >= 0 && tags[currentItemIdx].time >= (lastTimestamp - howFarBack))
+                    while(currentItemIdx >= 0) // && tags[currentItemIdx].time >= (lastTimestamp - howFarBack))
                     {
                         var tagType = tags[currentItemIdx].type;
                         var tagTime = tags[currentItemIdx].time;
@@ -341,7 +372,16 @@
                     ctx.fillRect(
                         width - (lastTimestamp - playheadTime) * secondsToPixels,
                         0, 2, rowHeight * 3);
-                    
+
+                    // Draw watermarks.
+                    ctx.fillStyle = "orange";
+                    ctx.fillRect(
+                        width - (lastTimestamp - (audioLowWatermark - 0.100)) * secondsToPixels,
+                        flvRowMap[8] * rowHeight, 2, rowHeight);
+                    ctx.fillRect(
+                        width - (lastTimestamp - (videoLowWatermark - 0.100)) * secondsToPixels,
+                        flvRowMap[9] * rowHeight, 2, rowHeight);
+
                     // Draw row headers.
                     ctx.fillStyle = "black";
                     ctx.fillText("Audio", 0, flvRowMap[8] * rowHeight);
@@ -390,17 +430,35 @@
                     {
                         // Rows are submanifests                        
                         var curManArray = manifestState[manName];
-                        ctx.fillStyle = "DarkKhaki";
+
                         for(var i=0; i<curManArray.length; i++)
                         {
                             var curManItem = curManArray[i];
                             
+                            var color = {r: 128, g: 128, b: 128};
+                            
+                            // Apply animation to show requests.
+                            for(var q=0; q<requestLog.length; q++)
+                            {
+                                var curRequestItem = requestLog[q];
+                                if(curRequestItem.url != curManItem.url)
+                                    continue;
+                                
+                                var fadeTimeInMs = 4000;
+                                var gFactor = Math.min(255, (Date.now() - curRequestItem.time) / fadeTimeInMs * 255); 
+                                color.r = 200;
+                                color.g = gFactor;
+                                color.b = 200;
+                                break;
+                            }                            
+                            
+                            ctx.fillStyle = tinycolor(color).toHexString();
                             ctx.fillRect(
                                 timeToPixel(curManItem.start), 
                                 rowHeight * curManIndex * 2, 
                                 timeToPixel(curManItem.end) - timeToPixel(curManItem.start), 
                                 rowHeight * 2);
-                                
+                            
                             ctx.lineStyle = "black";
                             ctx.lineWidth = 2;
                             ctx.strokeRect(

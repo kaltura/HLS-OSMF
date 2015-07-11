@@ -400,6 +400,7 @@ package com.kaltura.hls.m2ts
 				flvLowWaterAudio = timestamp;					
 			}
 
+			ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ")");
 
 			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 

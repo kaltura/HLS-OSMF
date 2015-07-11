@@ -26,6 +26,7 @@ package org.osmf.net.httpstreaming
 	import flash.events.IEventDispatcher;
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
+	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.events.HTTPStreamingEvent;
@@ -430,6 +431,9 @@ package org.osmf.net.httpstreaming
 					{
 						_request = _indexHandler.getNextFile(_qualityLevel);
 					}
+
+					// Log the request.
+					ExternalInterface.call("onNextRequest", JSON.stringify({ url: _request.url }));
 					
 					// update _isLiveStalled so HTTPNetStream can access it.
 					// request.kind will always be LIVE_STALL as long as we are live stalled. 
