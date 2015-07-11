@@ -89,6 +89,14 @@ package com.kaltura.hls.m2ts
 		
 		public override function beginProcessFile(seek:Boolean, seekTime:Number):void
 		{
+			if(seek && !isBestEffort)
+			{
+				// Reset low water mark for the file handler so we don't drop stuff.
+				trace("RESETTING LOW WATER MARK");
+				flvLowWaterAudio = 0;
+				flvLowWaterVideo = 0;
+			}
+
 			if( key && !key.isLoading && !key.isLoaded)
 				throw new Error("Tried to process segment with key not set to load or loaded.");
 
@@ -356,7 +364,42 @@ package com.kaltura.hls.m2ts
 				return;
 
 			var type:int = message[0];
-			ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + ")");
+
+			// Alway pass through SPS/PPS...
+			var alwaysPass:Boolean = false
+			if(type == 9)
+			{
+				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
+					&& message[12] == FLVTags.AVC_MODE_AVCC)
+				{
+					trace("Got AVCC, always pass");
+					alwaysPass = true;
+				}
+			}
+
+			if(type == 9)
+			{
+				if(timestamp < flvLowWaterVideo - 64 && !alwaysPass)
+				{
+					trace("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
+					return;
+				}
+
+				// Don't update low water if it's an always pass.
+				if(!alwaysPass)
+					flvLowWaterVideo = timestamp;				
+			}
+			else if(type == 8)
+			{
+				if(timestamp < flvLowWaterAudio - 64)
+				{
+					trace("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
+					return;
+				}
+
+				flvLowWaterAudio = timestamp;					
+			}
+
 
 			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 
