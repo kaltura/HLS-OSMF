@@ -170,12 +170,13 @@
                 
                 bufferDirty = true;
             }
-
-            function onTag(time, type, audioLow, videoLow)
+            
+            function onTag(time, type, audioLow, videoLow, kept)
             {
                 // Note tag.
-                tags.push({time: time, type: type});
+                tags.push({time: time, type: type, reject: !kept});
 
+                // Update watermarks.
                 audioLowWatermark = audioLow / 1000;
                 videoLowWatermark = videoLow / 1000;
                                                 
@@ -236,7 +237,7 @@
                 requestAnimationFrame(redrawBuffer);
                 
                 // Suppress if we've gotten new tags really recently to avoid chug.
-                if(Date.now() - lastTagSubmission < 64 && Date.now() - lastBufferRender < 200)
+                if(Date.now() - lastTagSubmission < 64)
                     return;
                                     
                 // nop if no dirty.
@@ -305,16 +306,8 @@
                     {
                         var tagType = tags[currentItemIdx].type;
                         var tagTime = tags[currentItemIdx].time;
-                        
-                        var wasBackwards = false;
-    
-                        if(highwater[tagType] > tagTime)
-                            wasBackwards = true;
-                        
-                        if(highwater[tagType] < tagTime)
-                            highwater[tagType] = tagTime;
-                        
-                        ctx.fillStyle = wasBackwards ? "red" : "green";
+                                                
+                        ctx.fillStyle = tags[currentItemIdx].reject ? "red" : "green";
                         ctx.fillRect(
                             width - (lastTimestamp - tags[currentItemIdx].time) * secondsToPixels,
                             flvRowMap[tags[currentItemIdx].type] * rowHeight, 1, rowHeight);

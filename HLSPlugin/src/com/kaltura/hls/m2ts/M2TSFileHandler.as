@@ -346,6 +346,10 @@ package com.kaltura.hls.m2ts
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
 				
+		public static var flvLowWaterAudio:uint = 0;
+		public static var flvLowWaterVideo:uint = 0;
+		public const filterThresholdMs:uint = 0;
+
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
 			var timestampSeconds:Number = timestamp / 1000.0;
@@ -379,9 +383,10 @@ package com.kaltura.hls.m2ts
 
 			if(type == 9)
 			{
-				if(timestamp < flvLowWaterVideo - 64 && !alwaysPass)
+				if(timestamp < flvLowWaterVideo - filterThresholdMs && !alwaysPass)
 				{
 					trace("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
+					ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false)");
 					return;
 				}
 
@@ -391,16 +396,17 @@ package com.kaltura.hls.m2ts
 			}
 			else if(type == 8)
 			{
-				if(timestamp < flvLowWaterAudio - 64)
+				if(timestamp < flvLowWaterAudio - filterThresholdMs)
 				{
 					trace("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
+					ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false)");
 					return;
 				}
 
 				flvLowWaterAudio = timestamp;					
 			}
 
-			ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ")");
+			ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", true)");
 
 			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 
