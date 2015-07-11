@@ -26,6 +26,7 @@ package org.osmf.net.httpstreaming
 	import flash.events.IEventDispatcher;
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
+	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.events.HTTPStreamingEvent;

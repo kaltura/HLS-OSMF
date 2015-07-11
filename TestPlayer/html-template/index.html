@@ -60,6 +60,12 @@
             swfobject.createCSS("#flashContent", "display:block;text-align:left;");
         </script>
         
+<<<<<<< HEAD
+=======
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
+        <script src="https://raw.githubusercontent.com/bgrins/TinyColor/master/tinycolor.js"></script>
+        
+>>>>>>> Viz requests, updated tag tracking.
         <script>
             /***
              * HLS OSMF plugin debug module.
@@ -128,6 +134,14 @@
             
             // What was the last reported playhead time from HLS plugin?
             var playheadTime = 0;
+<<<<<<< HEAD
+=======
+            var bufferDirty = true;
+            var lastBufferRender = 0;
+            
+            var audioLowWatermark = 0;
+            var videoLowWatermark = 0;
+>>>>>>> Viz requests, updated tag tracking.
 
             // Set from HLS plugin, showing the cutoff for rejecting audio tags in ms.
             var audioLowWatermark = 0;
@@ -226,7 +240,23 @@
                 requestLog.push(payload);
             }
             
+<<<<<<< HEAD
             // Called by HLS plugin to note download events for segments.
+=======
+            var requestLog = []; // Contains {url:, time: }
+            
+            function onNextRequest(payload)
+            {
+                // Note the last requests so we can animate their state.
+                payload = JSON.parse(payload);
+                if(payload.url == null)
+                    return;
+                    
+                payload.time = Date.now();
+                requestLog.push(payload);
+            }
+            
+>>>>>>> Viz requests, updated tag tracking.
             function onDownload(payload)
             {                
                 payload = JSON.parse(payload);   
@@ -259,6 +289,7 @@
                 playheadTime = t;
                 bufferDirty = true;
             }
+<<<<<<< HEAD
             
             // Called by HLS plugin to note tag conversion state.
             function onTag(time, type, audioLow, videoLow, kept, isKey)
@@ -267,6 +298,14 @@
                 tags.push({time: time, type: type, reject: !kept, key: isKey});
 
                 // Update watermarks.
+=======
+
+            function onTag(time, type, audioLow, videoLow)
+            {
+                // Note tag.
+                tags.push({time: time, type: type});
+
+>>>>>>> Viz requests, updated tag tracking.
                 audioLowWatermark = audioLow / 1000;
                 videoLowWatermark = videoLow / 1000;
                                                 
@@ -340,15 +379,20 @@
                 requestAnimationFrame(redrawBuffer);
                 
                 // Suppress if we've gotten new tags really recently to avoid chug.
-                if(Date.now() - lastTagSubmission < 64)
+                if(Date.now() - lastTagSubmission < 64 && Date.now() - lastBufferRender < 200)
                     return;
+<<<<<<< HEAD
 
+=======
+                                    
+>>>>>>> Viz requests, updated tag tracking.
                 // nop if no dirty.
                 if(bufferDirty == false)
                     return;
 
                 bufferDirty = false;
                 lastBufferRender = Date.now();
+<<<<<<< HEAD
 
                 // Truncate the buffer to 2*howFarBack if we exceed some max...
                 var cleanThreshold = 25000;
@@ -365,11 +409,24 @@
                         i--;                         
                     }
                 }
+=======
+>>>>>>> Viz requests, updated tag tracking.
 
-                // Truncate the buffer to last few items.
+                // Truncate the buffer to 2*howFarBack if we exceed some max...
                 var cleanThreshold = 25000;
                 if(tags.length > cleanThreshold * 1.1)
-                    tags = tags.slice(Math.max(tags.length - cleanThreshold, 1))
+                {
+                    var lastTime = tags[tags.length-1].time;
+                    for(var i=0; i<tags.length; i++)
+                    {
+                        if((lastTime - tags[i].time) < howFarBack_max)
+                            continue;
+                        
+                        // Remove.
+                        tags.splice(i, 1);
+                        i--;                         
+                    }
+                }
 
                 // Set up canvas.
                 var canvas = document.getElementById("canvas");
@@ -405,9 +462,19 @@
                     
                     var currentItemIdx = tags.length - 1;
                     
+<<<<<<< HEAD
                     // Just draw all tags to avoid ordering issues making us drop tags as 
                     // we scroll.                    
                     while(currentItemIdx >= 0)
+=======
+                    var highwater = {};
+                    
+                    // Skip back by the requested offset.
+                    //while(currentItemIdx >= 1 && tags[currentItemIdx].time > (lastTimestamp - timeOffset))
+                    // currentItemIdx--;
+                   
+                    while(currentItemIdx >= 0) // && tags[currentItemIdx].time >= (lastTimestamp - howFarBack))
+>>>>>>> Viz requests, updated tag tracking.
                     {
                         var tagType = tags[currentItemIdx].type;
                         var tagTime = tags[currentItemIdx].time;
@@ -626,7 +693,16 @@
                     ctx.fillRect(
                         width - (lastTimestamp - playheadTime) * secondsToPixels,
                         0, 2, rowHeight * 3);
-                    
+
+                    // Draw watermarks.
+                    ctx.fillStyle = "orange";
+                    ctx.fillRect(
+                        width - (lastTimestamp - (audioLowWatermark - 0.100)) * secondsToPixels,
+                        flvRowMap[8] * rowHeight, 2, rowHeight);
+                    ctx.fillRect(
+                        width - (lastTimestamp - (videoLowWatermark - 0.100)) * secondsToPixels,
+                        flvRowMap[9] * rowHeight, 2, rowHeight);
+
                     // Draw row headers.
                     ctx.fillStyle = "black";
                     ctx.fillText("Audio", 0, flvRowMap[8] * rowHeight);
@@ -675,17 +751,35 @@
                     {
                         // Rows are submanifests                        
                         var curManArray = manifestState[manName];
-                        ctx.fillStyle = "DarkKhaki";
+
                         for(var i=0; i<curManArray.length; i++)
                         {
                             var curManItem = curManArray[i];
                             
+                            var color = {r: 128, g: 128, b: 128};
+                            
+                            // Apply animation to show requests.
+                            for(var q=0; q<requestLog.length; q++)
+                            {
+                                var curRequestItem = requestLog[q];
+                                if(curRequestItem.url != curManItem.url)
+                                    continue;
+                                
+                                var fadeTimeInMs = 4000;
+                                var gFactor = Math.min(255, (Date.now() - curRequestItem.time) / fadeTimeInMs * 255); 
+                                color.r = 200;
+                                color.g = gFactor;
+                                color.b = 200;
+                                break;
+                            }                            
+                            
+                            ctx.fillStyle = tinycolor(color).toHexString();
                             ctx.fillRect(
                                 timeToPixel(curManItem.start), 
                                 rowHeight * curManIndex * 2, 
                                 timeToPixel(curManItem.end) - timeToPixel(curManItem.start), 
                                 rowHeight * 2);
-                                
+                            
                             ctx.lineStyle = "black";
                             ctx.lineWidth = 2;
                             ctx.strokeRect(
