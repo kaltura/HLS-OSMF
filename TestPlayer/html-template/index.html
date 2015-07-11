@@ -413,7 +413,7 @@
                     
                     function timeToPixel(t)
                     {
-                        var n = (t - manGlobalMin) / (manGlobalMax - manGlobalMin);
+                        var n = ((t+timeOffset) - manGlobalMin) / (manGlobalMax - manGlobalMin);
                         return n * width; 
                     }
                     
