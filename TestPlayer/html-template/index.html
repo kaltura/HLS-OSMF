@@ -433,7 +433,7 @@
                             
                             
                             // Apply animation to show requests.
-                            for(var q=0; q<requestLog.length; q++)
+                            for(var q=requestLog.length-1; q>=0; q--)
                             {
                                 var curRequestItem = requestLog[q];
                                 if(curRequestItem.url != curManItem.url)
