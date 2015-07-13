@@ -371,6 +371,7 @@ package com.kaltura.hls.m2ts
 
 			// Alway pass through SPS/PPS...
 			var alwaysPass:Boolean = false
+			var isKeyFrame:Boolean = false;
 			if(type == 9)
 			{
 				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
@@ -379,6 +380,9 @@ package com.kaltura.hls.m2ts
 					trace("Got AVCC, always pass");
 					alwaysPass = true;
 				}
+
+				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
+					isKeyFrame = true;
 			}
 
 			if(type == 9)
@@ -386,7 +390,7 @@ package com.kaltura.hls.m2ts
 				if(timestamp < flvLowWaterVideo - filterThresholdMs && !alwaysPass)
 				{
 					trace("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
-					ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false)");
+					ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
 					return;
 				}
 
@@ -399,14 +403,14 @@ package com.kaltura.hls.m2ts
 				if(timestamp < flvLowWaterAudio - filterThresholdMs)
 				{
 					trace("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
-					ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false)");
+					ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
 					return;
 				}
 
 				flvLowWaterAudio = timestamp;					
 			}
 
-			ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", true)");
+			ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", true, " + isKeyFrame + ")");
 
 			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 

@@ -65,7 +65,7 @@
         
         <script>
             /***
-             * Debug interface.
+             * HLS OSMF plugin debug module.
              * 
              * Draggable timeline of converted samples.
              */
@@ -171,10 +171,10 @@
                 bufferDirty = true;
             }
             
-            function onTag(time, type, audioLow, videoLow, kept)
+            function onTag(time, type, audioLow, videoLow, kept, isKey)
             {
                 // Note tag.
-                tags.push({time: time, type: type, reject: !kept});
+                tags.push({time: time, type: type, reject: !kept, key: isKey});
 
                 // Update watermarks.
                 audioLowWatermark = audioLow / 1000;
@@ -310,7 +310,7 @@
                         ctx.fillStyle = tags[currentItemIdx].reject ? "red" : "green";
                         ctx.fillRect(
                             width - (lastTimestamp - tags[currentItemIdx].time) * secondsToPixels,
-                            flvRowMap[tags[currentItemIdx].type] * rowHeight, 1, rowHeight);
+                            flvRowMap[tags[currentItemIdx].type] * rowHeight, 1, tags[currentItemIdx].key ? rowHeight : rowHeight * 0.75);
                         
                         currentItemIdx--;
                     }
