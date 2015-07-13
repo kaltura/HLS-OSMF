@@ -60,6 +60,10 @@
             swfobject.createCSS("#flashContent", "display:block;text-align:left;");
         </script>
         
+<<<<<<< HEAD
+=======
+        
+>>>>>>> Docs + cleanup pass.
         <script>
             /***
              * HLS OSMF plugin debug module.
@@ -146,12 +150,21 @@
             //    ]
             // }
             var manifestState = {};
+<<<<<<< HEAD
 
             // List of what segments we've requested, in order. Used to highlight
             // manifests.
             // Entries are:  {url:, time: }
             var requestLog = [];
 
+=======
+
+            // List of what segments we've requested, in order. Used to highlight
+            // manifests.
+            // Entries are:  {url:, time: }
+            var requestLog = [];
+
+>>>>>>> Docs + cleanup pass.
             // Set whenever we want to redraw.
             var bufferDirty = true;
             
@@ -194,13 +207,15 @@
             
             // Seconds back from live to translate the view.
             var timeOffset = 0; 
+<<<<<<< HEAD
 
             // Maximum amount to allow scrolling back.
             var timeOffset_max = 120;
+=======
+>>>>>>> Docs + cleanup pass.
 
-            var downloadState = {};
-            
-            var manifestState = {};
+            // Maximum amount to allow scrolling back.
+            var timeOffset_max = 120;
 
             // Initiate buffer rendering.
             requestAnimationFrame(redrawBuffer);
@@ -617,6 +632,7 @@
                         var lastState = stateArray[stateArray.length - 1].event;
                         var lastTime = stateArray[stateArray.length - 1].time;
                         
+                        // If it's ongoing, draw right edge as updating to now.
                         if(lastState == "open" || lastState == "opened")
                             lastTime = Date.now();
                         
@@ -656,33 +672,11 @@
                 }
                 else
                 {
-                    // Determine overall start/end times of all submanifests.
-                    var manGlobalMin = Number.MAX_VALUE;
-                    var manGlobalMax = 0;
-                    for(var manName in manifestState)
-                    {
-                        var localMin = Number.MAX_VALUE;
-                        var localMax = 0;
-                        
-                        var curManArray = manifestState[manName];
-                        for(var i=0; i<curManArray.length; i++)
-                        {
-                            var curManItem = curManArray[i];
-
-                            if(curManItem.start < 70000)
-                                continue;
-
-                            localMin = Math.min(localMin, curManItem.start);
-                            localMax = Math.max(localMax, curManItem.end);
-                        }
-                        
-                        manGlobalMin = Math.min(manGlobalMin, localMin);
-                        manGlobalMax = Math.max(manGlobalMax, localMax);
-                    }
-                    
+                    // Determine start/end of view based on zoom and current playhead.
                     manGlobalMax = playheadTime + howFarBack;
                     manGlobalMin = playheadTime - howFarBack;
                     
+                    // Helper to convert from times to pixels.
                     function timeToPixel(t)
                     {
                         var n = ((t+timeOffset) - manGlobalMin) / (manGlobalMax - manGlobalMin);
@@ -693,17 +687,20 @@
                     var curManIndex = 0;
                     for(var manName in manifestState)
                     {
-                        // Rows are submanifests                        
+                        // Rows are submanifests.
                         var curManArray = manifestState[manName];
                         var requestNotes = {};
+                        var color = {r: 128, g: 128, b: 128};
 
                         for(var i=0; i<curManArray.length; i++)
                         {
                             var curManItem = curManArray[i];
                             
-                            var color = {r: 128, g: 128, b: 128};
-                            
-                            
+                            // Reset color.
+                            color.r = 128;
+                            color.g = 128;
+                            color.b = 128;
+
                             // Apply animation to show requests.
                             for(var q=requestLog.length-1; q>=0; q--)
                             {
@@ -717,11 +714,12 @@
                                 color.g = gFactor;
                                 color.b = 200;
                                 
-                                requestNotes[curRequestItem.url] = " #" + q;
+                                requestNotes[curRequestItem.url] = " (request " + q + ")";
                                 break;
                             }                            
                             
-                            ctx.fillStyle = tinycolor(color).toHexString();
+                            // Draw the box with stroke.
+                            ctx.fillStyle = rgbToHex(color.r, color.g, color.b);
                             ctx.fillRect(
                                 timeToPixel(curManItem.start), 
                                 rowHeight * curManIndex * 2, 
@@ -737,6 +735,7 @@
                                 rowHeight * 2);
                         }
                         
+                        // Draw segment labels last so they aren't overlapped by boxes.
                         ctx.fillStyle = "black";
                         for(var i=0; i<curManArray.length; i++)
                         {
@@ -744,6 +743,7 @@
                             ctx.fillText("#" + curManItem.id + (requestNotes[curManItem.url] ? requestNotes[curManItem.url] : ""), timeToPixel(curManItem.start) + 5, rowHeight * curManIndex * 2);
                         }
 
+                        // Draw manifest name.
                         ctx.fillText(manName, 0, rowHeight * curManIndex * 2 + rowHeight);
                         
                         curManIndex++;
