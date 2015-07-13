@@ -390,7 +390,10 @@ package com.kaltura.hls.m2ts
 				if(timestamp < flvLowWaterVideo - filterThresholdMs && !alwaysPass)
 				{
 					trace("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
-					ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
+					CONFIG::LOGGING
+					{
+						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
+					}
 					return;
 				}
 
@@ -403,14 +406,20 @@ package com.kaltura.hls.m2ts
 				if(timestamp < flvLowWaterAudio - filterThresholdMs)
 				{
 					trace("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
-					ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
+					CONFIG::LOGGING
+					{
+						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
+					}
 					return;
 				}
 
 				flvLowWaterAudio = timestamp;					
 			}
 
-			ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", true, " + isKeyFrame + ")");
+			CONFIG::LOGGING
+			{
+				ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", true, " + isKeyFrame + ")");			
+			}
 
 			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 

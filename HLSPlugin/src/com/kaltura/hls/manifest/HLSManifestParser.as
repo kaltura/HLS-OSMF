@@ -105,7 +105,10 @@ package com.kaltura.hls.manifest
 			}
 
 			// Post it out.
-			ExternalInterface.call("onManifest", JSON.stringify(json));
+			CONFIG::LOGGING
+			{
+				ExternalInterface.call("onManifest", JSON.stringify(json));
+			}
 		}
 
 		public function parse(input:String, _fullUrl:String):void
