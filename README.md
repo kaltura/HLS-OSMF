@@ -55,6 +55,9 @@ As an alternative to using Flash Builder, you may also use make to compile the p
 
 ### The Debug Visualization 
 
+![Manifest Visualization](https://s3.amazonaws.com/uploads.hipchat.com/70076/1718358/QwaZnBtZ6wpAPMB/abc-live-throttled.png)
+![Transcoder and Download Visualization](https://s3.amazonaws.com/uploads.hipchat.com/70076/961665/q1B3iAV532gFnkY/YAY.PNG)
+
 A full featured debug visualizer is included with the HLS OSMF plugin to help with development and testing. It visualises MPEGTS->FLV transcoding, segment download activity, and manifest state and segment selection.
 
 See TestPlayer/html-template/index.hml for details.
