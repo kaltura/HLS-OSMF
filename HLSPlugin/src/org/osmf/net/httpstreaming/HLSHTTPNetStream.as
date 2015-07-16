@@ -28,6 +28,7 @@ package org.osmf.net.httpstreaming
 	import com.kaltura.hls.manifest.HLSManifestSegment;
 	import com.kaltura.hls.manifest.HLSManifestStream;
 	import com.kaltura.hls.manifest.HLSManifestParser;
+	import com.kaltura.hls.m2ts.M2TSFileHandler;
 	
 	import flash.events.NetStatusEvent;
 	import flash.events.TimerEvent;
@@ -111,7 +112,7 @@ package org.osmf.net.httpstreaming
 
 		// If enabled, we log to a FLV buffer that can be saved out via FileReference.
 		// The testplayer does this.
-		public static var writeToMasterBuffer:Boolean = false;
+		public static var writeToMasterBuffer:Boolean = true;
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
 		private var neverPlayed:Boolean = true;
@@ -382,8 +383,8 @@ package org.osmf.net.httpstreaming
 			trace("Trying to set buffertime to " + value);
 			super.bufferTime = value;
 			trace("   o super.bufferTime = " + super.bufferTime);
-			_desiredBufferTime_Min = Math.max(OSMFSettings.hdsMinimumBufferTime, value);
-			_desiredBufferTime_Max = Math.max(60, _desiredBufferTime_Min * 3);
+			_desiredBufferTime_Min = 2; // Math.max(OSMFSettings.hdsMinimumBufferTime, value);
+			_desiredBufferTime_Max = 10; //Math.max(60, _desiredBufferTime_Min * 3);
 			trace("   o _desiredBufferTime_Min = " + _desiredBufferTime_Min);
 			trace("   o _desiredBufferTime_Max = " + _desiredBufferTime_Max);
 
@@ -922,7 +923,7 @@ package org.osmf.net.httpstreaming
 							_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
 						}
 
-						
+
 						// cleaning up the previous seek info
 						_flvParser = null;
 						if (_enhancedSeekTags != null)

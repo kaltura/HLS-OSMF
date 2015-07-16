@@ -374,10 +374,9 @@ package com.kaltura.hls.m2ts
 			var isKeyFrame:Boolean = false;
 			if(type == 9)
 			{
-				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
-					&& message[12] == FLVTags.AVC_MODE_AVCC)
+				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
 				{
-					trace("Got AVCC, always pass");
+					trace("Got AVCC or keyframe, always pass");
 					alwaysPass = true;
 				}
 

@@ -49,6 +49,12 @@ package com.kaltura.hls
 			_stream.addEventListener(DVRStreamInfoEvent.DVRSTREAMINFO, onDVRStreamInfo);
 			_stream.addEventListener(NetStatusEvent.NET_STATUS, onNetStatus);
 			NetClient(_stream.client).addHandler(NetStreamCodes.ON_PLAY_STATUS, onPlayStatus);
+
+			// Useful debug logging.
+			NetClient(_stream.client).addHandler("hlsDebug", function(param:Object)
+			{
+				trace("HLS DEBUG EVENT: " + JSON.stringify(param));
+			});
 		}
 		
 		override public function get duration():Number
