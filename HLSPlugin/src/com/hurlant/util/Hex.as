@@ -6,8 +6,7 @@
  *
  * See LICENSE.md for full license information.
  */
-package com.hurlant.util 
-{
+package com.hurlant.util {
 
 	import flash.utils.ByteArray;
 
