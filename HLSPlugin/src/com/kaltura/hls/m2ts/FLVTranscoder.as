@@ -217,7 +217,7 @@ package com.kaltura.hls.m2ts
             else
                 codec = FLVTags.VIDEO_CODEC_AVC_PREDICTIVEFRAME;
 
-            //trace("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+            trace("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
             sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length);
         }
 
