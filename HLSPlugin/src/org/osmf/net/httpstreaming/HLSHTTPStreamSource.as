@@ -67,6 +67,7 @@ package org.osmf.net.httpstreaming
 		// Note this occurs in realtime as the segments are downloaded - not as they are played,
 		// which may happen much later.
 		public static var debugBus:EventDispatcher = new EventDispatcher();
+		public static var SEND_LOGS:Boolean = false;
 
 		/**
 		 * Default constructor.
@@ -433,9 +434,9 @@ package org.osmf.net.httpstreaming
 					}
 
 					// Log the request.
-					CONFIG::LOGGING
+					if(SEND_LOGS)
 					{
-						ExternalInterface.call("onNextRequest", JSON.stringify({ kind: _request.kind, url: _request.url }));
+						ExternalInterface.call("onNextRequest", { kind: _request.kind, url: _request.url }); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
 					}
 					
 					// update _isLiveStalled so HTTPNetStream can access it.

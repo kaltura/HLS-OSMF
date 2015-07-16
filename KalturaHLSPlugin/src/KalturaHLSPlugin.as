@@ -1,24 +1,27 @@
 package
 {
 	import com.kaltura.hls.HLSPluginInfo;
+	import com.kaltura.hls.m2ts.M2TSFileHandler;
 	import com.kaltura.hls.manifest.HLSManifestParser;
-    import com.kaltura.kdpfl.model.MediaProxy;
-    import com.kaltura.kdpfl.plugin.IPlugin;
-    import com.kaltura.kdpfl.plugin.IPluginFactory;
-    import flash.utils.getDefinitionByName;
-    
-    import org.osmf.events.MediaFactoryEvent;
-    import org.osmf.media.MediaFactory;
-    import org.osmf.media.MediaResourceBase;
-    import org.osmf.media.PluginInfoResource;
-    import org.puremvc.as3.interfaces.IFacade;
-    import com.kaltura.kdpfl.plugin.KPluginEvent;
+	import com.kaltura.kdpfl.model.MediaProxy;
+	import com.kaltura.kdpfl.plugin.IPlugin;
+	import com.kaltura.kdpfl.plugin.IPluginFactory;
+	import com.kaltura.kdpfl.plugin.KPluginEvent;
 	import com.kaltura.kdpfl.plugin.KalturaHLSMediator;
 	
 	import flash.display.Sprite;
+	import flash.system.Security;
+	import flash.utils.getDefinitionByName;
 	
+	import org.osmf.events.MediaFactoryEvent;
+	import org.osmf.media.MediaFactory;
+	import org.osmf.media.MediaResourceBase;
 	import org.osmf.media.PluginInfo;
-    import flash.system.Security;
+	import org.osmf.media.PluginInfoResource;
+	import org.puremvc.as3.interfaces.IFacade;
+	
+	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
+	import org.osmf.net.httpstreaming.HTTPStreamDownloader;
     
 	public class KalturaHLSPlugin extends Sprite implements IPluginFactory, IPlugin
 	{
@@ -28,6 +31,7 @@ package
 
 		private var _segmentBuffer:int = -1;
 		private var _overrideTargetDuration:int = -1;
+		private var _sendLogs:Boolean = false;
         
         public function KalturaHLSPlugin()
         {
@@ -51,6 +55,14 @@ package
 				
 		public function set overrideTargetDuration(value:int):void{
 			_overrideTargetDuration = value;
+		}
+		
+		public function get sendLogs():Boolean{
+			return _sendLogs;
+		}
+		
+		public function set sendLogs(value:Boolean):void{
+			_sendLogs = value;
 		}
 
         public function create (pluginName : String =null) : IPlugin
@@ -87,6 +99,12 @@ package
 				}
 				if (overrideTargetDuration != -1){
 					HLSManifestParser.OVERRIDE_TARGET_DURATION = overrideTargetDuration;
+				}
+				if (sendLogs){
+					M2TSFileHandler.SEND_LOGS = true;
+					HLSManifestParser.SEND_LOGS = true;
+					HLSHTTPStreamSource.SEND_LOGS = true;
+					HTTPStreamDownloader.SEND_LOGS = true;
 				}
 				dispatchEvent( new KPluginEvent (KPluginEvent.KPLUGIN_INIT_COMPLETE) );
 			}

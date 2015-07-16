@@ -1,18 +1,17 @@
 package com.kaltura.hls.m2ts
 {
+	import com.kaltura.hls.HLSIndexHandler;
 	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.SubtitleTrait;
 	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.muxing.AACParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	import com.kaltura.hls.subtitles.TextTrackCue;
-	import com.kaltura.hls.HLSIndexHandler;
 	
+	import flash.external.ExternalInterface;
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
-
-	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
@@ -23,6 +22,8 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSFileHandler extends HTTPStreamingFileHandlerBase
 	{
+		public static var SEND_LOGS:Boolean = false;
+		
 		public var subtitleTrait:SubtitleTrait;
 		public var key:HLSManifestEncryptionKey;
 		public var segmentId:uint = 0;
@@ -390,7 +391,7 @@ package com.kaltura.hls.m2ts
 				if(timestamp < flvLowWaterVideo - filterThresholdMs && !alwaysPass)
 				{
 					trace("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
-					CONFIG::LOGGING
+					if(SEND_LOGS)
 					{
 						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
 					}
@@ -406,7 +407,7 @@ package com.kaltura.hls.m2ts
 				if(timestamp < flvLowWaterAudio - filterThresholdMs)
 				{
 					trace("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
-					CONFIG::LOGGING
+					if(SEND_LOGS)
 					{
 						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
 					}
@@ -416,7 +417,7 @@ package com.kaltura.hls.m2ts
 				flvLowWaterAudio = timestamp;					
 			}
 
-			CONFIG::LOGGING
+			if(SEND_LOGS)
 			{
 				ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", true, " + isKeyFrame + ")");			
 			}

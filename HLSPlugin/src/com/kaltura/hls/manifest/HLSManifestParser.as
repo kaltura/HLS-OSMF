@@ -2,11 +2,11 @@ package com.kaltura.hls.manifest
 {
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	
-	import flash.external.ExternalInterface;
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
+	import flash.external.ExternalInterface;
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
 	import flash.utils.getTimer;
@@ -23,6 +23,7 @@ package com.kaltura.hls.manifest
 		
 		public static var MAX_SEG_BUFFER:int = 4;
 		public static var OVERRIDE_TARGET_DURATION:int = -1;
+		public static var SEND_LOGS:Boolean = false;
 		
 		public var type:String = DEFAULT;
 		public var version:int;
@@ -105,9 +106,9 @@ package com.kaltura.hls.manifest
 			}
 
 			// Post it out.
-			CONFIG::LOGGING
+			if(SEND_LOGS)
 			{
-				ExternalInterface.call("onManifest", JSON.stringify(json));
+				ExternalInterface.call("onManifest", json); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
 			}
 		}
 
