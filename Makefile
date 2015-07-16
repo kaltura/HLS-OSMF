@@ -20,7 +20,6 @@ TestPlayer/html-template/TestPlayer.swf: $(shell find TestPlayer -name \*.as) $(
 		-static-link-runtime-shared-libraries=true \
 		-library-path+=../OSMF/osmf.swc \
 		-library-path+=../OSMFUTils/osmfutils.swc \
-		-library-path+=../HLSPlugin/libs/aes-decrypt.swc \
 		-library-path+=../hlsPlugin/hlsPlugin.swc \
 		-swf-version 20 \
 		-use-network=true \
@@ -34,7 +33,6 @@ KalturaHLSPlugin/KalturaHLSPlugin.swf: $(shell find KalturaHLSPlugin -name \*.as
 		-static-link-runtime-shared-libraries=true \
 		-library-path+=../OSMF/osmf.swc \
 		-library-path+=../OSMFUTils/osmfutils.swc \
-		-library-path+=../HLSPlugin/libs/aes-decrypt.swc \
 		-library-path+=../hlsPlugin/hlsPlugin.swc \
 		-library-path+=lib/lightKdp3Lib.swc \
 		-swf-version 20 \
@@ -48,7 +46,6 @@ HLSPlugin/hlsPlugin.swc: $(shell find HLSPlugin/ -name \*.as) OSMFUtils/osmfutil
 	cd HLSPlugin && ${COMPC} \
 		-load-config+=HLS-build-config.xml \
 		-library-path+=../OSMF/osmf.swc \
-		-library-path+=libs/aes-decrypt.swc \
 		-swf-version 20 \
 		-use-network=true \
 		-debug=${DEBUG_FLAG} \
@@ -74,3 +71,10 @@ OSMF/osmf.swc: $(shell find OSMF/ -name \*.as) Makefile
 		-optimize=${OPTIMIZE_FLAG} \
 		-output osmf.swc -include-sources . 
 
+clean:
+	@echo ============= Cleaning ========================
+	rm OSMF/osmf.swc
+	rm OSMFUtils/osmfutils.swc
+	rm HLSPlugin/hlsPlugin.swc
+	rm KalturaHLSPlugin/KalturaHLSPlugin.swf
+	rm TestPlayer/html-template/TestPlayer.swf

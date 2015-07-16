@@ -11,6 +11,8 @@ package com.kaltura.hls.m2ts
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
+
+	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
@@ -87,6 +89,14 @@ package com.kaltura.hls.m2ts
 		
 		public override function beginProcessFile(seek:Boolean, seekTime:Number):void
 		{
+			if(seek && !isBestEffort)
+			{
+				// Reset low water mark for the file handler so we don't drop stuff.
+				trace("RESETTING LOW WATER MARK");
+				flvLowWaterAudio = 0;
+				flvLowWaterVideo = 0;
+			}
+
 			if( key && !key.isLoading && !key.isLoaded)
 				throw new Error("Tried to process segment with key not set to load or loaded.");
 
@@ -313,7 +323,7 @@ package com.kaltura.hls.m2ts
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			
 			// Also update end time - don't trace it as we'll increase it incrementally.
-			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null)
+			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null && !isBestEffort)
 			{
 				trace("Noting segment end time for " + segmentUri + " of " + _segmentLastSeconds);
 				if(_segmentLastSeconds != _segmentLastSeconds)
@@ -336,6 +346,10 @@ package com.kaltura.hls.m2ts
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
 				
+		public static var flvLowWaterAudio:uint = 0;
+		public static var flvLowWaterVideo:uint = 0;
+		public const filterThresholdMs:uint = 0;
+
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
 			var timestampSeconds:Number = timestamp / 1000.0;
@@ -352,6 +366,59 @@ package com.kaltura.hls.m2ts
 
 			if(isBestEffort)
 				return;
+
+			var type:int = message[0];
+
+			// Alway pass through SPS/PPS...
+			var alwaysPass:Boolean = false
+			var isKeyFrame:Boolean = false;
+			if(type == 9)
+			{
+				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
+				{
+					trace("Got AVCC or keyframe, always pass");
+					alwaysPass = true;
+				}
+
+				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
+					isKeyFrame = true;
+			}
+
+			if(type == 9)
+			{
+				if(timestamp < flvLowWaterVideo - filterThresholdMs && !alwaysPass)
+				{
+					trace("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
+					CONFIG::LOGGING
+					{
+						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
+					}
+					return;
+				}
+
+				// Don't update low water if it's an always pass.
+				if(!alwaysPass)
+					flvLowWaterVideo = timestamp;				
+			}
+			else if(type == 8)
+			{
+				if(timestamp < flvLowWaterAudio - filterThresholdMs)
+				{
+					trace("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
+					CONFIG::LOGGING
+					{
+						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
+					}
+					return;
+				}
+
+				flvLowWaterAudio = timestamp;					
+			}
+
+			CONFIG::LOGGING
+			{
+				ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", true, " + isKeyFrame + ")");			
+			}
 
 			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 
