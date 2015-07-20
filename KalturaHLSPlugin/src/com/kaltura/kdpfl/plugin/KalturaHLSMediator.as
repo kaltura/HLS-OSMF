@@ -29,9 +29,10 @@ package com.kaltura.kdpfl.plugin
 		private var _subtitleTrait:SubtitleTrait;
 		private var _loadTrait:NetStreamLoadTrait;
 		private var _dynamicTrait:DynamicStreamTrait;
-		private var _bufferLength:Number;
-		private var _droppedFrames:Number;
+		private var _bufferLength:Number = -1;
+		private var _droppedFrames:Number = -1;
 		private var _currentBitrateValue:Number;
+		private var _currentFPS:Number = -1;
 		
 		public function KalturaHLSMediator( viewComponent:Object=null)
 		{
@@ -136,8 +137,9 @@ package com.kaltura.kdpfl.plugin
 			if (!trait)
 				return;
 			
-			_bufferLength = trait.netStream.bufferLength | 0;
-			_droppedFrames = trait.netStream.info.droppedFrames;
+			_bufferLength = trait.netStream ? trait.netStream.bufferLength : -1;
+			_droppedFrames = trait.netStream ? trait.netStream.info.droppedFrames : -1;
+			_currentFPS = trait.netStream ? trait.netStream.currentFPS : -1;
 		}
 		
 		protected function setupDynamicStreamTrait(trait:DynamicStreamTrait):void
@@ -149,18 +151,25 @@ package com.kaltura.kdpfl.plugin
 		
 		protected function sendHLSDebug(debugInfo:Object):void
 		{
-			//check for buffer and droppedFrames values
-			if ( _bufferLength != _loadTrait.netStream.bufferLength ){
-				_bufferLength = _loadTrait.netStream.bufferLength;
-				debugInfo['bufferLength'] = _bufferLength;
-			}
+			//check for buffer, droppedFrames and fps values
+			if ( _loadTrait && _loadTrait.netStream ){
+				if ( _bufferLength != _loadTrait.netStream.bufferLength ){
+					_bufferLength = _loadTrait.netStream.bufferLength;
+					debugInfo['bufferLength'] = _bufferLength;
+				}
+				
+				if ( _droppedFrames != _loadTrait.netStream.info.droppedFrames ){
+					_droppedFrames = _loadTrait.netStream.info.droppedFrames;
+					debugInfo['droppedFrames'] = _droppedFrames;
+				}
+				
+				if ( _currentFPS != _loadTrait.netStream.currentFPS ){
+					_currentFPS = _loadTrait.netStream.currentFPS;
+					debugInfo['FPS'] = _currentFPS;
+				}
+			}			
 			
-			if ( _droppedFrames != _loadTrait.netStream.info.droppedFrames ){
-				_droppedFrames = _loadTrait.netStream.info.droppedFrames;
-				debugInfo['droppedFrames'] = _droppedFrames;
-			}
-			
-			if( _currentBitrateValue != _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex) ){
+			if( _dynamicTrait && _currentBitrateValue != _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex) ){
 				_currentBitrateValue = _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex);
 				debugInfo['currentBitrate'] = _currentBitrateValue;
 			}
