@@ -32,7 +32,6 @@ package org.osmf.net.httpstreaming
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.Timer;
-	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.events.HTTPStreamingEventReason;
@@ -116,11 +115,6 @@ package org.osmf.net.httpstreaming
 		{
 			return _downloadBytesCount;
 		}
-
-		public function debugToJS(url:String, event:String):void
-		{
-           ExternalInterface.call("onDownload", JSON.stringify({url: url, event: event}));
-		}
 		
 		/**
 		 * Opens the HTTP stream source and start downloading the data 
@@ -137,8 +131,6 @@ package org.osmf.net.httpstreaming
 				throw new ArgumentError("Null request in HTTPStreamDownloader open method."); 
 			}
 			
-			debugToJS( request.url.toString(), "open");
-
 			_isComplete = false;
 			_hasData = false;
 			_hasErrors = false;
@@ -191,9 +183,6 @@ package org.osmf.net.httpstreaming
 		 **/ 
 		public function close(dispose:Boolean = false):void
 		{
-			if(_request && _request.url)
-				debugToJS( _request.url.toString(), "closed");
-
 			CONFIG::LOGGING
 			{
 				if (_request != null)
@@ -376,8 +365,6 @@ package org.osmf.net.httpstreaming
 		private function onOpen(event:Event):void
 		{
 			_isOpen = true;
-			debugToJS( _request.url.toString(), "opened");
-
 		}
 		
 		/**
@@ -386,8 +373,6 @@ package org.osmf.net.httpstreaming
 		 **/
 		private function onComplete(event:Event):void
 		{
-			debugToJS( _request.url.toString(), "complete");
-
 			if (_downloadBeginDate == null)
 			{
 				_downloadBeginDate = new Date();
@@ -489,8 +474,6 @@ package org.osmf.net.httpstreaming
 		 **/
 		private function onError(event:Event):void
 		{
-			debugToJS( _request.url.toString(), "error");
-
 			if (_timeoutTimer != null)
 			{
 				stopTimeoutMonitor();
@@ -569,8 +552,6 @@ package org.osmf.net.httpstreaming
 		 */ 
 		private function onTimeout(event:TimerEvent):void
 		{
-			debugToJS( _request.url.toString(), "timeout");
-
 			CONFIG::LOGGING
 			{
 				logger.error("Timeout while trying to download [" + _request.url + "]");
