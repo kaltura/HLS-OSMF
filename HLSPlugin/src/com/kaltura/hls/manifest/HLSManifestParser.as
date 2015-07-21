@@ -2,7 +2,6 @@ package com.kaltura.hls.manifest
 {
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	
-	import flash.external.ExternalInterface;
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.events.IOErrorEvent;
@@ -82,33 +81,6 @@ package com.kaltura.hls.manifest
 			}
 
 			return ( uri.substr(0, 5) == "http:" || uri.substr(0, 6) == "https:" || uri.substr(0, 5) == "file:" ) ? uri : baseUrl + uri;
-		}
-
-		public function postToJS()
-		{
-			// Generate JSON state!
-			var json:Object = {};
-			for(var i:int=0; i<streams.length; i++)
-			{
-				var streamJson:Array = [];
-
-				if(!streams[i].manifest)
-					continue;
-
-				for(var j:int=0; j<streams[i].manifest.segments.length; j++)
-				{
-					var curSeg:HLSManifestSegment = streams[i].manifest.segments[j];
-					streamJson.push({ id: curSeg.id, url: curSeg.uri, start: curSeg.startTime, end: curSeg.startTime + curSeg.duration});
-				}
-
-				json[streams[i].uri] = streamJson;
-			}
-
-			// Post it out.
-			CONFIG::LOGGING
-			{
-				ExternalInterface.call("onManifest", JSON.stringify(json));
-			}
 		}
 
 		public function parse(input:String, _fullUrl:String):void
