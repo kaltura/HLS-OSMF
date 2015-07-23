@@ -6,6 +6,8 @@ package com.kaltura.hls.manifest
 	import flash.events.EventDispatcher;
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
+	import flash.external.ExternalInterface;
+	import com.adobe.serialization.json.JSON;
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
 	import flash.utils.getTimer;
@@ -22,6 +24,7 @@ package com.kaltura.hls.manifest
 		
 		public static var MAX_SEG_BUFFER:int = 4;
 		public static var OVERRIDE_TARGET_DURATION:int = -1;
+		public static var SEND_LOGS:Boolean = false;
 		
 		public var type:String = DEFAULT;
 		public var version:int;
@@ -81,6 +84,33 @@ package com.kaltura.hls.manifest
 			}
 
 			return ( uri.substr(0, 5) == "http:" || uri.substr(0, 6) == "https:" || uri.substr(0, 5) == "file:" ) ? uri : baseUrl + uri;
+		}
+
+		public function postToJS()
+		{
+			// Generate JSON state!
+			var jsonData:Object = {};
+			for(var i:int=0; i<streams.length; i++)
+			{
+				var streamJson:Array = [];
+
+				if(!streams[i].manifest)
+					continue;
+
+				for(var j:int=0; j<streams[i].manifest.segments.length; j++)
+				{
+					var curSeg:HLSManifestSegment = streams[i].manifest.segments[j];
+					streamJson.push({ id: curSeg.id, url: curSeg.uri, start: curSeg.startTime, end: curSeg.startTime + curSeg.duration});
+				}
+
+				jsonData[streams[i].uri] = streamJson;
+			}
+
+			// Post it out.
+			if(SEND_LOGS)
+			{
+				ExternalInterface.call( "onManifest", JSON.encode(jsonData) ); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
+			}
 		}
 
 		public function parse(input:String, _fullUrl:String):void

@@ -1,18 +1,19 @@
 package com.kaltura.hls.m2ts
 {
+	import com.kaltura.hls.HLSIndexHandler;
 	import com.kaltura.hls.HLSStreamingResource;
 	import com.kaltura.hls.SubtitleTrait;
 	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.muxing.AACParser;
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	import com.kaltura.hls.subtitles.TextTrackCue;
-	import com.kaltura.hls.HLSIndexHandler;
 	
+	import flash.external.ExternalInterface;
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
 	
-	import org.osmf.events.HTTPStreamingEvent;
+	import org.osmf.events.HLSHTTPStreamingEvent;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
 	import org.osmf.net.httpstreaming.flv.FLVTagAudio;
 
@@ -21,6 +22,8 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSFileHandler extends HTTPStreamingFileHandlerBase
 	{
+		public static var SEND_LOGS:Boolean = false;
+		
 		public var subtitleTrait:SubtitleTrait;
 		public var key:HLSManifestEncryptionKey;
 		public var segmentId:uint = 0;
@@ -87,6 +90,14 @@ package com.kaltura.hls.m2ts
 		
 		public override function beginProcessFile(seek:Boolean, seekTime:Number):void
 		{
+			if(seek && !isBestEffort)
+			{
+				// Reset low water mark for the file handler so we don't drop stuff.
+				trace("RESETTING LOW WATER MARK");
+				flvLowWaterAudio = 0;
+				flvLowWaterVideo = 0;
+			}
+			
 			if( key && !key.isLoading && !key.isLoaded)
 				throw new Error("Tried to process segment with key not set to load or loaded.");
 
@@ -313,7 +324,7 @@ package com.kaltura.hls.m2ts
 			var elapsed:Number = _segmentLastSeconds - _segmentBeginSeconds;
 			
 			// Also update end time - don't trace it as we'll increase it incrementally.
-			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null)
+			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null && !isBestEffort)
 			{
 				trace("Noting segment end time for " + segmentUri + " of " + _segmentLastSeconds);
 				if(_segmentLastSeconds != _segmentLastSeconds)
@@ -326,7 +337,7 @@ package com.kaltura.hls.m2ts
 				elapsed = _extendedIndexHandler.getTargetSegmentDuration(); // XXX fudge hack!
 			}
 
-			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.FRAGMENT_DURATION, false, false, elapsed));
+			dispatchEvent(new HLSHTTPStreamingEvent(HLSHTTPStreamingEvent.FRAGMENT_DURATION, false, false, elapsed));
 			
 			return rv;
 		}
@@ -335,6 +346,10 @@ package com.kaltura.hls.m2ts
 		{
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
+		
+		public static var flvLowWaterAudio:uint = 0;
+		public static var flvLowWaterVideo:uint = 0;
+		public const filterThresholdMs:uint = 0;
 				
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
@@ -352,6 +367,60 @@ package com.kaltura.hls.m2ts
 
 			if(isBestEffort)
 				return;
+
+			var type:int = message[0];
+
+			// Alway pass through SPS/PPS...
+			var alwaysPass:Boolean = false
+			var isKeyFrame:Boolean = false;
+			if(type == 9)
+			{
+				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
+					&& message[12] == FLVTags.AVC_MODE_AVCC)
+				{
+					trace("Got AVCC, always pass");
+					alwaysPass = true;
+				}
+
+				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
+					isKeyFrame = true;
+			}
+
+			if(type == 9)
+			{
+				if(timestamp < flvLowWaterVideo - filterThresholdMs && !alwaysPass)
+				{
+					trace("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
+					if(SEND_LOGS)
+					{
+						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
+					}
+					return;
+				}
+
+				// Don't update low water if it's an always pass.
+				if(!alwaysPass)
+					flvLowWaterVideo = timestamp;				
+			}
+			else if(type == 8)
+			{
+				if(timestamp < flvLowWaterAudio - filterThresholdMs)
+				{
+					trace("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
+					if(SEND_LOGS)
+					{
+						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
+					}
+					return;
+				}
+
+				flvLowWaterAudio = timestamp;					
+			}
+
+			if(SEND_LOGS)
+			{
+				ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", true, " + isKeyFrame + ")");			
+			}
 
 			//trace("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
 
