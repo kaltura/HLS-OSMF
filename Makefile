@@ -74,10 +74,3 @@ OSMF/osmf.swc: $(shell find OSMF/ -name \*.as) Makefile
 		-optimize=${OPTIMIZE_FLAG} \
 		-output osmf.swc -include-sources . 
 
-clean:
-	@echo ============= Cleaning ========================
-	rm OSMF/osmf.swc
-	rm OSMFUtils/osmfutils.swc
-	rm HLSPlugin/hlsPlugin.swc
-	rm KalturaHLSPlugin/KalturaHLSPlugin.swf
-	rm TestPlayer/html-template/TestPlayer.swf

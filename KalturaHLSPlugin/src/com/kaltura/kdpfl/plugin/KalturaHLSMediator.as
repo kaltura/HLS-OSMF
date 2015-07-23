@@ -185,23 +185,23 @@ package com.kaltura.kdpfl.plugin
 				if ( _bufferLength != _loadTrait.netStream.bufferLength ){
 					_bufferLength = _loadTrait.netStream.bufferLength;
 					debugInfo['bufferLength'] = _bufferLength;
-					}
+				}
 				
 				if ( _droppedFrames != _loadTrait.netStream.info.droppedFrames ){
 					_droppedFrames = _loadTrait.netStream.info.droppedFrames;
 					debugInfo['droppedFrames'] = _droppedFrames;
-					}
+				}
 				
 				if ( _currentFPS != _loadTrait.netStream.currentFPS ){
 					_currentFPS = _loadTrait.netStream.currentFPS;
 					debugInfo['FPS'] = _currentFPS;
-					}
 				}			
+			}			
 			
-				if( _dynamicTrait && _currentBitrateValue != _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex) ){
-					_currentBitrateValue = _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex);
-					debugInfo['currentBitrate'] = _currentBitrateValue;
-				}
+			if( _dynamicTrait && _currentBitrateValue != _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex) ){
+				_currentBitrateValue = _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex);
+				debugInfo['currentBitrate'] = _currentBitrateValue;
+			}
 			
 			sendNotification("debugInfoReceived", debugInfo);
 		}

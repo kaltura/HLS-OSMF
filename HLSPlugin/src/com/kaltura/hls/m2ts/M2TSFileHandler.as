@@ -97,7 +97,7 @@ package com.kaltura.hls.m2ts
 				flvLowWaterAudio = 0;
 				flvLowWaterVideo = 0;
 			}
-
+			
 			if( key && !key.isLoading && !key.isLoaded)
 				throw new Error("Tried to process segment with key not set to load or loaded.");
 
@@ -346,11 +346,11 @@ package com.kaltura.hls.m2ts
 		{
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
-				
+		
 		public static var flvLowWaterAudio:uint = 0;
 		public static var flvLowWaterVideo:uint = 0;
 		public const filterThresholdMs:uint = 0;
-
+				
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
 			var timestampSeconds:Number = timestamp / 1000.0;
