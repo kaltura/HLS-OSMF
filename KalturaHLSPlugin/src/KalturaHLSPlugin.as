@@ -21,7 +21,7 @@ package
 	import org.puremvc.as3.interfaces.IFacade;
 	
 	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
-	import org.osmf.net.httpstreaming.HTTPStreamDownloader;
+	import org.osmf.net.httpstreaming.HLSHTTPStreamDownloader;
     
 	public class KalturaHLSPlugin extends Sprite implements IPluginFactory, IPlugin
 	{
@@ -104,7 +104,7 @@ package
 					M2TSFileHandler.SEND_LOGS = true;
 					HLSManifestParser.SEND_LOGS = true;
 					HLSHTTPStreamSource.SEND_LOGS = true;
-					HTTPStreamDownloader.SEND_LOGS = true;
+					HLSHTTPStreamDownloader.SEND_LOGS = true;
 				}
 				dispatchEvent( new KPluginEvent (KPluginEvent.KPLUGIN_INIT_COMPLETE) );
 			}

@@ -13,7 +13,7 @@ package com.kaltura.hls.m2ts
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
 	
-	import org.osmf.events.HTTPStreamingEvent;
+	import org.osmf.events.HLSHTTPStreamingEvent;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
 	import org.osmf.net.httpstreaming.flv.FLVTagAudio;
 
@@ -337,7 +337,7 @@ package com.kaltura.hls.m2ts
 				elapsed = _extendedIndexHandler.getTargetSegmentDuration(); // XXX fudge hack!
 			}
 
-			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.FRAGMENT_DURATION, false, false, elapsed));
+			dispatchEvent(new HLSHTTPStreamingEvent(HLSHTTPStreamingEvent.FRAGMENT_DURATION, false, false, elapsed));
 			
 			return rv;
 		}

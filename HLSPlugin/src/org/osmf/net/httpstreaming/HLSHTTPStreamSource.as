@@ -29,7 +29,7 @@ package org.osmf.net.httpstreaming
 	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
-	import org.osmf.events.HTTPStreamingEvent;
+	import org.osmf.events.HLSHTTPStreamingEvent;
 	import org.osmf.events.HTTPStreamingIndexHandlerEvent;
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.net.qos.FragmentDetails;
@@ -62,7 +62,7 @@ package org.osmf.net.httpstreaming
 	 */ 
 	public class HLSHTTPStreamSource implements IHTTPStreamSource, IHTTPStreamHandler
 	{
-		// Listen to this to receive HTTPStreamingEvents related to segment start/end.
+		// Listen to this to receive HLSHTTPStreamingEvents related to segment start/end.
 		//
 		// Note this occurs in realtime as the segments are downloaded - not as they are played,
 		// which may happen much later.
@@ -110,27 +110,27 @@ package org.osmf.net.httpstreaming
 				}
 			}
 			
-			_fileHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onFragmentDuration);
-			_fileHandler.addEventListener(HTTPStreamingEvent.SCRIPT_DATA, onScriptData);
-			_fileHandler.addEventListener(HTTPStreamingEvent.FILE_ERROR, onError);
+			_fileHandler.addEventListener(HLSHTTPStreamingEvent.FRAGMENT_DURATION, onFragmentDuration);
+			_fileHandler.addEventListener(HLSHTTPStreamingEvent.SCRIPT_DATA, onScriptData);
+			_fileHandler.addEventListener(HLSHTTPStreamingEvent.FILE_ERROR, onError);
 			
 			_indexHandler.addEventListener(HTTPStreamingIndexHandlerEvent.INDEX_READY, onIndexReady);
 			_indexHandler.addEventListener(HTTPStreamingIndexHandlerEvent.RATES_READY, onRatesReady);
 			_indexHandler.addEventListener(HTTPStreamingIndexHandlerEvent.REQUEST_LOAD_INDEX, onRequestLoadIndex);
 			_indexHandler.addEventListener(DVRStreamInfoEvent.DVRSTREAMINFO, onDVRStreamInfo);
-			_indexHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onFragmentDuration);
-			_indexHandler.addEventListener(HTTPStreamingEvent.SCRIPT_DATA, onScriptData);
-			_indexHandler.addEventListener(HTTPStreamingEvent.INDEX_ERROR, onError);
+			_indexHandler.addEventListener(HLSHTTPStreamingEvent.FRAGMENT_DURATION, onFragmentDuration);
+			_indexHandler.addEventListener(HLSHTTPStreamingEvent.SCRIPT_DATA, onScriptData);
+			_indexHandler.addEventListener(HLSHTTPStreamingEvent.INDEX_ERROR, onError);
 			
 			// when best effort fetch is enabled, the index handler will handle fragment download events
 			// itself and fire DOWNLOAD_CONTINUE, DOWNLOAD_SKIP, DOWNLOAD_COMPLETE, DOWNLOAD_ERROR
-			_indexHandler.addEventListener(HTTPStreamingEvent.DOWNLOAD_CONTINUE, onBestEffortDownloadEvent);
-			_indexHandler.addEventListener(HTTPStreamingEvent.DOWNLOAD_SKIP, onBestEffortDownloadEvent);
-			_indexHandler.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadEvent);
-			_indexHandler.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadEvent);
+			_indexHandler.addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_CONTINUE, onBestEffortDownloadEvent);
+			_indexHandler.addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_SKIP, onBestEffortDownloadEvent);
+			_indexHandler.addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadEvent);
+			_indexHandler.addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadEvent);
 			
-			_indexDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, 	onIndexComplete);
-			_indexDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, 	onIndexError);
+			_indexDownloaderMonitor.addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_COMPLETE, 	onIndexComplete);
+			_indexDownloaderMonitor.addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_ERROR, 	onIndexError);
 				
 			setState(HTTPStreamingState.INIT);
 			
@@ -458,7 +458,7 @@ package org.osmf.net.httpstreaming
 							// then we use internal source to actually download the chunk
 							if (_downloader == null)
 							{
-								_downloader = new HTTPStreamDownloader();
+								_downloader = new HLSHTTPStreamDownloader();
 							}
 							
 							var downloaderMonitor:IEventDispatcher = _dispatcher;
@@ -517,20 +517,20 @@ package org.osmf.net.httpstreaming
 							// we're waiting for the index handler to tell us what to do
 							break;
 						} 
-						else if(_bestEffortDownloadResult == HTTPStreamingEvent.DOWNLOAD_ERROR)
+						else if(_bestEffortDownloadResult == HLSHTTPStreamingEvent.DOWNLOAD_ERROR)
 						{
 							// a timeout occured.
 							// code elsewhere will eventually trigger a stream stop.
 							break;
 						} 
-						else if(_bestEffortDownloadResult == HTTPStreamingEvent.DOWNLOAD_SKIP)
+						else if(_bestEffortDownloadResult == HLSHTTPStreamingEvent.DOWNLOAD_SKIP)
 						{
 							// index handler wants us to ignore this fragment.
 							// go back to load state to trigger another request.
 							setState(HTTPStreamingState.LOAD);
 							break;
 						}
-						else if(_bestEffortDownloadResult == HTTPStreamingEvent.DOWNLOAD_CONTINUE)
+						else if(_bestEffortDownloadResult == HLSHTTPStreamingEvent.DOWNLOAD_CONTINUE)
 						{
 							// index handler wants us to process this fragment.
 							// fall through
@@ -558,8 +558,8 @@ package org.osmf.net.httpstreaming
 					}
 					
 					_dispatcher.dispatchEvent( 
-						new HTTPStreamingEvent(
-							HTTPStreamingEvent.BEGIN_FRAGMENT, 
+						new HLSHTTPStreamingEvent(
+							HLSHTTPStreamingEvent.BEGIN_FRAGMENT, 
 							false,
 							true,
 							NaN,
@@ -570,8 +570,8 @@ package org.osmf.net.httpstreaming
 					);
 
 					debugBus.dispatchEvent( 
-						new HTTPStreamingEvent(
-							HTTPStreamingEvent.BEGIN_FRAGMENT, 
+						new HLSHTTPStreamingEvent(
+							HLSHTTPStreamingEvent.BEGIN_FRAGMENT, 
 							false,
 							true,
 							NaN,
@@ -654,8 +654,8 @@ package org.osmf.net.httpstreaming
 					
 					
 					_dispatcher.dispatchEvent( 
-						new HTTPStreamingEvent(
-							HTTPStreamingEvent.END_FRAGMENT,
+						new HLSHTTPStreamingEvent(
+							HLSHTTPStreamingEvent.END_FRAGMENT,
 							false,
 							true,
 							NaN,
@@ -666,8 +666,8 @@ package org.osmf.net.httpstreaming
 					);
 
 					debugBus.dispatchEvent( 
-						new HTTPStreamingEvent(
-							HTTPStreamingEvent.END_FRAGMENT,
+						new HLSHTTPStreamingEvent(
+							HLSHTTPStreamingEvent.END_FRAGMENT,
 							false,
 							true,
 							NaN,
@@ -786,7 +786,7 @@ package org.osmf.net.httpstreaming
 		 * Event listener for completion of index file download. We can close the
 		 * loader object and send data for further processing.
 		 */ 
-		private function onIndexComplete(event:HTTPStreamingEvent):void
+		private function onIndexComplete(event:HLSHTTPStreamingEvent):void
 		{
 			// FM-1003 (http://bugs.adobe.com/jira/browse/FM-1003) 
 			// Re-dispatch this event on the _dispatcher
@@ -807,7 +807,7 @@ package org.osmf.net.httpstreaming
 		 * Event listener for error triggered by download of index file. We'll just 
 		 * forward this event further.
 		 */ 
-		private function onIndexError(event:HTTPStreamingEvent):void
+		private function onIndexError(event:HLSHTTPStreamingEvent):void
 		{
 			CONFIG::LOGGING
 			{			
@@ -852,7 +852,7 @@ package org.osmf.net.httpstreaming
 		 * 
 		 * Event listener called when index handler of file handler obtain fragment duration.
 		 */
-		private function onFragmentDuration(event:HTTPStreamingEvent):void
+		private function onFragmentDuration(event:HLSHTTPStreamingEvent):void
 		{
 			_fragmentDuration = event.fragmentDuration;
 		}
@@ -863,10 +863,10 @@ package org.osmf.net.httpstreaming
 		 * Event listener called when index handler of file handler need to handle script 
 		 * data objects. We just forward them for further processing.
 		 */
-		private function onScriptData(event:HTTPStreamingEvent):void
+		private function onScriptData(event:HLSHTTPStreamingEvent):void
 		{
 			_dispatcher.dispatchEvent(
-				new HTTPStreamingEvent(
+				new HLSHTTPStreamingEvent(
 					event.type,
 					event.bubbles,
 					event.cancelable,
@@ -884,7 +884,7 @@ package org.osmf.net.httpstreaming
 		 * Event listener for errors dispatched by index or file handler. We just forward
 		 * them for further processing, but in the future we may hide some errors.
 		 */
-		private function onError(event:HTTPStreamingEvent):void
+		private function onError(event:HLSHTTPStreamingEvent):void
 		{
 			CONFIG::LOGGING
 			{			
@@ -907,8 +907,8 @@ package org.osmf.net.httpstreaming
 			_desiredQualityStreamName = _streamNames[_desiredQualityLevel];
 			
 			_dispatcher.dispatchEvent(
-				new HTTPStreamingEvent(
-					HTTPStreamingEvent.TRANSITION,
+				new HLSHTTPStreamingEvent(
+					HLSHTTPStreamingEvent.TRANSITION,
 					false,
 					false,
 					NaN,
@@ -952,8 +952,8 @@ package org.osmf.net.httpstreaming
 			_qualityLevelChanged = false;
 			
 			_dispatcher.dispatchEvent(
-				new HTTPStreamingEvent(
-					HTTPStreamingEvent.TRANSITION_COMPLETE,
+				new HLSHTTPStreamingEvent(
+					HLSHTTPStreamingEvent.TRANSITION_COMPLETE,
 					false,
 					false,
 					NaN,
@@ -974,9 +974,9 @@ package org.osmf.net.httpstreaming
 		 * 
 		 * Called on _indexHandler DOWNLOAD_SKIP, DOWNLOAD_CONTINUE, and DOWNLOAD_ERROR events.
 		 */
-		private function onBestEffortDownloadEvent(event:HTTPStreamingEvent):void
+		private function onBestEffortDownloadEvent(event:HLSHTTPStreamingEvent):void
 		{
-			if(event.type == HTTPStreamingEvent.DOWNLOAD_COMPLETE)
+			if(event.type == HLSHTTPStreamingEvent.DOWNLOAD_COMPLETE)
 			{
 				// DOWNLOAD_COMPLETE events are just passed through
 				// they do not tell us whether or not to proceed with processing
@@ -1013,7 +1013,7 @@ package org.osmf.net.httpstreaming
 		
 		private var _qosInfo:HTTPStreamHandlerQoSInfo;
 		
-		private var _downloader:HTTPStreamDownloader = null;
+		private var _downloader:HLSHTTPStreamDownloader = null;
 		private var _request:HTTPStreamRequest = null;
 		
 		private var _indexHandler:HTTPStreamingIndexHandlerBase = null;
@@ -1039,7 +1039,7 @@ package org.osmf.net.httpstreaming
 		private var _endFragment:Boolean = false;
 		
 		private var _indexDownloaderMonitor:EventDispatcher = new EventDispatcher();
-		private var _indexDownloader:HTTPStreamDownloader = new HTTPStreamDownloader();
+		private var _indexDownloader:HLSHTTPStreamDownloader = new HLSHTTPStreamDownloader();
 		private var _currentIndexDownloadEvent:HTTPStreamingIndexHandlerEvent = null;
 		private var _pendingIndexDownloadRequests:Vector.<HTTPStreamingIndexHandlerEvent> = new Vector.<HTTPStreamingIndexHandlerEvent>();
 		private var _pendingIndexDownloadRequestsLenght:int = 0;

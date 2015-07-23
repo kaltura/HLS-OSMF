@@ -23,6 +23,8 @@
     <classEntry path="com.kaltura.hls.HLSDVRTrait"/>
     <classEntry path="com.kaltura.hls.crypto.FastAESKey"/>
     <classEntry path="json.JSONTokenizer"/>
+    <classEntry path="org.osmf.net.httpstreaming.HLSHTTPStreamDownloader"/>
+    <classEntry path="org.osmf.events.HLSHTTPStreamingEvent"/>
   </includeClasses>
   <includeResources/>
   <namespaceManifests/>

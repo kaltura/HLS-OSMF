@@ -18,7 +18,7 @@ package com.kaltura.hls
 	import flash.utils.getTimer;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
-	import org.osmf.events.HTTPStreamingEvent;
+	import org.osmf.events.HLSHTTPStreamingEvent;
 	import org.osmf.events.HTTPStreamingEventReason;
 	import org.osmf.events.HTTPStreamingIndexHandlerEvent;
 	import org.osmf.logging.Log;
@@ -26,7 +26,7 @@ package com.kaltura.hls
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.net.DynamicStreamingItem;
 	import org.osmf.net.httpstreaming.HLSHTTPNetStream;
-	import org.osmf.net.httpstreaming.HTTPStreamDownloader;
+	import org.osmf.net.httpstreaming.HLSHTTPStreamDownloader;
 	import org.osmf.net.httpstreaming.HTTPStreamRequest;
 	import org.osmf.net.httpstreaming.HTTPStreamRequestKind;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
@@ -157,7 +157,7 @@ package com.kaltura.hls
 			fileHandler = _fileHandler as M2TSFileHandler;
 			fileHandler.extendedIndexHandler = this;
 
-			_bestEffortFileHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onBestEffortParsed);
+			_bestEffortFileHandler.addEventListener(HLSHTTPStreamingEvent.FRAGMENT_DURATION, onBestEffortParsed);
 			_bestEffortFileHandler.isBestEffort = true;
 		}
 
@@ -1317,7 +1317,7 @@ package com.kaltura.hls
 			metadata.duration = accum;
 			var tag:FLVTagScriptDataObject = new FLVTagScriptDataObject();
 			tag.objects = ["onMetaData", metadata];
-			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.SCRIPT_DATA, false, false, 0, tag, FLVTagScriptDataMode.IMMEDIATE));
+			dispatchEvent(new HLSHTTPStreamingEvent(HLSHTTPStreamingEvent.SCRIPT_DATA, false, false, 0, tag, FLVTagScriptDataMode.IMMEDIATE));
 		}
 
 		// getSegmentIndexForTime()
@@ -1431,7 +1431,7 @@ package com.kaltura.hls
 		{
 			if ( segment == null ) return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 			trace("REQUESTING " + segment.uri);
-			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.FRAGMENT_DURATION, false, false, segment.duration));
+			dispatchEvent(new HLSHTTPStreamingEvent(HLSHTTPStreamingEvent.FRAGMENT_DURATION, false, false, segment.duration));
 			return new HTTPStreamRequest(HTTPStreamRequestKind.DOWNLOAD, segment.uri);
 		}
 		
@@ -1571,8 +1571,8 @@ package com.kaltura.hls
 			// recreate the best effort download monitor
 			// this protects us against overlapping best effort downloads
 			_bestEffortDownloaderMonitor = new EventDispatcher();
-			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
-			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
+			_bestEffortDownloaderMonitor.addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
+			_bestEffortDownloaderMonitor.addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
 
 
 			_bestEffortFileHandler.segmentId = nextSeg.id;
@@ -1602,8 +1602,8 @@ package com.kaltura.hls
 			if(_bestEffortDownloaderMonitor != null)
 			{
 				trace("stopListeningToBestEffortDownload - Disconnecting existing best effort monitor.");
-				_bestEffortDownloaderMonitor.removeEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
-				_bestEffortDownloaderMonitor.removeEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
+				_bestEffortDownloaderMonitor.removeEventListener(HLSHTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
+				_bestEffortDownloaderMonitor.removeEventListener(HLSHTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
 				_bestEffortDownloaderMonitor = null;
 			}
 		}
@@ -1614,7 +1614,7 @@ package com.kaltura.hls
 		 * Best effort backward seek needs to pre-parse the fragment in order to determine if the
 		 * downloaded fragment actually contains the desired seek time. This method performs that parse.
 		 **/
-		private function bufferAndParseDownloadedBestEffortBytes(url:String, downloader:HTTPStreamDownloader):void
+		private function bufferAndParseDownloadedBestEffortBytes(url:String, downloader:HLSHTTPStreamDownloader):void
 		{
 			if(_bestEffortDownloadReply != null)
 			{
@@ -1649,7 +1649,7 @@ package com.kaltura.hls
 
 					_bestEffortFileHandler.endProcessFile(_bestEffortSeekBuffer);
 
-					if(_bestEffortDownloadReply == HTTPStreamingEvent.DOWNLOAD_CONTINUE)
+					if(_bestEffortDownloadReply == HLSHTTPStreamingEvent.DOWNLOAD_CONTINUE)
 					{
 						// we're done parsing and the HTTPStreamSource is going to process the file,
 						// restore the contents of the downloader
@@ -1692,7 +1692,7 @@ package com.kaltura.hls
 		 * 
 		 * Invoked on HTTPStreamingEvent.DOWNLOAD_COMPLETE for best effort downloads
 		 */
-		private function onBestEffortDownloadComplete(event:HTTPStreamingEvent):void
+		private function onBestEffortDownloadComplete(event:HLSHTTPStreamingEvent):void
 		{
 			if(_bestEffortDownloaderMonitor == null ||
 				_bestEffortDownloaderMonitor != event.target as IEventDispatcher)
@@ -1712,7 +1712,7 @@ package com.kaltura.hls
 			trace("end download parse");
 
 			// forward the DOWNLOAD_COMPLETE to HTTPStreamSource, but change the reason
-			var clone:HTTPStreamingEvent = new HTTPStreamingEvent(
+			var clone:HLSHTTPStreamingEvent = new HLSHTTPStreamingEvent(
 				event.type,
 				event.bubbles,
 				event.cancelable,
@@ -1762,7 +1762,7 @@ package com.kaltura.hls
 		 * 
 		 * Invoked on HTTPStreamingEvent.DOWNLOAD_ERROR for best effort downloads
 		 */
-		private function onBestEffortDownloadError(event:HTTPStreamingEvent):void
+		private function onBestEffortDownloadError(event:HLSHTTPStreamingEvent):void
 		{
 			if(_bestEffortDownloaderMonitor == null ||
 				_bestEffortDownloaderMonitor != event.target as IEventDispatcher)
@@ -1806,7 +1806,7 @@ package com.kaltura.hls
 		 * fragment.
 		 * 
 		 **/
-		private function skipBestEffortFetch(url:String, downloader:HTTPStreamDownloader):void
+		private function skipBestEffortFetch(url:String, downloader:HLSHTTPStreamDownloader):void
 		{
 			if(_bestEffortDownloadReply != null)
 			{
@@ -1815,7 +1815,7 @@ package com.kaltura.hls
 			}
 
 			bestEffortLog("Best effort skipping fragment.");
-			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_SKIP,
+			var event:HLSHTTPStreamingEvent = new HLSHTTPStreamingEvent(HLSHTTPStreamingEvent.DOWNLOAD_SKIP,
 				false, // bubbles
 				false, // cancelable
 				0, // fragmentDuration
@@ -1827,7 +1827,7 @@ package com.kaltura.hls
 				downloader); // downloader
 			dispatchEvent(event);
 			
-			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_SKIP;
+			_bestEffortDownloadReply = HLSHTTPStreamingEvent.DOWNLOAD_SKIP;
 		}
 		
 		/**
@@ -1837,7 +1837,7 @@ package com.kaltura.hls
 		 * HTTPStreamSource that it may continue processing the downloaded fragment.
 		 * A continue event is assumed to mean that best effort fetch is complete.
 		 **/
-		private function continueBestEffortFetch(url:String, downloader:HTTPStreamDownloader):void
+		private function continueBestEffortFetch(url:String, downloader:HLSHTTPStreamDownloader):void
 		{
 			if(_bestEffortDownloadReply != null)
 			{
@@ -1846,7 +1846,7 @@ package com.kaltura.hls
 			}
 			bestEffortLog("Best effort received a desirable fragment.");
 			
-			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_CONTINUE,
+			var event:HLSHTTPStreamingEvent = new HLSHTTPStreamingEvent(HLSHTTPStreamingEvent.DOWNLOAD_CONTINUE,
 				false, // bubbles
 				false, // cancelable
 				0, // fragmentDuration
@@ -1867,7 +1867,7 @@ package com.kaltura.hls
 			_bestEffortLastGoodFragmentDownloadTime = new Date();
 			
 			dispatchEvent(event);
-			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_CONTINUE;
+			_bestEffortDownloadReply = HLSHTTPStreamingEvent.DOWNLOAD_CONTINUE;
 			_bestEffortState = BEST_EFFORT_STATE_OFF;
 		}
 		
@@ -1878,10 +1878,10 @@ package com.kaltura.hls
 		 * HTTPStreamSource that a bad download error occurred. This causes HTTPStreamSource
 		 * to stop playback with an error.
 		 **/
-		private function errorBestEffortFetch(url:String, downloader:HTTPStreamDownloader):void
+		private function errorBestEffortFetch(url:String, downloader:HLSHTTPStreamDownloader):void
 		{
 			bestEffortLog("Best effort fetch error.");
-			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_ERROR,
+			var event:HLSHTTPStreamingEvent = new HLSHTTPStreamingEvent(HLSHTTPStreamingEvent.DOWNLOAD_ERROR,
 				false, // bubbles
 				false, // cancelable
 				0, // fragmentDuration
@@ -1892,7 +1892,7 @@ package com.kaltura.hls
 				HTTPStreamingEventReason.BEST_EFFORT, // reason
 				downloader); // downloader
 			dispatchEvent(event);
-			_bestEffortDownloadReply = HTTPStreamingEvent.DOWNLOAD_ERROR;
+			_bestEffortDownloadReply = HLSHTTPStreamingEvent.DOWNLOAD_ERROR;
 		}
 		
 		/**
