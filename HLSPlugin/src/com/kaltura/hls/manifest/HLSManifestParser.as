@@ -7,6 +7,7 @@ package com.kaltura.hls.manifest
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
 	import flash.external.ExternalInterface;
+	import com.adobe.serialization.json.JSON;
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
 	import flash.utils.getTimer;
@@ -88,7 +89,7 @@ package com.kaltura.hls.manifest
 		public function postToJS()
 		{
 			// Generate JSON state!
-			var json:Object = {};
+			var jsonData:Object = {};
 			for(var i:int=0; i<streams.length; i++)
 			{
 				var streamJson:Array = [];
@@ -102,13 +103,13 @@ package com.kaltura.hls.manifest
 					streamJson.push({ id: curSeg.id, url: curSeg.uri, start: curSeg.startTime, end: curSeg.startTime + curSeg.duration});
 				}
 
-				json[streams[i].uri] = streamJson;
+				jsonData[streams[i].uri] = streamJson;
 			}
 
 			// Post it out.
 			if(SEND_LOGS)
 			{
-				ExternalInterface.call("onManifest", json); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
+				ExternalInterface.call( "onManifest", JSON.encode(jsonData) ); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
 			}
 		}
 

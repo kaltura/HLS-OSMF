@@ -22,6 +22,7 @@
     <classEntry path="com.kaltura.hls.SubtitleTrait"/>
     <classEntry path="com.kaltura.hls.HLSDVRTrait"/>
     <classEntry path="com.kaltura.hls.crypto.FastAESKey"/>
+    <classEntry path="json.JSONTokenizer"/>
   </includeClasses>
   <includeResources/>
   <namespaceManifests/>
