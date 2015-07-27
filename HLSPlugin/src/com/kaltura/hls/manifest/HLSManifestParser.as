@@ -87,7 +87,7 @@ package com.kaltura.hls.manifest
 			return ( uri.substr(0, 5) == "http:" || uri.substr(0, 6) == "https:" || uri.substr(0, 5) == "file:" ) ? uri : baseUrl + uri;
 		}
 
-		public function postToJS()
+		public function postToJS():void
 		{
 			// Generate JSON state!
 			var jsonData:Object = {};
@@ -312,7 +312,7 @@ package com.kaltura.hls.manifest
 				timeAccum += segments[m].duration;
 			}
 			
-			for(var i:int=0; i<keys.length; i++)
+			for(i=0; i<keys.length; i++)
 			{
 				trace("Key #" + i + " " + keys[i].toString());
 			}
