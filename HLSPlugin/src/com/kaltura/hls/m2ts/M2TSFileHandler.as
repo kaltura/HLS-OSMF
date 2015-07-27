@@ -96,8 +96,7 @@ package com.kaltura.hls.m2ts
 			{
 				// Reset low water mark for the file handler so we don't drop stuff.
 				trace("RESETTING LOW WATER MARK");
-				flvLowWaterAudio = 0;
-				flvLowWaterVideo = 0;
+				clearFLVWaterMarkFilter();
 			}
 
 			if( key && !key.isLoading && !key.isLoaded)
@@ -355,7 +354,15 @@ package com.kaltura.hls.m2ts
 				
 		public static var flvLowWaterAudio:uint = 0;
 		public static var flvLowWaterVideo:uint = 0;
+		public static var flvRecoveringIFrame:Boolean = false;
 		public const filterThresholdMs:uint = 0;
+
+		private function clearFLVWaterMarkFilter():void
+		{
+			flvLowWaterAudio = 0;
+			flvLowWaterVideo = 0;
+			flvRecoveringIFrame = false;
+		}
 
 		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
 		{
@@ -381,9 +388,10 @@ package com.kaltura.hls.m2ts
 			var isKeyFrame:Boolean = false;
 			if(type == 9)
 			{
-				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
+				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
+					&& message[12] == FLVTags.AVC_MODE_AVCC)
 				{
-					trace("Got AVCC or keyframe, always pass");
+					trace("Got AVCC, always pass.");
 					alwaysPass = true;
 				}
 
@@ -393,7 +401,30 @@ package com.kaltura.hls.m2ts
 
 			if(type == 9)
 			{
-				if(timestamp < flvLowWaterVideo - filterThresholdMs && !alwaysPass)
+				var videoWasBelowWatermark:Boolean = (timestamp < flvLowWaterVideo - filterThresholdMs);
+				var willSkip:Boolean = false;
+
+				if(flvRecoveringIFrame)
+				{
+					// Skip until we encounter an I-frame past the filter threshold.
+					willSkip = true;
+					if(isKeyFrame && !videoWasBelowWatermark)
+					{
+						// We got past filter and saw an I-frame... stop recovery.
+						flvRecoveringIFrame = false;
+						willSkip = false;
+					}
+				}
+				else
+				{
+					if(videoWasBelowWatermark && !alwaysPass)
+					{
+						flvRecoveringIFrame = true;
+						willSkip = true;
+					}
+				}
+
+				if(willSkip)
 				{
 					trace("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
 					if(SEND_LOGS)
@@ -409,7 +440,7 @@ package com.kaltura.hls.m2ts
 			}
 			else if(type == 8)
 			{
-				if(timestamp < flvLowWaterAudio - filterThresholdMs)
+				if(timestamp <= flvLowWaterAudio - filterThresholdMs)
 				{
 					trace("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
 					if(SEND_LOGS)
