@@ -40,7 +40,7 @@ package org.osmf.net.httpstreaming
 	import flash.utils.getTimer;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
-	import org.osmf.events.HLSHTTPStreamingEvent;
+	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.events.QoSInfoEvent;
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.media.URLResource;
@@ -81,7 +81,7 @@ package org.osmf.net.httpstreaming
 	
 	[Event(name="DVRStreamInfo", type="org.osmf.events.DVRStreamInfoEvent")]
 	
-	[Event(name="runAlgorithm", type="org.osmf.events.HLSHTTPStreamingEvent")]
+	[Event(name="runAlgorithm", type="org.osmf.events.HTTPStreamingEvent")]
 	
 	[Event(name="qosUpdate", type="org.osmf.events.QoSInfoEvent")]
 	
@@ -138,15 +138,15 @@ package org.osmf.net.httpstreaming
 			_factory = factory;
 			
 			addEventListener(DVRStreamInfoEvent.DVRSTREAMINFO, 			onDVRStreamInfo);
-			addEventListener(HLSHTTPStreamingEvent.SCRIPT_DATA, 			onScriptData);
-			addEventListener(HLSHTTPStreamingEvent.BEGIN_FRAGMENT, 		onBeginFragment);
-			addEventListener(HLSHTTPStreamingEvent.END_FRAGMENT, 			onEndFragment);
-			addEventListener(HLSHTTPStreamingEvent.TRANSITION, 			onTransition);
-			addEventListener(HLSHTTPStreamingEvent.TRANSITION_COMPLETE, 	onTransitionComplete);
-			addEventListener(HLSHTTPStreamingEvent.ACTION_NEEDED, 			onActionNeeded);
-			addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_ERROR,			onDownloadError);
+			addEventListener(HTTPStreamingEvent.SCRIPT_DATA, 			onScriptData);
+			addEventListener(HTTPStreamingEvent.BEGIN_FRAGMENT, 		onBeginFragment);
+			addEventListener(HTTPStreamingEvent.END_FRAGMENT, 			onEndFragment);
+			addEventListener(HTTPStreamingEvent.TRANSITION, 			onTransition);
+			addEventListener(HTTPStreamingEvent.TRANSITION_COMPLETE, 	onTransitionComplete);
+			addEventListener(HTTPStreamingEvent.ACTION_NEEDED, 			onActionNeeded);
+			addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR,			onDownloadError);
 			
-			addEventListener(HLSHTTPStreamingEvent.DOWNLOAD_COMPLETE,		onDownloadComplete);
+			addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE,		onDownloadComplete);
 			
 			addEventListener(NetStatusEvent.NET_STATUS, onNetStatus, false, HIGH_PRIORITY, true);
 			
@@ -1290,7 +1290,7 @@ package org.osmf.net.httpstreaming
 		 * object which is used to process script objects, to update our
 		 * play head and to detect if we need to stop the playback.
 		 */
-		private function onBeginFragment(event:HLSHTTPStreamingEvent):void
+		private function onBeginFragment(event:HTTPStreamingEvent):void
 		{
 			CONFIG::LOGGING
 			{
@@ -1327,7 +1327,7 @@ package org.osmf.net.httpstreaming
 		 * Usually the end of fragment is processed by the associated switch
 		 * manager as is a good place to decide if we need to switch up or down.
 		 */
-		private function onEndFragment(event:HLSHTTPStreamingEvent):void
+		private function onEndFragment(event:HTTPStreamingEvent):void
 		{
 			CONFIG::LOGGING
 			{
@@ -1385,7 +1385,7 @@ package org.osmf.net.httpstreaming
 			// Reset the empty buffer interruption flag
 			emptyBufferInterruptionSinceLastQoSUpdate = false;
 			
-			dispatchEvent(new HLSHTTPStreamingEvent(HLSHTTPStreamingEvent.RUN_ALGORITHM));
+			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.RUN_ALGORITHM));
 			
 			_lastSegmentEnd = indexHandler ? indexHandler.getCurrentSegmentEnd() : 0.0;
 		}
@@ -1399,7 +1399,7 @@ package org.osmf.net.httpstreaming
 		 * correctly update its state. We do that by dispatching a NETSTREAM_PLAY_TRANSITION
 		 * event.
 		 */
-		private function onTransition(event:HLSHTTPStreamingEvent):void
+		private function onTransition(event:HTTPStreamingEvent):void
 		{
 			if (_resource is DynamicStreamingResource)
 			{
@@ -1424,7 +1424,7 @@ package org.osmf.net.httpstreaming
 		 * its state and dispatch any related event. We do that by inserting an 
 		 * onPlayStatus data packet into the stream.
 		 */
-		private function onTransitionComplete(event:HLSHTTPStreamingEvent):void
+		private function onTransitionComplete(event:HTTPStreamingEvent):void
 		{
 			onActionNeeded(event);
 			
@@ -1445,7 +1445,7 @@ package org.osmf.net.httpstreaming
 		 * We received an download error event. We will attempt to recover the stream, then dispatch a NetStatusEvent with StreamNotFound
 		 * error to notify all NetStream consumers and close the current NetStream.
 		 */
-		private function onDownloadError(event:HLSHTTPStreamingEvent):void
+		private function onDownloadError(event:HTTPStreamingEvent):void
 		{
 			// We map all URL errors to Play.StreamNotFound.
 			// Attempt to recover from a URL Error
@@ -1553,7 +1553,7 @@ package org.osmf.net.httpstreaming
 			);
 		}
 		
-		private function onDownloadComplete(event:HLSHTTPStreamingEvent):void
+		private function onDownloadComplete(event:HTTPStreamingEvent):void
 		{
 			CONFIG::LOGGING
 			{
@@ -2003,7 +2003,7 @@ package org.osmf.net.httpstreaming
 		 * 
 		 * Event handler invoked when we need to handle script data objects.
 		 */
-		private function onScriptData(event:HLSHTTPStreamingEvent):void
+		private function onScriptData(event:HTTPStreamingEvent):void
 		{
 			if (event.scriptDataMode == null || event.scriptDataObject == null)
 			{
@@ -2051,7 +2051,7 @@ package org.osmf.net.httpstreaming
 		 * 
 		 * We need to do an append bytes action to reset internal state of the NetStream.
 		 */
-		private function onActionNeeded(event:HLSHTTPStreamingEvent):void
+		private function onActionNeeded(event:HTTPStreamingEvent):void
 		{
 			// [FM-1387] we are appending this action only when we are 
 			// dealing with late-binding audio streams

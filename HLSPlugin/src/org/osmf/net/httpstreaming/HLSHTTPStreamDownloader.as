@@ -34,7 +34,7 @@ package org.osmf.net.httpstreaming
 	import flash.utils.Timer;
 	import flash.external.ExternalInterface;
 	
-	import org.osmf.events.HLSHTTPStreamingEvent;
+	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.events.HTTPStreamingEventReason;
 	import org.osmf.net.httpstreaming.flv.FLVTagScriptDataMode;
 	import org.osmf.utils.OSMFSettings;
@@ -57,7 +57,7 @@ package org.osmf.net.httpstreaming
 	 * @playerversion AIR 1.5
 	 * @productversion OSMF 1.6
 	 */
-	public class HLSHTTPStreamDownloader
+	public class HLSHTTPStreamDownloader extends HTTPStreamDownloader
 	{
 		public static var SEND_LOGS:Boolean = false;
 		
@@ -74,7 +74,7 @@ package org.osmf.net.httpstreaming
 		/**
 		 * Returns true if the HTTP stream source is open and false otherwise.
 		 **/
-		public function get isOpen():Boolean
+		public override function get isOpen():Boolean
 		{
 			return _isOpen;
 		}
@@ -82,7 +82,7 @@ package org.osmf.net.httpstreaming
 		/**
 		 * Returns true if the HTTP stream source has been completly downloaded.
 		 **/
-		public function get isComplete():Boolean
+		public override function get isComplete():Boolean
 		{
 			return _isComplete;
 		}
@@ -90,7 +90,7 @@ package org.osmf.net.httpstreaming
 		/**
 		 * Returns true if the HTTP stream source has data available for processing.
 		 **/
-		public function get hasData():Boolean
+		public override function get hasData():Boolean
 		{
 			return _hasData;
 		}
@@ -98,7 +98,7 @@ package org.osmf.net.httpstreaming
 		/**
 		 * Returns true if the HTTP stream source has not been found or has some errors.
 		 */
-		public function get hasErrors():Boolean
+		public override function get hasErrors():Boolean
 		{
 			return _hasErrors;
 		}
@@ -106,7 +106,7 @@ package org.osmf.net.httpstreaming
 		/**
 		 * Returns the duration of the last download in seconds.
 		 */
-		public function get downloadDuration():Number
+		public override function get downloadDuration():Number
 		{
 			return _downloadDuration;
 		}
@@ -114,7 +114,7 @@ package org.osmf.net.httpstreaming
 		/**
 		 * Returns the bytes count for the last download.
 		 */
-		public function get downloadBytesCount():Number
+		public override function get downloadBytesCount():Number
 		{
 			return _downloadBytesCount;
 		}
@@ -131,7 +131,7 @@ package org.osmf.net.httpstreaming
 		 * immediately. It will automatically close any previous opended
 		 * HTTP stream source.
 		 **/
-		public function open(request:URLRequest, dispatcher:IEventDispatcher, timeout:Number):void
+		public override function open(request:URLRequest, dispatcher:IEventDispatcher, timeout:Number):void
 		{
 			if (isOpen || (_urlStream != null && _urlStream.connected))
 				close();
@@ -193,7 +193,7 @@ package org.osmf.net.httpstreaming
 		 * 				  also be disposed. Defaults to <code>false</code>
 		 * 				  as is recommended to reuse these objects. 
 		 **/ 
-		public function close(dispose:Boolean = false):void
+		public override function close(dispose:Boolean = false):void
 		{
 			if( _request && _request.url ){
 				debugToJS( _request.url.toString(), "closed");
@@ -256,7 +256,7 @@ package org.osmf.net.httpstreaming
 		 * Return the total number of available bytes,
 		 * includes both saved bytes and bytes in the underlying url stream
 		 **/
-		public function get totalAvailableBytes():int
+		public override function get totalAvailableBytes():int
 		{
 			if (!isOpen)
 			{
@@ -274,7 +274,7 @@ package org.osmf.net.httpstreaming
 		 * 
 		 * @param numBytes The number of the bytes to be returned. 
 		 **/
-		public function getBytes(numBytes:int = 0):IDataInput
+		public override function getBytes(numBytes:int = 0):IDataInput
 		{
 			if ( !isOpen || numBytes < 0)
 			{
@@ -319,7 +319,7 @@ package org.osmf.net.httpstreaming
 		/**
 		 * Clears the saved bytes.
 		 **/
-		public function clearSavedBytes():void
+		public override function clearSavedBytes():void
 		{
 			if(_savedBytes == null)
 			{
@@ -333,7 +333,7 @@ package org.osmf.net.httpstreaming
 		/**
 		 * Copies the specified number of bytes from source into the saved bytes.
 		 **/
-		public function appendToSavedBytes(source:IDataInput, count:uint):void
+		public override function appendToSavedBytes(source:IDataInput, count:uint):void
 		{
 			if(_savedBytes == null)
 			{
@@ -347,7 +347,7 @@ package org.osmf.net.httpstreaming
 		 * Saves all remaining bytes from the HTTP stream source to
 		 * internal buffer to be available in the future.
 		 **/
-		public function saveRemainingBytes():void
+		public override function saveRemainingBytes():void
 		{
 			if(_savedBytes == null)
 			{
@@ -367,7 +367,7 @@ package org.osmf.net.httpstreaming
 		/**
 		 * Returns a string representation of this object.
 		 **/
-		public function toString():String
+		public override function toString():String
 		{
 			// TODO : add request url to this string
 			return "HTTPStreamSource";
@@ -410,8 +410,8 @@ package org.osmf.net.httpstreaming
 			
 			if (_dispatcher != null)
 			{
-				var streamingEvent:HLSHTTPStreamingEvent = new HLSHTTPStreamingEvent(
-					HLSHTTPStreamingEvent.DOWNLOAD_COMPLETE,
+				var streamingEvent:HTTPStreamingEvent = new HTTPStreamingEvent(
+					HTTPStreamingEvent.DOWNLOAD_COMPLETE,
 					false, // bubbles
 					false, // cancelable
 					0, // fragment duration
@@ -455,8 +455,8 @@ package org.osmf.net.httpstreaming
 			
 			if(_dispatcher != null)
 			{
-				var streamingEvent:HLSHTTPStreamingEvent = new HLSHTTPStreamingEvent(
-					HLSHTTPStreamingEvent.DOWNLOAD_PROGRESS,
+				var streamingEvent:HTTPStreamingEvent = new HTTPStreamingEvent(
+					HTTPStreamingEvent.DOWNLOAD_PROGRESS,
 					false, // bubbles
 					false, // cancelable
 					0, // fragment duration
@@ -509,8 +509,8 @@ package org.osmf.net.httpstreaming
 				}
 				var requestURL:String = _request ? _request.url : "[no request]"; //added "[no request]" string notification for HLS error handler
 				
-				var streamingEvent:HLSHTTPStreamingEvent = new HLSHTTPStreamingEvent(
-					HLSHTTPStreamingEvent.DOWNLOAD_ERROR,
+				var streamingEvent:HTTPStreamingEvent = new HTTPStreamingEvent(
+					HTTPStreamingEvent.DOWNLOAD_ERROR,
 					false, // bubbles
 					false, // cancelable
 					0, // fragment duration

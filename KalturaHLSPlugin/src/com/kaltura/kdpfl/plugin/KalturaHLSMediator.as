@@ -13,7 +13,7 @@ package com.kaltura.kdpfl.plugin
 	
 	import org.osmf.elements.ProxyElement;
 	import org.osmf.events.DynamicStreamEvent;
-	import org.osmf.events.HLSHTTPStreamingEvent;
+	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.events.MediaElementEvent;
 	import org.osmf.media.MediaElement;
 	import org.osmf.net.NetStreamLoadTrait;
@@ -101,8 +101,8 @@ package com.kaltura.kdpfl.plugin
 					if (media.hasOwnProperty("client") && media["client"]) {
 						media["client"].addHandler( "hlsDebug", handleHLSDebug );
 					}
-					HLSHTTPStreamSource.debugBus.addEventListener(HLSHTTPStreamingEvent.BEGIN_FRAGMENT, handleDebugBusEvents);
-					HLSHTTPStreamSource.debugBus.addEventListener(HLSHTTPStreamingEvent.END_FRAGMENT, handleDebugBusEvents);
+					HLSHTTPStreamSource.debugBus.addEventListener(HTTPStreamingEvent.BEGIN_FRAGMENT, handleDebugBusEvents);
+					HLSHTTPStreamSource.debugBus.addEventListener(HTTPStreamingEvent.END_FRAGMENT, handleDebugBusEvents);
 					break;
 				
 				case NotificationType.PLAYER_UPDATE_PLAYHEAD:
@@ -216,12 +216,12 @@ package com.kaltura.kdpfl.plugin
 			}
 		}
 		
-		protected function handleDebugBusEvents(event:HLSHTTPStreamingEvent):void
+		protected function handleDebugBusEvents(event:HTTPStreamingEvent):void
 		{
 			var debugInfo:Object = new Object();
-			if( event.type == HLSHTTPStreamingEvent.BEGIN_FRAGMENT ){
+			if( event.type == HTTPStreamingEvent.BEGIN_FRAGMENT ){
 				debugInfo['info'] = 'Downloading segment';
-			}else if ( event.type == HLSHTTPStreamingEvent.END_FRAGMENT ){
+			}else if ( event.type == HTTPStreamingEvent.END_FRAGMENT ){
 				debugInfo['info'] = 'Finished processing segment';
 			}
 			debugInfo['uri'] = event.url;
