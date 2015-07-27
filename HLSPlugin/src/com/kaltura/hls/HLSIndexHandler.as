@@ -781,6 +781,7 @@ package com.kaltura.hls
 			if (reloadTimer) reloadTimer.start();
 
 			stalled = false;
+			HLSHTTPNetStream.hasGottenManifest = true;
 			
 			// Debug to JS.
 			manifest.postToJS();
