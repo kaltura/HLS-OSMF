@@ -781,7 +781,9 @@ package com.kaltura.hls
 			if (reloadTimer) reloadTimer.start();
 
 			stalled = false;
-			HLSHTTPNetStream.hasGottenManifest = true;
+			
+			// Debug to JS.
+			manifest.postToJS();
 		}
 
 		public function getQualityLevelStreamName(index:int):String
@@ -917,6 +919,9 @@ package com.kaltura.hls
 				}
 			}
 
+			// Debug to JS.
+			manifest.postToJS();
+			
 			if(time < segments[0].startTime)
 			{
 				trace("getFileForTime - SequenceSkip - time: " + time + " playlistStartTime: " + segments[0].startTime);				
@@ -1143,6 +1148,10 @@ package com.kaltura.hls
 
 			// Attempt remap.
 			var newSequence:int = remapSequence(getLastSequenceManifest(), currentManifest, getLastSequence());
+			
+			// Debug to JS.
+			manifest.postToJS();
+			
 			if(newSequence == -1)
 			{
 				if(_pendingBestEffortRequest && !isBestEffortActive())
@@ -1167,10 +1176,11 @@ package com.kaltura.hls
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 2);
 			}
 
-			// Advance sequence number if we didn't seed. This prevensts us from
+			// Advance sequence number if we didn't seed. This prevents us from
 			// inadvertantly advancing past the first segment of a video in streams 
-			// with non-zero start times.
-			if(!didWeSeedLastSequence)
+			// with non-zero start times. We also don't increment when moving across
+			// quality levels as the remap and low water systems handles any overlap.
+			if(!didWeSeedLastSequence && (currentManifest.fullUrl == getLastSequenceManifest().fullUrl))
 				newSequence++;
 
 			var segments:Vector.<HLSManifestSegment> = currentManifest.segments;
