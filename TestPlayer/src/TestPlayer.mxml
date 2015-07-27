@@ -22,6 +22,7 @@
 			import mx.managers.PopUpManager;
 			
 			import flash.net.FileReference;
+			import flash.external.ExternalInterface;
 
 			import org.osmf.net.httpstreaming.HLSHTTPNetStream;
 
@@ -43,6 +44,7 @@
 			import org.osmf.media.PluginInfoResource;
 			import org.osmf.media.URLResource;
 			import org.osmf.traits.DVRTrait;
+			import org.osmf.traits.TimeTrait;
 			import org.osmf.traits.MediaTraitType;
 			import org.osmf.traits.PlayState;
 			import org.osmf.utils.OSMFSettings;
@@ -358,6 +360,18 @@
 			
 			private function onTimeChange(event:TimeEvent):void {
 				currentTime = event.time;
+				
+				var tt:TimeTrait = element.getTrait(MediaTraitType.TIME) as TimeTrait;
+				if(!tt)
+					return;
+				
+				// Great, time is knowable - so what is it?
+				var curTime:Number = tt.currentTime;
+				if(tt is HLSDVRTimeTrait)
+					curTime = (tt as HLSDVRTimeTrait).absoluteTime;
+				
+				ExternalInterface.call("onCurrentTime(" + curTime + ", " + ((tt is HLSDVRTimeTrait) ? "true" : "false") + ")");
+				
 				
 				if (!scrubbing && !seeking) {
 					scrubber.value = currentTime;
