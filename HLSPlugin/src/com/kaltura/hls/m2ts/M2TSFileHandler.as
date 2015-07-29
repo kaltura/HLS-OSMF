@@ -45,7 +45,6 @@ package com.kaltura.hls.m2ts
 		private var _firstSeekTime:Number;
 		private var _lastContinuityToken:String;
 		private var _extendedIndexHandler:IExtraIndexHandlerState;
-		private var _lastFLVMessageTime:Number;
 		private var _injectingSubtitles:Boolean = false;
 		private var _lastInjectedSubtitleTime:Number = 0;
 		
@@ -476,9 +475,6 @@ package com.kaltura.hls.m2ts
 			message[4] = (timestamp >> 16) & 0xff;
 			message[7] = (timestamp >> 24) & 0xff;
 
-			var lastMsgTime:Number = _lastFLVMessageTime;
-			_lastFLVMessageTime = timestampSeconds;
-			
 			// If timer was reset due to seek, reset last subtitle time
 			if(timestampSeconds < _lastInjectedSubtitleTime)
 			{
