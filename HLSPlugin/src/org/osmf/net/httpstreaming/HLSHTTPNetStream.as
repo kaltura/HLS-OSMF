@@ -115,6 +115,7 @@ package org.osmf.net.httpstreaming
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
 		private var neverPlayed:Boolean = true;
+		private var neverBuffered:Boolean = true; // Set after first buffering event.
 
 		/**
 		 * Constructor.
@@ -156,8 +157,7 @@ package org.osmf.net.httpstreaming
 				addEventListener(DRMStatusEvent.DRM_STATUS, onDRMStatus);
 			}
 				
-			this.bufferTime = HLSManifestParser.MAX_SEG_BUFFER * 7.5;
-			trace("Setting bufferTime to " + HLSManifestParser.MAX_SEG_BUFFER * 7.5 + " readback " + this.bufferTime);
+			this.bufferTime = 0.1;
 			this.bufferTimeMax = 0;
 			
 			setState(HTTPStreamingState.INIT);
@@ -380,7 +380,13 @@ package org.osmf.net.httpstreaming
 			}
 
 			trace("Trying to set buffertime to " + value);
-			super.bufferTime = value;
+
+			// We adjust based on whether we have ever encountered a buffering event in this play session.
+			if(neverBuffered)
+				super.bufferTime = 0.1;
+			else
+				super.bufferTime = value;
+
 			trace("   o super.bufferTime = " + super.bufferTime);
 			_desiredBufferTime_Min = Math.max(OSMFSettings.hdsMinimumBufferTime, value);
 			_desiredBufferTime_Max = Math.max(60, _desiredBufferTime_Min * 3);
@@ -680,6 +686,7 @@ package org.osmf.net.httpstreaming
 			switch(event.info.code)
 			{
 				case NetStreamCodes.NETSTREAM_BUFFER_EMPTY:
+					neverBuffered = false;
 					emptyBufferInterruptionSinceLastQoSUpdate = true;
 					_wasBufferEmptied = true;
 
