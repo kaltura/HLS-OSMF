@@ -619,7 +619,7 @@ package com.kaltura.hls
 			updateSegmentTimes(currentManifest.segments);
 			updateSegmentTimes(newManifest.segments);
 
-			const fudgeTime:Number = 0; //1.0 / 24; // Approximate acceptable jump.
+			const fudgeTime:Number = 0.2; //1.0 / 24; // Approximate acceptable jump.
 			var currentSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, currentSequence);
 			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration + fudgeTime : 0) , end) : null;
 

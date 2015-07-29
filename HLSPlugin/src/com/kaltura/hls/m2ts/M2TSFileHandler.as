@@ -355,7 +355,7 @@ package com.kaltura.hls.m2ts
 		public static var flvLowWaterAudio:uint = 0;
 		public static var flvLowWaterVideo:uint = 0;
 		public static var flvRecoveringIFrame:Boolean = false;
-		public const filterThresholdMs:uint = 0;
+		public const filterThresholdMs:uint = 5;
 
 		private function clearFLVWaterMarkFilter():void
 		{
@@ -364,9 +364,10 @@ package com.kaltura.hls.m2ts
 			flvRecoveringIFrame = false;
 		}
 
-		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
+		private function handleFLVMessage(timestamp:uint, message:ByteArray, duration:uint):void
 		{
 			var timestampSeconds:Number = timestamp / 1000.0;
+			var endTimestampSeconds:Number = (timestamp + duration) / 1000.0;
 
 			if(_segmentBeginSeconds < 0)
 			{
@@ -375,8 +376,8 @@ package com.kaltura.hls.m2ts
 				HLSIndexHandler.startTimeWitnesses[segmentUri] = timestampSeconds;
 			}
 
-			if(timestampSeconds > _segmentLastSeconds)
-				_segmentLastSeconds = timestampSeconds;
+			if(endTimestampSeconds > _segmentLastSeconds)
+				_segmentLastSeconds = endTimestampSeconds;
 
 			if(isBestEffort)
 				return;
@@ -436,11 +437,11 @@ package com.kaltura.hls.m2ts
 
 				// Don't update low water if it's an always pass.
 				if(!alwaysPass)
-					flvLowWaterVideo = timestamp;				
+					flvLowWaterVideo = timestamp + duration;
 			}
 			else if(type == 8)
 			{
-				if(timestamp <= flvLowWaterAudio - filterThresholdMs)
+				if(timestamp < flvLowWaterAudio - filterThresholdMs)
 				{
 					trace("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
 					if(SEND_LOGS)
@@ -450,7 +451,7 @@ package com.kaltura.hls.m2ts
 					return;
 				}
 
-				flvLowWaterAudio = timestamp;					
+				flvLowWaterAudio = timestamp + duration;
 			}
 
 			if(SEND_LOGS)

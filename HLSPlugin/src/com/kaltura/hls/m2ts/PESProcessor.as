@@ -216,7 +216,7 @@ package com.kaltura.hls.m2ts
             var pesHeaderDataLength:uint = b[cursor];
             cursor++;
 
-            //trace(" PES align=" + dataAlignment + " ptsDts=" + ptsDts + " header=" + pesHeaderDataLength);
+            trace(" PES align=" + dataAlignment + " ptsDts=" + ptsDts + " header=" + pesHeaderDataLength);
 
             var pts:Number = 0, dts:Number = 0;
             
@@ -255,7 +255,10 @@ package com.kaltura.hls.m2ts
                     dts /= 2;
                 }
                 else
+                {
+                    trace("Filling in DTS")
                     dts = pts;
+                }
             }
 
             packet.pts = pts;
@@ -310,7 +313,7 @@ package com.kaltura.hls.m2ts
                 var start:int = NALU.scan(b, cursor, true);
                 if(start == -1 && lastVideoNALU)
                 {
-                    trace("Stuff entire " + (b.length - cursor) + " into previous NALU.");
+                    trace("Stuff entire " + (b.length - cursor) + " bytes into previous NALU.");
                     lastVideoNALU.buffer.position = lastVideoNALU.buffer.length;
                     b.position = 0;
                     lastVideoNALU.buffer.writeBytes(b, cursor, b.length - cursor);
@@ -345,13 +348,11 @@ package com.kaltura.hls.m2ts
             else if(types[packet.packetID] == 0x0F)
             {
                 // It's an AAC stream.
-                //transcoder.convertAAC(packet);
                 pendingBuffers.push(packet.clone());
             }
             else if(types[packet.packetID] == 0x03 || types[packet.packetID] == 0x04)
             {
-                // It's an MP3 stream. Pass through directly.
-                //transcoder.convertMP3(packet);
+                // It's an MP3 stream.
                 pendingBuffers.push(packet.clone());
             }
             else
