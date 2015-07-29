@@ -195,7 +195,7 @@ package com.kaltura.hls.m2ts
             naluProcessor.resetAVCCExtraction();
         }
 
-        public var videoLastDTS:uint = -1000000.0;
+        public var videoLastDTS:int = -1000000.0;
 
         /**
          * Convert and emit AVC NALU data.
