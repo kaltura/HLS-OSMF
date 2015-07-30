@@ -216,7 +216,7 @@ package com.kaltura.hls.m2ts
             var pesHeaderDataLength:uint = b[cursor];
             cursor++;
 
-            trace(" PES align=" + dataAlignment + " ptsDts=" + ptsDts + " header=" + pesHeaderDataLength);
+            //trace(" PES align=" + dataAlignment + " ptsDts=" + ptsDts + " header=" + pesHeaderDataLength);
 
             var pts:Number = 0, dts:Number = 0;
             
@@ -256,7 +256,7 @@ package com.kaltura.hls.m2ts
                 }
                 else
                 {
-                    trace("Filling in DTS")
+                    //trace("Filling in DTS")
                     dts = pts;
                 }
             }
