@@ -346,11 +346,7 @@ package com.kaltura.hls.m2ts
 		{
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
-		
-		public static var flvLowWaterAudio:uint = 0;
-		public static var flvLowWaterVideo:uint = 0;
-		public const filterThresholdMs:uint = 0;
-				
+			
 		public static var flvLowWaterAudio:uint = 0;
 		public static var flvLowWaterVideo:uint = 0;
 		public static var flvRecoveringIFrame:Boolean = false;
