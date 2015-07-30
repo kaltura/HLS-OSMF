@@ -38,7 +38,7 @@ package org.osmf.net.httpstreaming
 	import org.osmf.events.HTTPStreamingEventReason;
 	import org.osmf.net.httpstreaming.flv.FLVTagScriptDataMode;
 	import org.osmf.utils.OSMFSettings;
-	
+
 	CONFIG::LOGGING
 	{
 		import org.osmf.logging.Logger;
@@ -49,7 +49,7 @@ package org.osmf.net.httpstreaming
 	/**
 	 * @private
 	 * 
-	 * HLSHTTPStreamDownloader is an utility class which is responsable for
+	 * HLSHTTPStreamDownloader is a utility class which is responsible for
 	 * downloading and local buffering HDS streams.
 	 * 
 	 * @langversion 3.0
@@ -94,7 +94,7 @@ package org.osmf.net.httpstreaming
 		{
 			return _hasData;
 		}
-		
+
 		/**
 		 * Returns true if the HTTP stream source has not been found or has some errors.
 		 */
@@ -168,7 +168,7 @@ package org.osmf.net.httpstreaming
 				_timeoutTimer = new Timer(timeout, 1);
 				_timeoutTimer.addEventListener(TimerEvent.TIMER_COMPLETE, onTimeout);
 			}
-			
+
 			if (_urlStream != null)
 			{
 				_timeoutInterval = timeout;
@@ -177,7 +177,6 @@ package org.osmf.net.httpstreaming
 				{
 					logger.debug("Loading (timeout=" + _timeoutInterval + ", retry=" + _currentRetry + "):" + _request.url.toString());
 				}
-				
 				_downloadBeginDate = null;
 				_downloadBytesCount = 0;
 				startTimeoutMonitor(_timeoutInterval);
@@ -208,7 +207,7 @@ package org.osmf.net.httpstreaming
 			}
 			
 			stopTimeoutMonitor();
-			
+
 			_isOpen = false;
 			_isComplete = false;
 			_hasData = false;
@@ -224,7 +223,7 @@ package org.osmf.net.httpstreaming
 					_timeoutTimer = null;
 				}
 			}
-			
+
 			if (_urlStream != null)
 			{
 				if (_urlStream.connected)
@@ -241,7 +240,7 @@ package org.osmf.net.httpstreaming
 					_urlStream = null;
 				}
 			}
-			
+
 			if (_savedBytes != null)
 			{
 				_savedBytes.length = 0;
@@ -391,7 +390,7 @@ package org.osmf.net.httpstreaming
 		private function onComplete(event:Event):void
 		{
 			debugToJS( _request.url.toString(), "complete");
-			
+
 			if (_downloadBeginDate == null)
 			{
 				_downloadBeginDate = new Date();
@@ -450,7 +449,7 @@ package org.osmf.net.httpstreaming
 					logger.debug("Loaded " + event.bytesLoaded + " bytes from " + _downloadBytesCount + " bytes.");
 				}
 			}
-			
+
 			_hasData = true;			
 			
 			if(_dispatcher != null)
@@ -468,7 +467,6 @@ package org.osmf.net.httpstreaming
 					this); // downloader
 				_dispatcher.dispatchEvent(streamingEvent);
 			}
-			
 		}	
 		
 		/**
@@ -478,7 +476,7 @@ package org.osmf.net.httpstreaming
 		private function onError(event:Event):void
 		{
 			debugToJS( _request.url.toString(), "error");
-			
+
 			if (_timeoutTimer != null)
 			{
 				stopTimeoutMonitor();
@@ -516,7 +514,7 @@ package org.osmf.net.httpstreaming
 					0, // fragment duration
 					null, // scriptDataObject
 					FLVTagScriptDataMode.NORMAL, // scriptDataMode
-					requestURL, // urlString
+					_request ? _request.url : "[no request]", // urlString
 					0, // bytesDownloaded
 					reason, // reason
 					this); // downloader
@@ -560,7 +558,7 @@ package org.osmf.net.httpstreaming
 		private function onTimeout(event:TimerEvent):void
 		{
 			debugToJS( _request.url.toString(), "timeout");
-			
+
 			CONFIG::LOGGING
 			{
 				logger.error("Timeout while trying to download [" + _request.url + "]");

@@ -203,6 +203,11 @@ package com.kaltura.kdpfl.plugin
 				debugInfo['currentBitrate'] = _currentBitrateValue;
 			}
 			
+			if( _currentBitrateValue != _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex) ){
+				_currentBitrateValue = _dynamicTrait.getBitrateForIndex(_dynamicTrait.currentIndex);
+				debugInfo['currentBitrate'] = _currentBitrateValue;
+			}
+			
 			sendNotification("debugInfoReceived", debugInfo);
 		}
 		

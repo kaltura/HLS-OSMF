@@ -2,6 +2,7 @@ package com.kaltura.hls.manifest
 {
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	
+	import flash.external.ExternalInterface;
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.events.IOErrorEvent;
@@ -22,10 +23,73 @@ package com.kaltura.hls.manifest
 		public static const VIDEO:String = "VIDEO";
 		public static const SUBTITLES:String = "SUBTITLES";
 		
-		public static var MAX_SEG_BUFFER:int = 4;
-		public static var OVERRIDE_TARGET_DURATION:int = -1;
+		/**
+		 * When true, we issue JS callbacks to an HTML5 debug visualizer.
+		 */
 		public static var SEND_LOGS:Boolean = false;
+
+		/**
+		 * Keep this many segments back from the live edge in DVR/Live streams.
+		 *
+		 * Note that if the buffer threshold is LONGER than this, you will have 
+		 * very long buffering when starting live streams. 
+		 *
+		 * Here is an example: Imagine segments are 10 seconds long.
+		 * NORMAL_BUFFER_THRESHOLD is set to 30. MAX_SEG_BUFFER is set to 2. The
+		 * player will start downloading 2 segments from the end and download 20
+		 * seconds of video immediately. However there will not be enough to begin
+		 * playback (30 seconds are required). As a result, playback will not start
+		 * until 10 seconds have passed and another segment becomes available.
+		 * Please take this into account when setting these values.
+		 */
+		public static var MAX_SEG_BUFFER:int = 4;
+
+		/**
+		 * This overrides the value of the EXT-X-TARGETDURATION from any manifest we encounter.
+		 *
+		 * -1 causes this behavior to be disabled.
+		 */
+		public static var OVERRIDE_TARGET_DURATION:int = -1;
+
+		/**
+		 * Starting threshold in seconds; we use this threshold until we have stalled once.
+		 *
+		 * Playback will not begin until at least this much data is buffered.
+		 *
+		 * Setting this artifically low allows playback to start right away.
+		 */
+		public static var INITIAL_BUFFER_THRESHOLD:Number = 0.1;
+
+		/**
+		 * After we have stalled once, we switch to using this as the minimum 
+		 * buffer period to allow playback.
+		 *
+		 * Playback will not begin until at least this much data is buffered.
+		 */
+		public static var NORMAL_BUFFER_THRESHOLD:Number = 21.0;
 		
+		/**
+		 * How many seconds of video data should we keep in the buffer before 
+		 * giving up on downloading for a while? If we add time via the bump
+		 * mechanism (below), this is increased by the same amount.
+		 */
+		public static var MAX_BUFFER_AMOUNT:Number = 60.0;
+
+		/**
+		 * If we empty out, we'll increase our buffer by this amount to try to 
+		 * avoid a subsequent emptying. We will increase up to
+		 * BUFFER_EMPTY_MAX_INCREASE seconds more this way. The bump is not
+		 * applied for the very first buffering event.
+		 */
+		public static var BUFFER_EMPTY_BUMP:Number = 5.0;
+
+		/**
+		 * Max time in seconds to allow BUFFER_EMPTY_BUMP to increase our
+		 * buffer length.
+		 */
+		public static var BUFFER_EMPTY_MAX_INCREASE:Number = 30.0;
+
+
 		public var type:String = DEFAULT;
 		public var version:int;
 		public var baseUrl:String;
@@ -86,7 +150,7 @@ package com.kaltura.hls.manifest
 			return ( uri.substr(0, 5) == "http:" || uri.substr(0, 6) == "https:" || uri.substr(0, 5) == "file:" ) ? uri : baseUrl + uri;
 		}
 
-		public function postToJS()
+		public function postToJS():void
 		{
 			// Generate JSON state!
 			var jsonData:Object = {};
@@ -311,7 +375,7 @@ package com.kaltura.hls.manifest
 				timeAccum += segments[m].duration;
 			}
 			
-			for(var i:int=0; i<keys.length; i++)
+			for(i=0; i<keys.length; i++)
 			{
 				trace("Key #" + i + " " + keys[i].toString());
 			}

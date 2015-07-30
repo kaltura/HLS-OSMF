@@ -12,6 +12,8 @@ package com.kaltura.hls.m2ts
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
+
+	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
@@ -43,7 +45,6 @@ package com.kaltura.hls.m2ts
 		private var _firstSeekTime:Number;
 		private var _lastContinuityToken:String;
 		private var _extendedIndexHandler:IExtraIndexHandlerState;
-		private var _lastFLVMessageTime:Number;
 		private var _injectingSubtitles:Boolean = false;
 		private var _lastInjectedSubtitleTime:Number = 0;
 		
@@ -94,10 +95,9 @@ package com.kaltura.hls.m2ts
 			{
 				// Reset low water mark for the file handler so we don't drop stuff.
 				trace("RESETTING LOW WATER MARK");
-				flvLowWaterAudio = 0;
-				flvLowWaterVideo = 0;
+				clearFLVWaterMarkFilter();
 			}
-			
+
 			if( key && !key.isLoading && !key.isLoaded)
 				throw new Error("Tried to process segment with key not set to load or loaded.");
 
@@ -346,14 +346,23 @@ package com.kaltura.hls.m2ts
 		{
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
-		
+			
 		public static var flvLowWaterAudio:uint = 0;
 		public static var flvLowWaterVideo:uint = 0;
-		public const filterThresholdMs:uint = 0;
-				
-		private function handleFLVMessage(timestamp:uint, message:ByteArray):void
+		public static var flvRecoveringIFrame:Boolean = false;
+		public const filterThresholdMs:uint = 5;
+
+		private function clearFLVWaterMarkFilter():void
+		{
+			flvLowWaterAudio = 0;
+			flvLowWaterVideo = 0;
+			flvRecoveringIFrame = false;
+		}
+
+		private function handleFLVMessage(timestamp:uint, message:ByteArray, duration:uint):void
 		{
 			var timestampSeconds:Number = timestamp / 1000.0;
+			var endTimestampSeconds:Number = (timestamp + duration) / 1000.0;
 
 			if(_segmentBeginSeconds < 0)
 			{
@@ -362,8 +371,8 @@ package com.kaltura.hls.m2ts
 				HLSIndexHandler.startTimeWitnesses[segmentUri] = timestampSeconds;
 			}
 
-			if(timestampSeconds > _segmentLastSeconds)
-				_segmentLastSeconds = timestampSeconds;
+			if(endTimestampSeconds > _segmentLastSeconds)
+				_segmentLastSeconds = endTimestampSeconds;
 
 			if(isBestEffort)
 				return;
@@ -375,9 +384,10 @@ package com.kaltura.hls.m2ts
 			var isKeyFrame:Boolean = false;
 			if(type == 9)
 			{
-				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
+				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
+					&& message[12] == FLVTags.AVC_MODE_AVCC)
 				{
-					trace("Got AVCC or keyframe, always pass");
+					trace("Got AVCC, always pass.");
 					alwaysPass = true;
 				}
 
@@ -387,7 +397,30 @@ package com.kaltura.hls.m2ts
 
 			if(type == 9)
 			{
-				if(timestamp < flvLowWaterVideo - filterThresholdMs && !alwaysPass)
+				var videoWasBelowWatermark:Boolean = (timestamp < flvLowWaterVideo - filterThresholdMs);
+				var willSkip:Boolean = false;
+
+				if(flvRecoveringIFrame)
+				{
+					// Skip until we encounter an I-frame past the filter threshold.
+					willSkip = true;
+					if(isKeyFrame && !videoWasBelowWatermark)
+					{
+						// We got past filter and saw an I-frame... stop recovery.
+						flvRecoveringIFrame = false;
+						willSkip = false;
+					}
+				}
+				else
+				{
+					if(videoWasBelowWatermark && !alwaysPass)
+					{
+						flvRecoveringIFrame = true;
+						willSkip = true;
+					}
+				}
+
+				if(willSkip)
 				{
 					trace("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
 					if(SEND_LOGS)
@@ -399,7 +432,7 @@ package com.kaltura.hls.m2ts
 
 				// Don't update low water if it's an always pass.
 				if(!alwaysPass)
-					flvLowWaterVideo = timestamp;				
+					flvLowWaterVideo = timestamp + duration;
 			}
 			else if(type == 8)
 			{
@@ -413,7 +446,7 @@ package com.kaltura.hls.m2ts
 					return;
 				}
 
-				flvLowWaterAudio = timestamp;					
+				flvLowWaterAudio = timestamp + duration;
 			}
 
 			if(SEND_LOGS)
@@ -438,9 +471,6 @@ package com.kaltura.hls.m2ts
 			message[4] = (timestamp >> 16) & 0xff;
 			message[7] = (timestamp >> 24) & 0xff;
 
-			var lastMsgTime:Number = _lastFLVMessageTime;
-			_lastFLVMessageTime = timestampSeconds;
-			
 			// If timer was reset due to seek, reset last subtitle time
 			if(timestampSeconds < _lastInjectedSubtitleTime)
 			{
