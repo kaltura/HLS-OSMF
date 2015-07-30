@@ -119,9 +119,15 @@ package
 				if (liveSegmentBuffer != -1){ 
 					HLSManifestParser.MAX_SEG_BUFFER = liveSegmentBuffer; // if passed by JS, update static MAX_SEG_BUFFER with the new value (relevant for LIVE only)
 				}
-				//if (initialBufferTime != -1){
-				//	HLSManifestParser.OVERRIDE_TARGET_DURATION = initialBufferTime;
-				//}
+				if (initialBufferTime != -1){
+					HLSManifestParser.INITIAL_BUFFER_THRESHOLD = initialBufferTime; //Playback will not begin until at least this much data is buffered (in seconds)
+				}
+				if (expandedBufferTime != -1){
+					HLSManifestParser.NORMAL_BUFFER_THRESHOLD = expandedBufferTime; //After we have stalled once, we switch to using this as the minimum buffer period to allow playback. (in seconds)
+				}
+				if (maxBufferTime != -1){
+					HLSManifestParser.MAX_BUFFER_AMOUNT = maxBufferTime; //How many seconds of video data should we keep in the buffer before giving up on downloading for a while
+				}
 				if (sendLogs){
 					M2TSFileHandler.SEND_LOGS = true;
 					HLSManifestParser.SEND_LOGS = true;
