@@ -115,6 +115,8 @@ package org.osmf.net.httpstreaming
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
 		private var neverPlayed:Boolean = true;
+		private var neverBuffered:Boolean = true; // Set after first buffering event.
+		private var bufferBias:Number = 0.0; // Used to forcibly add more time to the buffer based on other logic.
 
 		/**
 		 * Constructor.
@@ -156,8 +158,7 @@ package org.osmf.net.httpstreaming
 				addEventListener(DRMStatusEvent.DRM_STATUS, onDRMStatus);
 			}
 				
-			this.bufferTime = HLSManifestParser.MAX_SEG_BUFFER * 7.5;
-			trace("Setting bufferTime to " + HLSManifestParser.MAX_SEG_BUFFER * 7.5 + " readback " + this.bufferTime);
+			this.bufferTime = 0.1;
 			this.bufferTimeMax = 0;
 			
 			setState(HTTPStreamingState.INIT);
@@ -344,48 +345,44 @@ package org.osmf.net.httpstreaming
 			
 			super.close();
 		}
+
+		protected function calculateTargetBufferTime():Number
+		{
+			// Are we in short-buffer mode?
+			if(neverBuffered)
+				return HLSManifestParser.INITIAL_BUFFER_THRESHOLD;
+
+			// Ok - in normal buffering. Calculate initial value.
+			return HLSManifestParser.NORMAL_BUFFER_THRESHOLD + bufferBias;
+		}
+
+		/**
+		 * Calculate and set the proper bufferTime based on various factors.
+		 */
+		public function updateBufferTime():void
+		{
+			var targetBuffer:Number = calculateTargetBufferTime();
+
+			// Apply some sanity logic: check that we don't try to buffer for longer than the video.
+			if(indexHandler && _state != HTTPStreamingState.HALT)
+			{
+				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
+				if(lastMan && lastMan.streamEnds && targetBuffer > lastMan.bestGuessWindowDuration)
+					targetBuffer = lastMan.bestGuessWindowDuration - 1;
+			}
+
+			super.bufferTime = targetBuffer;
+			_desiredBufferTime_Min = targetBuffer;
+			_desiredBufferTime_Max = HLSManifestParser.MAX_BUFFER_AMOUNT + bufferBias;
+		}
 		
 		/**
-		 * @inheritDoc
+		 * We just ignore this in favor of updateBufferTime.
 		 */
 		override public function set bufferTime(value:Number):void
 		{
-			if(_state != HTTPStreamingState.HALT)
-			{
-				value = HLSManifestParser.MAX_SEG_BUFFER * 5.0;
-
-				// Try a better guess.
-				if(indexHandler)
-				{
-					var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
-					if(lastMan && lastMan.targetDuration > 0.0)
-					{
-						value = 2.0 * lastMan.targetDuration;
-					}
-
-					// Make sure we don't try to buffer for longer than the video.
-					if(lastMan && lastMan.streamEnds && value > lastMan.bestGuessWindowDuration)
-						value = lastMan.bestGuessWindowDuration - 1;
-				}
-
-				// skip nop.
-				if(Math.abs(super.bufferTime - value) < 0.01)
-					return;
-
-
-				if(lastMan && lastMan.targetDuration > 0.0)
-					trace(" bufferTime " + value + " based on " + HLSManifestParser.MAX_SEG_BUFFER + " * " + lastMan.targetDuration + " * 0.9");
-				else
-					trace(" bufferTime " + value + " based on " + HLSManifestParser.MAX_SEG_BUFFER + " * 7.5");
-			}
-
-			trace("Trying to set buffertime to " + value);
-			super.bufferTime = value;
-			trace("   o super.bufferTime = " + super.bufferTime);
-			_desiredBufferTime_Min = Math.max(OSMFSettings.hdsMinimumBufferTime, value);
-			_desiredBufferTime_Max = Math.max(60, _desiredBufferTime_Min * 3);
-			trace("   o _desiredBufferTime_Min = " + _desiredBufferTime_Min);
-			trace("   o _desiredBufferTime_Max = " + _desiredBufferTime_Max);
+			// We will drive this by our own methods (updateBufferTime).
+			return;
 
 		}
 		
@@ -680,14 +677,18 @@ package org.osmf.net.httpstreaming
 			switch(event.info.code)
 			{
 				case NetStreamCodes.NETSTREAM_BUFFER_EMPTY:
+
+					// Only apply bias after our first buffering event.
+					if(bufferBias < HLSManifestParser.BUFFER_EMPTY_MAX_INCREASE && _state != HTTPStreamingState.HALT && neverBuffered == false)
+					{
+						bufferBias += HLSManifestParser.BUFFER_EMPTY_BUMP;
+						trace("NetStream emptied out, increasing buffer time bias by " + HLSManifestParser.BUFFER_EMPTY_BUMP + " seconds to " + bufferBias);
+					}
+
+					neverBuffered = false;
 					emptyBufferInterruptionSinceLastQoSUpdate = true;
 					_wasBufferEmptied = true;
 
-					if(bufferTime < 30 && _state != HTTPStreamingState.HALT)
-					{
-						trace("NetStream emptied out, upping buffer time by 5 seconds to " + (bufferTime + 5));
-						bufferTime += 5.0;							
-					}
 
 					CONFIG::LOGGING
 					{
@@ -753,6 +754,8 @@ package org.osmf.net.httpstreaming
 				}
 			}
 
+			// Make sure we update the buffer thresholds immediately.
+			updateBufferTime();
 		}
 		
 		CONFIG::FLASH_10_1
@@ -795,6 +798,10 @@ package org.osmf.net.httpstreaming
 		 */  
 		private function onMainTimer(timerEvent:TimerEvent):void
 		{
+			// Trigger buffer update.
+			updateBufferTime();
+
+			// Check for seeking state.
 			if (seeking && time != timeBeforeSeek && _state != HTTPStreamingState.HALT)
 			{
 				seeking = false;

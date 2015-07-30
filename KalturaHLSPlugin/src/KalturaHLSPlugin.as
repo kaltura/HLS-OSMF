@@ -1,24 +1,27 @@
 package
 {
 	import com.kaltura.hls.HLSPluginInfo;
+	import com.kaltura.hls.m2ts.M2TSFileHandler;
 	import com.kaltura.hls.manifest.HLSManifestParser;
-    import com.kaltura.kdpfl.model.MediaProxy;
-    import com.kaltura.kdpfl.plugin.IPlugin;
-    import com.kaltura.kdpfl.plugin.IPluginFactory;
-    import flash.utils.getDefinitionByName;
-    
-    import org.osmf.events.MediaFactoryEvent;
-    import org.osmf.media.MediaFactory;
-    import org.osmf.media.MediaResourceBase;
-    import org.osmf.media.PluginInfoResource;
-    import org.puremvc.as3.interfaces.IFacade;
-    import com.kaltura.kdpfl.plugin.KPluginEvent;
+	import com.kaltura.kdpfl.model.MediaProxy;
+	import com.kaltura.kdpfl.plugin.IPlugin;
+	import com.kaltura.kdpfl.plugin.IPluginFactory;
+	import com.kaltura.kdpfl.plugin.KPluginEvent;
 	import com.kaltura.kdpfl.plugin.KalturaHLSMediator;
 	
 	import flash.display.Sprite;
+	import flash.system.Security;
+	import flash.utils.getDefinitionByName;
 	
+	import org.osmf.events.MediaFactoryEvent;
+	import org.osmf.media.MediaFactory;
+	import org.osmf.media.MediaResourceBase;
 	import org.osmf.media.PluginInfo;
-    import flash.system.Security;
+	import org.osmf.media.PluginInfoResource;
+	import org.puremvc.as3.interfaces.IFacade;
+	
+	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
+	import org.osmf.net.httpstreaming.HLSHTTPStreamDownloader;
     
 	public class KalturaHLSPlugin extends Sprite implements IPluginFactory, IPlugin
 	{
@@ -26,8 +29,11 @@ package
         private static const HLS_PLUGIN_INFO:String = "com.kaltura.hls.HLSPluginInfo";
 		private var _pluginResource:MediaResourceBase;
 
-		private var _segmentBuffer:int = -1;
-		private var _overrideTargetDuration:int = -1;
+		private var _liveSegmentBuffer:int = -1; // Live only - number of segments to download and process before start playing
+		private var _initialBufferTime:int = -1; // initial buffer length till the moment the video starts playing
+		private var _expandedBufferTime:int = -1; // acctual buffer length while the video is playing
+		private var _maxBufferTime:int = -1; // maximum buffer length while the video is playing
+		private var _sendLogs:Boolean = false;
         
         public function KalturaHLSPlugin()
         {
@@ -35,22 +41,50 @@ package
             _pluginInfo = new HLSPluginInfo();	
         }
         
-		public function get segmentBuffer():int
+		public function get liveSegmentBuffer():int
 		{
-			return _segmentBuffer;
+			return _liveSegmentBuffer;
 		}
 
-		public function set segmentBuffer(value:int):void
+		public function set liveSegmentBuffer(value:int):void
 		{
-			_segmentBuffer = value;
+			_liveSegmentBuffer = value;
 		}
 		
-		public function get overrideTargetDuration():int{
-			return _overrideTargetDuration;
+		public function get initialBufferTime():int
+		{
+			return _initialBufferTime;
+		}
+		
+		public function set initialBufferTime(value:int):void
+		{
+			_initialBufferTime = value;
+		}
+		
+		public function get expandedBufferTime():int
+		{
+			return _expandedBufferTime;
+		}
+		
+		public function set expandedBufferTime(value:int):void
+		{
+			_expandedBufferTime = value;
+		}
+		
+		public function get maxBufferTime():int{
+			return _maxBufferTime;
 		}
 				
-		public function set overrideTargetDuration(value:int):void{
-			_overrideTargetDuration = value;
+		public function set maxBufferTime(value:int):void{
+			_maxBufferTime = value;
+		}
+		
+		public function get sendLogs():Boolean{
+			return _sendLogs;
+		}
+		
+		public function set sendLogs(value:Boolean):void{
+			_sendLogs = value;
 		}
 
         public function create (pluginName : String =null) : IPlugin
@@ -82,11 +116,17 @@ package
         {
 			if ( e.resource && e.resource == _pluginResource ) {
 				e.target.removeEventListener(MediaFactoryEvent.PLUGIN_LOAD, onOSMFPluginLoaded);
-				if (segmentBuffer != -1){ 
-					HLSManifestParser.MAX_SEG_BUFFER = segmentBuffer; // if passed by JS, update static MAX_SEG_BUFFER with the new value 
+				if (liveSegmentBuffer != -1){ 
+					HLSManifestParser.MAX_SEG_BUFFER = liveSegmentBuffer; // if passed by JS, update static MAX_SEG_BUFFER with the new value (relevant for LIVE only)
 				}
-				if (overrideTargetDuration != -1){
-					HLSManifestParser.OVERRIDE_TARGET_DURATION = overrideTargetDuration;
+				//if (initialBufferTime != -1){
+				//	HLSManifestParser.OVERRIDE_TARGET_DURATION = initialBufferTime;
+				//}
+				if (sendLogs){
+					M2TSFileHandler.SEND_LOGS = true;
+					HLSManifestParser.SEND_LOGS = true;
+					HLSHTTPStreamSource.SEND_LOGS = true;
+					HLSHTTPStreamDownloader.SEND_LOGS = true;
 				}
 				dispatchEvent( new KPluginEvent (KPluginEvent.KPLUGIN_INIT_COMPLETE) );
 			}
