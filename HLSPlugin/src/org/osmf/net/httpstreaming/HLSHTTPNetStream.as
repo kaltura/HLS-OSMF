@@ -158,7 +158,7 @@ package org.osmf.net.httpstreaming
 				addEventListener(DRMStatusEvent.DRM_STATUS, onDRMStatus);
 			}
 				
-			this.bufferTime = 0.1;
+			this.bufferTime = HLSManifestParser.INITIAL_BUFFER_THRESHOLD;
 			this.bufferTimeMax = 0;
 			
 			setState(HTTPStreamingState.INIT);
