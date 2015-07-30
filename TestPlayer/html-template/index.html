@@ -398,8 +398,7 @@
 
                 if(mode == "tags")
                 {
-                    // Draw FLV/download state.
-                    
+                    // Draw FLV transcode/download state.
                     if(tags.length == 0)
                         return;
                     
@@ -419,13 +418,14 @@
                         var tagType = tags[currentItemIdx].type;
                         var tagTime = tags[currentItemIdx].time;
                         var tagReject = tags[currentItemIdx].reject;
-                                                
-                        ctx.fillStyle = tags[currentItemIdx].reject ? "red" : "green";
+                        var tagKey = tags[currentItemIdx].key
+
+                        ctx.fillStyle = tagReject ? "red" : "green";
                         ctx.fillRect(
                             width - (lastTimestamp - tags[currentItemIdx].time) * secondsToPixels,
                             flvRowMap[tags[currentItemIdx].type] * rowHeight + (tagReject ? 3 : 0), 
-                            tags[currentItemIdx].key ? 2 : 1, 
-                            tags[currentItemIdx].key ? rowHeight : rowHeight * 0.75);
+                            tagKey ? 2 : 1, 
+                            tagKey ? rowHeight : rowHeight * 0.75);
                         
                         currentItemIdx--;
                     }
@@ -584,158 +584,6 @@
                     ctx.fillRect(
                         timeToPixel(playheadTime),
                         0, 2, rowHeight * curManIndex * 2);
-                }
-                
-                // Layout and draw downloads.
-                var msToPixels = secondsToPixels / 1000;
-                                
-                // Get the set of visible downloads.
-                var visibleDownloads = [];
-                for(var downloadName in downloadState)
-                {
-                    var stateArray = downloadState[downloadName];
-                    if(!stateArray || stateArray.length == 0)
-                        continue;
-                        
-                        if(Math.max(firstTime, Date.now() - (width / msToPixels)) <= Math.min(lastTime, Date.now()))
-                        {
-                            visibleDownloads.push(downloadName);                     
-                        }
-                    }
-                    
-                    // Draw active downloads.
-                    for(var i=0; i<visibleDownloads.length; i++)
-                    {
-                        var downloadName = visibleDownloads[i];
-                        var stateArray = downloadState[downloadName];
-    
-                        var firstTime = stateArray[0].time;
-                        var lastState = stateArray[stateArray.length - 1].event;
-                        var lastTime = stateArray[stateArray.length - 1].time;
-                        
-                        // If it's ongoing, draw right edge as updating to now.
-                        if(lastState == "open" || lastState == "opened")
-                            lastTime = Date.now();
-                        
-                        var firstX = width - (Date.now() - firstTime) * msToPixels; 
-                        var lastX = width - (Date.now() - lastTime) * msToPixels;
-                        
-                        // Get just the filename.
-                        var truncatedFile = downloadName.replace(/^.*[\\\/]/, '');
-                        
-                        ctx.fillStyle = "orange";
-                        ctx.fillRect(firstX, (flvRowMap["downloads"] + i) * rowHeight, lastX - firstX, rowHeight);
-                        ctx.fillStyle = "black";
-                        ctx.fillText(truncatedFile + ":" + lastState, firstX + 2, (flvRowMap["downloads"] + i) * rowHeight);
-                    }
-                    
-                    // Draw playhead.
-                    ctx.fillStyle = "blue";
-                    ctx.fillRect(
-                        width - (lastTimestamp - playheadTime) * secondsToPixels,
-                        0, 2, rowHeight * 3);
-
-                    // Draw watermarks.
-                    ctx.fillStyle = "orange";
-                    ctx.fillRect(
-                        width - (lastTimestamp - (audioLowWatermark - 0.100)) * secondsToPixels,
-                        flvRowMap[8] * rowHeight, 2, rowHeight);
-                    ctx.fillRect(
-                        width - (lastTimestamp - (videoLowWatermark - 0.100)) * secondsToPixels,
-                        flvRowMap[9] * rowHeight, 2, rowHeight);
-
-                    // Draw row headers.
-                    ctx.fillStyle = "black";
-                    ctx.fillText("Audio", 0, flvRowMap[8] * rowHeight);
-                    ctx.fillText("Video", 0, flvRowMap[9] * rowHeight);
-                    ctx.fillText("Script", 0, flvRowMap[0x12] * rowHeight);
-                    ctx.fillText("Downloads", 0, flvRowMap["downloads"] * rowHeight);                    
-                }
-                else
-                {
-                    // Determine start/end of view based on zoom and current playhead.
-                    manGlobalMax = playheadTime + howFarBack;
-                    manGlobalMin = playheadTime - howFarBack;
-                    
-                    // Helper to convert from times to pixels.
-                    function timeToPixel(t)
-                    {
-                        var n = ((t+timeOffset) - manGlobalMin) / (manGlobalMax - manGlobalMin);
-                        return n * width; 
-                    }
-                    
-                    // Draw manifest state.
-                    var curManIndex = 0;
-                    for(var manName in manifestState)
-                    {
-                        // Rows are submanifests.
-                        var curManArray = manifestState[manName];
-                        var requestNotes = {};
-                        var color = {r: 128, g: 128, b: 128};
-
-                        for(var i=0; i<curManArray.length; i++)
-                        {
-                            var curManItem = curManArray[i];
-                            
-                            // Reset color.
-                            color.r = 128;
-                            color.g = 128;
-                            color.b = 128;
-
-                            // Apply animation to show requests.
-                            for(var q=requestLog.length-1; q>=0; q--)
-                            {
-                                var curRequestItem = requestLog[q];
-                                if(curRequestItem.url != curManItem.url)
-                                    continue;
-                                
-                                var fadeTimeInMs = 4000;
-                                var gFactor = Math.min(255, (Date.now() - curRequestItem.time) / fadeTimeInMs * 255); 
-                                color.r = 200;
-                                color.g = gFactor;
-                                color.b = 200;
-                                
-                                requestNotes[curRequestItem.url] = " (request " + q + ")";
-                                break;
-                            }                            
-                            
-                            // Draw the box with stroke.
-                            ctx.fillStyle = rgbToHex(color.r, color.g, color.b);
-                            ctx.fillRect(
-                                timeToPixel(curManItem.start), 
-                                rowHeight * curManIndex * 2, 
-                                timeToPixel(curManItem.end) - timeToPixel(curManItem.start), 
-                                rowHeight * 2);
-                            
-                            ctx.lineStyle = "black";
-                            ctx.lineWidth = 2;
-                            ctx.strokeRect(
-                                timeToPixel(curManItem.start), 
-                                rowHeight * curManIndex * 2, 
-                                timeToPixel(curManItem.end) - timeToPixel(curManItem.start), 
-                                rowHeight * 2);
-                        }
-                        
-                        // Draw segment labels last so they aren't overlapped by boxes.
-                        ctx.fillStyle = "black";
-                        for(var i=0; i<curManArray.length; i++)
-                        {
-                            var curManItem = curManArray[i];
-                            ctx.fillText("#" + curManItem.id + (requestNotes[curManItem.url] ? requestNotes[curManItem.url] : ""), timeToPixel(curManItem.start) + 5, rowHeight * curManIndex * 2);
-                        }
-
-                        // Draw manifest name.
-                        ctx.fillText(manName, 0, rowHeight * curManIndex * 2 + rowHeight);
-                        
-                        curManIndex++;
-                    }
-                    
-                    // Draw playhead.
-                    ctx.fillStyle = "blue";
-                    ctx.fillRect(
-                        timeToPixel(playheadTime),
-                        0, 2, rowHeight * curManIndex * 2);
-                    
                 }
             }
             
