@@ -26,6 +26,7 @@ package org.osmf.net.httpstreaming
 	import flash.events.IEventDispatcher;
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
+	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.events.HTTPStreamingEvent;
@@ -39,6 +40,7 @@ package org.osmf.net.httpstreaming
 
 	import com.kaltura.hls.HLSIndexHandler;
 	import com.kaltura.hls.m2ts.M2TSFileHandler;
+	import flash.external.ExternalInterface;
 	
 	CONFIG::LOGGING
 	{
@@ -66,6 +68,7 @@ package org.osmf.net.httpstreaming
 		// Note this occurs in realtime as the segments are downloaded - not as they are played,
 		// which may happen much later.
 		public static var debugBus:EventDispatcher = new EventDispatcher();
+		public static var SEND_LOGS:Boolean = false;
 
 		/**
 		 * Default constructor.
@@ -430,6 +433,12 @@ package org.osmf.net.httpstreaming
 					{
 						_request = _indexHandler.getNextFile(_qualityLevel);
 					}
+
+					// Log the request.
+					if(SEND_LOGS)
+					{
+						ExternalInterface.call("onNextRequest", { kind: _request.kind, url: _request.url }); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
+					}
 					
 					// update _isLiveStalled so HTTPNetStream can access it.
 					// request.kind will always be LIVE_STALL as long as we are live stalled. 
@@ -450,7 +459,7 @@ package org.osmf.net.httpstreaming
 							// then we use internal source to actually download the chunk
 							if (_downloader == null)
 							{
-								_downloader = new HTTPStreamDownloader();
+								_downloader = new HLSHTTPStreamDownloader();
 							}
 							
 							var downloaderMonitor:IEventDispatcher = _dispatcher;
@@ -1005,7 +1014,7 @@ package org.osmf.net.httpstreaming
 		
 		private var _qosInfo:HTTPStreamHandlerQoSInfo;
 		
-		private var _downloader:HTTPStreamDownloader = null;
+		private var _downloader:HLSHTTPStreamDownloader = null;
 		private var _request:HTTPStreamRequest = null;
 		
 		private var _indexHandler:HTTPStreamingIndexHandlerBase = null;
@@ -1031,7 +1040,7 @@ package org.osmf.net.httpstreaming
 		private var _endFragment:Boolean = false;
 		
 		private var _indexDownloaderMonitor:EventDispatcher = new EventDispatcher();
-		private var _indexDownloader:HTTPStreamDownloader = new HTTPStreamDownloader();
+		private var _indexDownloader:HLSHTTPStreamDownloader = new HLSHTTPStreamDownloader();
 		private var _currentIndexDownloadEvent:HTTPStreamingIndexHandlerEvent = null;
 		private var _pendingIndexDownloadRequests:Vector.<HTTPStreamingIndexHandlerEvent> = new Vector.<HTTPStreamingIndexHandlerEvent>();
 		private var _pendingIndexDownloadRequestsLenght:int = 0;

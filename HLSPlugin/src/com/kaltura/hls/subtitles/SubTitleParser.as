@@ -114,7 +114,7 @@ package com.kaltura.hls.subtitles
 							{
 								// Split right half by comma.
 								var mappings:Array = halves[1].split(",");
-								for(var i:int=0; i<mappings.length; i++)
+								for(i=0; i<mappings.length; i++)
 								{
 									var pairs:Array = [];
 
