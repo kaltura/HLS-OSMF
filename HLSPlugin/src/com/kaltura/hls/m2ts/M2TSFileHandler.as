@@ -350,7 +350,7 @@ package com.kaltura.hls.m2ts
 		public static var flvLowWaterAudio:uint = 0;
 		public static var flvLowWaterVideo:uint = 0;
 		public static var flvRecoveringIFrame:Boolean = false;
-		public const filterThresholdMs:uint = 5;
+		public const filterThresholdMs:uint = 32;
 
 		private function clearFLVWaterMarkFilter():void
 		{
