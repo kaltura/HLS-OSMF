@@ -261,6 +261,16 @@ package com.kaltura.hls.m2ts
                 }
             }
 
+            if (pts > 4294967295) {
+                // decrement 2^33
+                pts -= 8589934592;
+            }
+
+            if (dts > 4294967295) {
+                // decrement 2^33
+                dts -= 8589934592;
+            }
+
             packet.pts = pts;
             packet.dts = dts;
             //trace("   PTS=" + pts/90000 + " DTS=" + dts/90000);
