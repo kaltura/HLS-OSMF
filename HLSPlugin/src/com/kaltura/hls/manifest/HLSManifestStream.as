@@ -2,8 +2,19 @@ package com.kaltura.hls.manifest
 {
 	import org.osmf.net.DynamicStreamingItem;
 	
+	CONFIG::LOGGING
+	{
+		import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+	}
+
 	public class HLSManifestStream extends BaseHLSManifestItem
 	{
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.manifest.HLSManifestStream");
+        }
+
 		public var programId:int;
 		public var bandwidth:int;
 		public var codecs:String;
@@ -29,8 +40,13 @@ package com.kaltura.hls.manifest
 				
 				if(curChar == "=")
 				{
-					if(tmpKey != null)
-						trace("Found unexpected =");
+					CONFIG::LOGGING
+					{
+						if(tmpKey != null)
+						{
+							logger.error("Found unexpected =");
+						}
+					}
 					
 					tmpKey = accum;
 					accum = "";
@@ -45,7 +61,10 @@ package com.kaltura.hls.manifest
 					
 					if(tmpKey == null)
 					{
-						trace("No key set but found end of key-value pair, ignoring...");
+						CONFIG::LOGGING
+						{
+							logger.error("No key set but found end of key-value pair, ignoring...");
+						}
 						continue;
 					}
 					
@@ -68,7 +87,10 @@ package com.kaltura.hls.manifest
 							newNote.height = parseInt(resSplit[1]);
 							break;
 						default:
-							trace("Unexpected key '" + tmpKey + "', ignoring...");
+							CONFIG::LOGGING
+							{
+								logger.error("Unexpected key '" + tmpKey + "', ignoring...");
+							}
 							break;
 					}
 					
