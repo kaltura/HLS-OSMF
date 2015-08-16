@@ -260,7 +260,7 @@ package org.osmf.net.httpstreaming
 			// Make sure we don't go past the buffer for the live edge.
 			if(_indexHandler && offset > (_indexHandler as HLSIndexHandler).liveEdge)
 			{
-				trace("Capping seek (source) to the known-safe live edge (" + offset + " < " + (_indexHandler as HLSIndexHandler).liveEdge + ").");
+				logger.debug("Capping seek (source) to the known-safe live edge (" + offset + " < " + (_indexHandler as HLSIndexHandler).liveEdge + ").");
 				offset = (_indexHandler as HLSIndexHandler).liveEdge;
 			}
 
@@ -624,7 +624,10 @@ package org.osmf.net.httpstreaming
 					bytes = _fileHandler.endProcessFile(input);
 					processedEnd = true;
 					
-					trace("SAW END OF FRAGMENT with " + (bytes ? bytes.length : "unknown") + " bytes");
+					CONFIG::LOGGING
+					{
+						logger.debug("SAW END OF FRAGMENT with " + (bytes ? bytes.length : "unknown") + " bytes");
+					}
 					
 					var availableQualityLevels:Vector.<QualityLevel> = new Vector.<QualityLevel>;
 					for (var i:uint = 0; i < _qualityRates.length; i++)
@@ -641,7 +644,10 @@ package org.osmf.net.httpstreaming
 					if(HLSIndexHandler._lastBestEffortFetchURI == (_fileHandler as M2TSFileHandler).segmentUri 
 						&& HLSIndexHandler._lastBestEffortFetchDuration > downloadDuration)
 					{
-						trace("Adjusting download duration to match best effort time for " + (_fileHandler as M2TSFileHandler).segmentUri + " of " + (HLSIndexHandler._lastBestEffortFetchDuration / 1000.0) + ".");
+						CONFIG::LOGGING
+						{
+							logger.warn("Adjusting download duration to match best effort time for " + (_fileHandler as M2TSFileHandler).segmentUri + " of " + (HLSIndexHandler._lastBestEffortFetchDuration / 1000.0) + ".");
+						}
 						downloadDuration = HLSIndexHandler._lastBestEffortFetchDuration / 1000.0;
 					}
 
@@ -649,7 +655,10 @@ package org.osmf.net.httpstreaming
 					downloadDuration = Math.max(downloadDuration, 0.002);
 
 					var lastFragmentDetails:FragmentDetails = new FragmentDetails(_downloader.downloadBytesCount, _fragmentDuration, downloadDuration, _qualityLevel, fragmentIdentifier);
-					trace("Submitting size=" + lastFragmentDetails.size + ", downloadDuration=" + downloadDuration + ", fragmentDuration=" + _fragmentDuration);
+					CONFIG::LOGGING
+					{
+						logger.debug("Submitting size=" + lastFragmentDetails.size + ", downloadDuration=" + downloadDuration + ", fragmentDuration=" + _fragmentDuration);
+					}
 					
 					_qosInfo = new HTTPStreamHandlerQoSInfo(availableQualityLevels, _qualityLevel, lastFragmentDetails)
 					
