@@ -65,7 +65,12 @@ package com.kaltura.hls.m2ts
                 }
 
                 if(scanCount > 0)
-                    logger.debug("WARNING: appendBytes - skipped " + scanCount + " bytes to sync point.");
+                {
+                    CONFIG::LOGGING
+                    {
+                        logger.warn("WARNING: appendBytes - skipped " + scanCount + " bytes to sync point.");
+                    }
+                }
                 
                 // Confirm we have something to read.
                 if(!(cursor + 188 < len))
@@ -110,7 +115,10 @@ package com.kaltura.hls.m2ts
 
             if(logHeaders)
             {
-                logger.debug("TS Pkt @" + _totalConsumed + " sync=" + raw_syncByte + " pid=" + raw_pid + " tei=" + raw_tei + " pusi=" + raw_pusi + " tp=" + raw_tp + " scramble=" + raw_scramble + " adapt? " + raw_hasAdaptation + " continuity=" + raw_continuity);
+                CONFIG::LOGGING
+                {
+                    logger.debug("TS Pkt @" + _totalConsumed + " sync=" + raw_syncByte + " pid=" + raw_pid + " tei=" + raw_tei + " pusi=" + raw_pusi + " tp=" + raw_tp + " scramble=" + raw_scramble + " adapt? " + raw_hasAdaptation + " continuity=" + raw_continuity);
+                }
             }
 
             // Handle adaptation field.
@@ -136,7 +144,10 @@ package com.kaltura.hls.m2ts
 
             if(raw_pid == 0x1fff)
             {
-                logger.debug("Skipping padding TS packet.");
+                CONFIG::LOGGING
+                {
+                    logger.debug("Skipping padding TS packet.");
+                }
                 return;
             }
 
@@ -149,7 +160,10 @@ package com.kaltura.hls.m2ts
                 if( (!raw_hasPayload)
                  && (!discontinuity))
                 {
-                    logger.debug("WARNING: duplicate packet!");
+                    CONFIG::LOGGING
+                    {
+                        logger.warn("WARNING: duplicate packet!");                        
+                    }
                     return; // duplicate
                 }
             }
@@ -158,7 +172,10 @@ package com.kaltura.hls.m2ts
             {
                 if(stream.buffer.length > 0 && stream.packetLength > 0)
                 {
-                    logger.debug("WARNING: Flushed " + stream.buffer.length + " due to payloadStart flag, didn't predict length properly! (Guessed " + stream.packetLength + ")");
+                    CONFIG::LOGGING
+                    {
+                        logger.warn("WARNING: Flushed " + stream.buffer.length + " due to payloadStart flag, didn't predict length properly! (Guessed " + stream.packetLength + ")");                        
+                    }
                 }
 
                 completeStreamPacket(stream);
@@ -167,7 +184,10 @@ package com.kaltura.hls.m2ts
             {
                 if(stream.lastContinuity < 0)
                 {
-                    logger.debug("WARNING: Saw discontinuous packet!");
+                    CONFIG::LOGGING
+                    {
+                        logger.warn("WARNING: Saw discontinuous packet!");
+                    }
                     return;
                 }
                 
@@ -175,14 +195,22 @@ package com.kaltura.hls.m2ts
                     && !discontinuity)
                 {
                     // Corrupt packet - skip it.
-                    logger.debug("WARNING: Saw corrupt packet, skipping!");
+                    CONFIG::LOGGING
+                    {
+                        logger.warn("WARNING: Saw corrupt packet, skipping!");
+                    }
                     stream.buffer.length = 0;
                     stream.lastContinuity = -1;
                     return;
                 }
 
                 if(stream.buffer.length == 0 && length > 0)
-                    logger.debug("WARNING: Got new bytes without PUSI set!");
+                {
+                    CONFIG::LOGGING
+                    {
+                        logger.warn("WARNING: Got new bytes without PUSI set!");
+                    }
+                }
             }
             
             // Append to end.
@@ -205,7 +233,12 @@ package com.kaltura.hls.m2ts
             if(timeToComplete)
             {
                 if(stream.buffer.length > stream.packetLength + 6)
-                    logger.debug("WARNING: Got buffer strictly longer (" + (stream.buffer.length - (stream.packetLength + 6)) + " bytes longer) than expected. This is OK when on first packet of stream.");
+                {
+                    CONFIG::LOGGING
+                    {
+                        logger.warn("WARNING: Got buffer strictly longer (" + (stream.buffer.length - (stream.packetLength + 6)) + " bytes longer) than expected. This is OK when on first packet of stream.");
+                    }
+                }
                 completeStreamPacket(stream);
                 stream.finishedLast = true;
             }
@@ -219,7 +252,12 @@ package com.kaltura.hls.m2ts
             if(stream.buffer.length == 0)
             {
                 if(!stream.finishedLast)
-                    logger.debug("Tried to complete zero length packet.");
+                {
+                    CONFIG::LOGGING
+                    {
+                        logger.debug("Tried to complete zero length packet.");
+                    }
+                }
                 stream.finishedLast = false;
                 return;
             }
@@ -235,10 +273,16 @@ package com.kaltura.hls.m2ts
 
         public function flush():void
         {
-            logger.debug("FLUSHING");
+            CONFIG::LOGGING
+            {
+                logger.debug("FLUSHING");
+            }
             for (var idx:* in _streams)
             {
-                logger.debug("Flushing stream id " + idx + " which has " + _streams[idx].buffer.length);
+                CONFIG::LOGGING
+                {
+                    logger.debug("Flushing stream id " + idx + " which has " + _streams[idx].buffer.length);
+                }
                 completeStreamPacket(_streams[idx]);
             }
 

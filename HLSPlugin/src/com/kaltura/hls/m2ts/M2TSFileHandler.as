@@ -105,7 +105,10 @@ package com.kaltura.hls.m2ts
 			if(seek && !isBestEffort)
 			{
 				// Reset low water mark for the file handler so we don't drop stuff.
-				logger.debug("RESETTING LOW WATER MARK");
+				CONFIG::LOGGING
+				{
+					logger.debug("RESETTING LOW WATER MARK");
+				}
 				clearFLVWaterMarkFilter();
 			}
 
@@ -114,7 +117,10 @@ package com.kaltura.hls.m2ts
 
 			if(isBestEffort)
 			{
-				logger.debug("Doing extra flush for best effort file handler");
+				CONFIG::LOGGING
+				{
+					logger.debug("Doing extra flush for best effort file handler");
+				}
 				_parser.flush();
 				_parser.clear();
 			}
@@ -122,7 +128,10 @@ package com.kaltura.hls.m2ts
 			// Decryption reset
 			if ( key )
 			{
-				logger.debug("Resetting _decryptionIV");
+				CONFIG::LOGGING
+				{
+					logger.debug("Resetting _decryptionIV");
+				}
 				if ( key.iv ) _decryptionIV = key.retrieveStoredIV();
 				else _decryptionIV = HLSManifestEncryptionKey.createIVFromID( segmentId );
 			}
@@ -194,7 +203,11 @@ package com.kaltura.hls.m2ts
 		{
 			if ( key && !key.isLoaded )
 			{
-				logger.debug("basicProcessFileSegment - Waiting on key to download.");
+				CONFIG::LOGGING
+				{
+					logger.debug("basicProcessFileSegment - Waiting on key to download.");					
+				}
+
 				if(input)
 					input.readBytes( _encryptedDataBuffer, _encryptedDataBuffer.length );
 				return null;
@@ -205,8 +218,12 @@ package com.kaltura.hls.m2ts
 			
 			if ( _encryptedDataBuffer.length > 0 )
 			{
+				CONFIG::LOGGING
+				{
+					logger.debug("Restoring " + _encryptedDataBuffer.length + " bytes of encrypted data.");
+				}
+
 				// Restore any pending encrypted data.
-				logger.debug("Restoring " + _encryptedDataBuffer.length + " bytes of encrypted data.");
 				_encryptedDataBuffer.position = 0;
 				_encryptedDataBuffer.readBytes( tmpBuffer );
 				_encryptedDataBuffer.clear();
@@ -217,7 +234,12 @@ package com.kaltura.hls.m2ts
 			
 			var amountToRead:int = input.bytesAvailable;
 			if(amountToRead > 1024*128) amountToRead = 1024*128;
-			logger.debug("READING " + amountToRead + " OF " + input.bytesAvailable);
+
+			CONFIG::LOGGING
+			{
+				logger.debug("READING " + amountToRead + " OF " + input.bytesAvailable);
+			}
+
 			if(amountToRead > 0)
 				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
 			
@@ -228,7 +250,10 @@ package com.kaltura.hls.m2ts
 				var leftoverBytes:uint = bytesToRead % 16;
 				bytesToRead -= leftoverBytes;
 
-				logger.debug("Decrypting " + tmpBuffer.length + " bytes of encrypted data.");
+				CONFIG::LOGGING
+				{
+					logger.debug("Decrypting " + tmpBuffer.length + " bytes of encrypted data.");
+				}
 				
 				key.usePadding = false;
 				
@@ -239,7 +264,11 @@ package com.kaltura.hls.m2ts
 					tmpBuffer.position = bytesToRead;
 					tmpBuffer.readBytes( _encryptedDataBuffer );
 					tmpBuffer.length = bytesToRead;
-					logger.debug("Storing " + _encryptedDataBuffer.length + " bytes of encrypted data.");
+
+					CONFIG::LOGGING
+					{
+						logger.debug("Storing " + _encryptedDataBuffer.length + " bytes of encrypted data.");
+					}
 				}
 				else
 				{
@@ -271,7 +300,10 @@ package com.kaltura.hls.m2ts
 
 				if(isBestEffort && _fragReadBuffer.length > 0)
 				{
-					logger.debug("Discarding AAC data from best effort.");
+					CONFIG::LOGGING
+					{
+						logger.debug("Discarding AAC data from best effort.");
+					}
 					_fragReadBuffer.length = 0;
 				}
 
@@ -284,7 +316,10 @@ package com.kaltura.hls.m2ts
 			_parser.appendBytes(tmpBuffer);
 			if ( _flush ) 
 			{
-				logger.debug("flushing parser");
+				CONFIG::LOGGING
+				{
+					logger.debug("flushing parser");
+				}
 				_parser.flush();
 			}
 			_buffer = null;
@@ -293,7 +328,10 @@ package com.kaltura.hls.m2ts
 			// Throw it out if it's a best effort fetch.
 			if(isBestEffort && buffer.length > 0)
 			{
-				logger.debug("Discarding normal data from best effort.");
+				CONFIG::LOGGING
+				{
+					logger.debug("Discarding normal data from best effort.");
+				}
 				buffer.length = 0;
 			}
 
@@ -323,7 +361,13 @@ package com.kaltura.hls.m2ts
 		
 		public override function endProcessFile(input:IDataInput):ByteArray
 		{
-			if ( key && !key.isLoaded ) logger.debug("HIT END OF FILE WITH NO KEY!");
+			if ( key && !key.isLoaded )
+			{
+				CONFIG::LOGGING
+				{
+					logger.error("HIT END OF FILE WITH NO KEY!");
+				}
+			}
 
 			if ( key ) key.usePadding = true;
 
@@ -337,9 +381,14 @@ package com.kaltura.hls.m2ts
 			// Also update end time - don't trace it as we'll increase it incrementally.
 			if(HLSIndexHandler.endTimeWitnesses[segmentUri] == null && !isBestEffort)
 			{
-				logger.debug("Noting segment end time for " + segmentUri + " of " + _segmentLastSeconds);
+				CONFIG::LOGGING
+				{
+					logger.info("Noting segment end time for " + segmentUri + " of " + _segmentLastSeconds);
+				}
+
 				if(_segmentLastSeconds != _segmentLastSeconds)
 					throw new Error("Got a NaN _segmentLastSeconds for " + segmentUri + "!");
+
 				HLSIndexHandler.endTimeWitnesses[segmentUri] = _segmentLastSeconds;
 			}
 
@@ -378,7 +427,12 @@ package com.kaltura.hls.m2ts
 			if(_segmentBeginSeconds < 0)
 			{
 				_segmentBeginSeconds = timestampSeconds;
-				logger.debug("Noting segment start time for " + segmentUri + " of " + timestampSeconds);
+
+				CONFIG::LOGGING
+				{
+					logger.info("Noting segment start time for " + segmentUri + " of " + timestampSeconds);
+				}
+
 				HLSIndexHandler.startTimeWitnesses[segmentUri] = timestampSeconds;
 			}
 
@@ -398,7 +452,11 @@ package com.kaltura.hls.m2ts
 				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
 					&& message[12] == FLVTags.AVC_MODE_AVCC)
 				{
-					logger.debug("Got AVCC, always pass.");
+					CONFIG::LOGGING
+					{
+						logger.debug("Got AVCC, always pass.");
+					}
+
 					alwaysPass = true;
 				}
 
@@ -433,7 +491,11 @@ package com.kaltura.hls.m2ts
 
 				if(willSkip)
 				{
-					logger.debug("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
+					CONFIG::LOGGING
+					{
+						logger.debug("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
+					}
+
 					if(SEND_LOGS)
 					{
 						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
@@ -449,7 +511,11 @@ package com.kaltura.hls.m2ts
 			{
 				if(timestamp < flvLowWaterAudio - filterThresholdMs)
 				{
-					logger.debug("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
+					CONFIG::LOGGING
+					{
+						logger.debug("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
+					}
+
 					if(SEND_LOGS)
 					{
 						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
@@ -485,7 +551,11 @@ package com.kaltura.hls.m2ts
 			// If timer was reset due to seek, reset last subtitle time
 			if(timestampSeconds < _lastInjectedSubtitleTime)
 			{
-				logger.debug("Bumping back on subtitle threshold.")
+				CONFIG::LOGGING
+				{
+					logger.debug("Bumping back on subtitle threshold.")
+				}
+				
 				_lastInjectedSubtitleTime = timestampSeconds;
 			} 
 			

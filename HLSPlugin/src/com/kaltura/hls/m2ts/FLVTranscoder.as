@@ -66,7 +66,10 @@ package com.kaltura.hls.m2ts
             
             tag.length = FLVTags.HEADER_LENGTH + msgLength;
 
-            logger.debug("FLV @ " + flvts + " dur=" + duration + " len=" + tag.length + " type=" + type + " payloadLen=" + msgLength);
+            CONFIG::LOGGING
+            {
+                logger.debug("FLV @ " + flvts + " dur=" + duration + " len=" + tag.length + " type=" + type + " payloadLen=" + msgLength);
+            }
 
             tag[cursor++] = type;
             tag[cursor++] = (msgLength >> 16) & 0xff;
@@ -127,7 +130,12 @@ package com.kaltura.hls.m2ts
                 if(callback != null)
                     callback(bufferedTagTimestamp[i], bufferedTagData[i], bufferedTagDuration[i]);
                 else
-                    logger.debug("Discarding buffered FLV tag due to no callback!");
+                {
+                    CONFIG::LOGGING
+                    {
+                        logger.error("Discarding buffered FLV tag due to no callback!");                        
+                    }
+                }
             }
 
             // Clear the buffer.
@@ -200,12 +208,18 @@ package com.kaltura.hls.m2ts
                     FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length, 0, false);
             }
             else
-                logger.debug("FAILED to write out AVCC");
+            {
+                CONFIG::LOGGING
+                {
+                    logger.error("FAILED to write out AVCC");
+                }
+            }
 
             // Wipe processor state.
             naluProcessor.resetAVCCExtraction();
         }
 
+        // State used to estimate video framerate.
         public var videoLastDTS:int = -1000000.0;
 
         /**
@@ -243,8 +257,12 @@ package com.kaltura.hls.m2ts
                 codec = FLVTags.VIDEO_CODEC_AVC_KEYFRAME;
             else
                 codec = FLVTags.VIDEO_CODEC_AVC_PREDICTIVEFRAME;
-
-            logger.debug("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+            
+            CONFIG::LOGGING
+            {
+                logger.debug("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+            }
+            
             sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length, tsDelta);
         }
 
@@ -368,7 +386,10 @@ package com.kaltura.hls.m2ts
                 
                 if(eaten > 0)
                 {
-                    logger.debug("ATE " + eaten + " bytes to find sync!");
+                    CONFIG::LOGGING
+                    {
+                        logger.debug("ATE " + eaten + " bytes to find sync!");
+                    }
                     eaten = 0;
                 }
 
@@ -473,6 +494,7 @@ package com.kaltura.hls.m2ts
          */
         public function createAndSendCaptionMessage( timeStamp:Number, captionBuffer:String, lang:String="", textid:Number=99):void
         {
+            // We don't use this path anymore; instead the events are fired based on playhead time.
             //var captionObject:Array = ["onCaptionInfo", { type:"WebVTT", data:captionBuffer }];
             //sendScriptDataFLVTag( timeStamp * 1000, captionObject);
 

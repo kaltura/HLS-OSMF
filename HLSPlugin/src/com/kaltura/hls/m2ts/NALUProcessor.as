@@ -90,13 +90,20 @@ package com.kaltura.hls.m2ts
                 // Debug dump the SPS
                 var spsLength:uint = spsList[i].length;
 
-                logger.debug("SPS #" + i + " profile=" + spsList[i][1] + "   " + Hex.fromArray(spsList[i], true));
+                CONFIG::LOGGING
+                {
+                    logger.debug("SPS #" + i + " profile=" + spsList[i][1] + "   " + Hex.fromArray(spsList[i], true));
+                }
 
                 var eg:ExpGolomb = new ExpGolomb(spsList[i]);
                 // constraint_set[0-5]_flag, u(1), reserved_zero_2bits u(2), level_idc u(8)
                 eg.readBits(8);
                 eg.readBits(24);
-                logger.debug("Saw id " + eg.readUE());
+                
+                CONFIG::LOGGING
+                {
+                    logger.debug("Saw id " + eg.readUE());
+                }
 
                 avcc.position = cursor;
                 spsList[i].position = 0;
@@ -113,12 +120,20 @@ package com.kaltura.hls.m2ts
             for(i=0; i<ppsList.length; i++)
             {
                 var ppsLength:uint = ppsList[i].length;
-                logger.debug("PPS length #" + i + " is " + ppsLength + "   " + Hex.fromArray(ppsList[i], true));
+
+                CONFIG::LOGGING
+                {
+                    logger.debug("PPS length #" + i + " is " + ppsLength + "   " + Hex.fromArray(ppsList[i], true));
+                }
 
                 eg = new ExpGolomb(ppsList[i]);
                 // constraint_set[0-5]_flag, u(1), reserved_zero_2bits u(2), level_idc u(8)
                 eg.readBits(8);
-                logger.debug("Saw id " + eg.readUE());
+
+                CONFIG::LOGGING
+                {
+                    logger.debug("Saw id " + eg.readUE());
+                }
 
                 avcc.position = cursor;
                 ppsList[i].position = 0;
