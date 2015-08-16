@@ -64,9 +64,9 @@ package com.kaltura.hls.m2ts
             var sectionLen:uint = ((bytes[cursor+2] & 0x03) << 8) | bytes[cursor+3];
 
             // Check the section length for a single PMT.
-            if (sectionLen > 13)
+            CONFIG::LOGGING
             {
-                CONFIG::LOGGING
+                if (sectionLen > 13)
                 {
                     logger.debug("Saw multiple PMT entries in the PAT; blindly choosing first one.");
                 }

@@ -40,9 +40,9 @@ package com.kaltura.hls.manifest
 				
 				if(curChar == "=")
 				{
-					if(tmpKey != null)
+					CONFIG::LOGGING
 					{
-						CONFIG::LOGGING
+						if(tmpKey != null)
 						{
 							logger.error("Found unexpected =");
 						}

@@ -196,7 +196,10 @@ package com.kaltura.hls.manifest
 
 		public function retrieveStoredIV():ByteArray
 		{
-			logger.debug("IV of " + iv + " for " + url + ", key=" + Hex.fromArray(_keyData));
+			CONFIG::LOGGING
+			{
+				logger.debug("IV of " + iv + " for " + url + ", key=" + Hex.fromArray(_keyData));
+			}
 			return Hex.toArray( iv );
 		}
 		
@@ -224,7 +227,10 @@ package com.kaltura.hls.manifest
 		{
 			isLoading = false;
 
-			logger.debug("KEY LOADED! " + url);
+			CONFIG::LOGGING
+			{
+				logger.debug("KEY LOADED! " + url);
+			}
 
 			var loader:URLLoader = getLoader( url );
 			_keyData = loader.data as ByteArray;

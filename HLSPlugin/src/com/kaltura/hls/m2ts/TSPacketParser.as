@@ -64,9 +64,9 @@ package com.kaltura.hls.m2ts
                     scanCount++;
                 }
 
-                if(scanCount > 0)
+                CONFIG::LOGGING
                 {
-                    CONFIG::LOGGING
+                    if(scanCount > 0)
                     {
                         logger.warn("WARNING: appendBytes - skipped " + scanCount + " bytes to sync point.");
                     }
@@ -113,9 +113,9 @@ package com.kaltura.hls.m2ts
             const raw_hasPayload:Boolean    = (headerRaw & 0x00000010) != 0;
             const raw_continuity:uint       = (headerRaw & 0x0000000f);
 
-            if(logHeaders)
+            CONFIG::LOGGING
             {
-                CONFIG::LOGGING
+                if(logHeaders)
                 {
                     logger.debug("TS Pkt @" + _totalConsumed + " sync=" + raw_syncByte + " pid=" + raw_pid + " tei=" + raw_tei + " pusi=" + raw_pusi + " tp=" + raw_tp + " scramble=" + raw_scramble + " adapt? " + raw_hasAdaptation + " continuity=" + raw_continuity);
                 }
@@ -170,9 +170,9 @@ package com.kaltura.hls.m2ts
             
             if(raw_pusi)
             {
-                if(stream.buffer.length > 0 && stream.packetLength > 0)
+                CONFIG::LOGGING
                 {
-                    CONFIG::LOGGING
+                    if(stream.buffer.length > 0 && stream.packetLength > 0)
                     {
                         logger.warn("WARNING: Flushed " + stream.buffer.length + " due to payloadStart flag, didn't predict length properly! (Guessed " + stream.packetLength + ")");                        
                     }
@@ -204,9 +204,9 @@ package com.kaltura.hls.m2ts
                     return;
                 }
 
-                if(stream.buffer.length == 0 && length > 0)
+                CONFIG::LOGGING
                 {
-                    CONFIG::LOGGING
+                    if(stream.buffer.length == 0 && length > 0)
                     {
                         logger.warn("WARNING: Got new bytes without PUSI set!");
                     }
@@ -232,9 +232,9 @@ package com.kaltura.hls.m2ts
 
             if(timeToComplete)
             {
-                if(stream.buffer.length > stream.packetLength + 6)
+                CONFIG::LOGGING
                 {
-                    CONFIG::LOGGING
+                    if(stream.buffer.length > stream.packetLength + 6)
                     {
                         logger.warn("WARNING: Got buffer strictly longer (" + (stream.buffer.length - (stream.packetLength + 6)) + " bytes longer) than expected. This is OK when on first packet of stream.");
                     }
@@ -251,9 +251,9 @@ package com.kaltura.hls.m2ts
         {
             if(stream.buffer.length == 0)
             {
-                if(!stream.finishedLast)
+                CONFIG::LOGGING
                 {
-                    CONFIG::LOGGING
+                    if(!stream.finishedLast)
                     {
                         logger.debug("Tried to complete zero length packet.");
                     }

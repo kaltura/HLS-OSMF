@@ -257,9 +257,9 @@ package com.kaltura.hls.manifest
 				switch( tagType )
 				{
 					case "EXTM3U":
-						if(i != 0)
+						CONFIG::LOGGING
 						{
-							CONFIG::LOGGING
+							if(i != 0)
 							{
 								logger.debug("Saw EXTM3U out of place! Ignoring...");
 							}
@@ -406,9 +406,9 @@ package com.kaltura.hls.manifest
 				timeAccum += segments[m].duration;
 			}
 			
-			for(i=0; i<keys.length; i++)
+			CONFIG::LOGGING
 			{
-				CONFIG::LOGGING
+				for(i=0; i<keys.length; i++)
 				{
 					logger.debug("Key #" + i + " " + keys[i].toString());	
 				}				

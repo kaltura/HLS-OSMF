@@ -361,9 +361,9 @@ package com.kaltura.hls.m2ts
 		
 		public override function endProcessFile(input:IDataInput):ByteArray
 		{
-			if ( key && !key.isLoaded )
+			CONFIG::LOGGING
 			{
-				CONFIG::LOGGING
+				if ( key && !key.isLoaded )
 				{
 					logger.error("HIT END OF FILE WITH NO KEY!");
 				}
