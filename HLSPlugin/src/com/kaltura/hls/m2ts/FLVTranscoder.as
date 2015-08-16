@@ -66,7 +66,7 @@ package com.kaltura.hls.m2ts
             
             tag.length = FLVTags.HEADER_LENGTH + msgLength;
 
-            trace("FLV @ " + flvts + " dur=" + duration + " len=" + tag.length + " type=" + type + " payloadLen=" + msgLength);
+            logger.debug("FLV @ " + flvts + " dur=" + duration + " len=" + tag.length + " type=" + type + " payloadLen=" + msgLength);
 
             tag[cursor++] = type;
             tag[cursor++] = (msgLength >> 16) & 0xff;
@@ -127,7 +127,7 @@ package com.kaltura.hls.m2ts
                 if(callback != null)
                     callback(bufferedTagTimestamp[i], bufferedTagData[i], bufferedTagDuration[i]);
                 else
-                    trace("Discarding buffered FLV tag due to no callback!");
+                    logger.debug("Discarding buffered FLV tag due to no callback!");
             }
 
             // Clear the buffer.
@@ -153,7 +153,7 @@ package com.kaltura.hls.m2ts
 
             // Check for a NALU that is keyframe type.
             var naluType:uint = bytes[cursor] & 0x1f;
-            //trace(naluType + " length=" + length);
+            //logger.debug(naluType + " length=" + length);
             switch(naluType)
             {
                 case 0x09: // "access unit delimiter"
@@ -194,13 +194,13 @@ package com.kaltura.hls.m2ts
             var avcc:ByteArray = naluProcessor.serializeAVCC();
             if(avcc)
             { 
-                //trace("Wrote AVCC at " + convertFLVTimestamp(unit.pts));
+                //logger.debug("Wrote AVCC at " + convertFLVTimestamp(unit.pts));
                 sendFLVTag(bufferedTagTimestamp[0], 
                     FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, 
                     FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length, 0, false);
             }
             else
-                trace("FAILED to write out AVCC");
+                logger.debug("FAILED to write out AVCC");
 
             // Wipe processor state.
             naluProcessor.resetAVCCExtraction();
@@ -235,7 +235,7 @@ package com.kaltura.hls.m2ts
             // Emit an AVCC and walk the NALUs.
             NALUProcessor.walkNALUs(unit.buffer, 0, naluConverter, true);
 
-            //trace("Appended " + totalAppended + " bytes");
+            //logger.debug("Appended " + totalAppended + " bytes");
 
             // Finish writing and sending packet.
             var codec:uint;
@@ -244,7 +244,7 @@ package com.kaltura.hls.m2ts
             else
                 codec = FLVTags.VIDEO_CODEC_AVC_PREDICTIVEFRAME;
 
-            trace("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+            logger.debug("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
             sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length, tsDelta);
         }
 
@@ -314,7 +314,7 @@ package com.kaltura.hls.m2ts
             var bytes:ByteArray = pes.buffer;
             var timestamp:Number = pes.pts;
             
-            //trace("pes pts = " + pes.pts);
+            //logger.debug("pes pts = " + pes.pts);
 
             if(_aacRemainder)
             {
@@ -368,7 +368,7 @@ package com.kaltura.hls.m2ts
                 
                 if(eaten > 0)
                 {
-                    trace("ATE " + eaten + " bytes to find sync!");
+                    logger.debug("ATE " + eaten + " bytes to find sync!");
                     eaten = 0;
                 }
 
@@ -414,7 +414,7 @@ package com.kaltura.hls.m2ts
                     var flvts:uint = convertFLVTimestamp(timestamp + timeAccumulation);
                     
                     sendAACConfigFLVTag(flvts, profile, sampleRateIndex, channelConfig);
-                    //trace("Sending AAC @ " + flvts + " ts=" + timestamp + " acc=" + timeAccumulation);
+                    //logger.debug("Sending AAC @ " + flvts + " ts=" + timestamp + " acc=" + timeAccumulation);
                     
                     sendFLVTag(flvts, FLVTags.TYPE_AUDIO, FLVTags.AUDIO_CODEC_AAC, FLVTags.AAC_MODE_FRAME, stream, cursor + FLVTags.ADTS_FRAME_HEADER_LENGTH, frameLength - FLVTags.ADTS_FRAME_HEADER_LENGTH, (1024.0 / sampleRate) * 1000.0);
                     
@@ -432,11 +432,11 @@ package com.kaltura.hls.m2ts
             
             if(cursor < limit)
             {
-                //trace("AAC timestamp was " + _aacTimestamp);
+                //logger.debug("AAC timestamp was " + _aacTimestamp);
                 _aacRemainder = new ByteArray();
                 _aacRemainder.writeBytes(stream, cursor, limit - cursor);
                 _aacTimestamp = timestamp + timeAccumulation;
-                //trace("AAC timestamp now " + _aacTimestamp);
+                //logger.debug("AAC timestamp now " + _aacTimestamp);
             }            
         }
 

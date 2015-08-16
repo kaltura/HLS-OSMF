@@ -115,7 +115,7 @@ package com.kaltura.hls.manifest
 		
 		public function decrypt( data:ByteArray, iv:ByteArray ):ByteArray
 		{
-			//trace("got " + data.length + " bytes");
+			//logger.debug("got " + data.length + " bytes");
 			if(data.length == 0)
 				return data;
 				
@@ -131,7 +131,7 @@ package com.kaltura.hls.manifest
 			if ( usePadding ){
 				data = unpad( data );
 			}
-		//	trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
+		//	logger.debug( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
 			return data;
 		}
 		
@@ -196,7 +196,7 @@ package com.kaltura.hls.manifest
 
 		public function retrieveStoredIV():ByteArray
 		{
-			trace("IV of " + iv + " for " + url + ", key=" + Hex.fromArray(_keyData));
+			logger.debug("IV of " + iv + " for " + url + ", key=" + Hex.fromArray(_keyData));
 			return Hex.toArray( iv );
 		}
 		
@@ -224,7 +224,7 @@ package com.kaltura.hls.manifest
 		{
 			isLoading = false;
 
-			trace("KEY LOADED! " + url);
+			logger.debug("KEY LOADED! " + url);
 
 			var loader:URLLoader = getLoader( url );
 			_keyData = loader.data as ByteArray;

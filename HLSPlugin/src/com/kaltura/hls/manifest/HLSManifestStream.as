@@ -41,7 +41,7 @@ package com.kaltura.hls.manifest
 				if(curChar == "=")
 				{
 					if(tmpKey != null)
-						trace("Found unexpected =");
+						logger.error("Found unexpected =");
 					
 					tmpKey = accum;
 					accum = "";
@@ -56,7 +56,7 @@ package com.kaltura.hls.manifest
 					
 					if(tmpKey == null)
 					{
-						trace("No key set but found end of key-value pair, ignoring...");
+						logger.error("No key set but found end of key-value pair, ignoring...");
 						continue;
 					}
 					
@@ -79,7 +79,7 @@ package com.kaltura.hls.manifest
 							newNote.height = parseInt(resSplit[1]);
 							break;
 						default:
-							trace("Unexpected key '" + tmpKey + "', ignoring...");
+							logger.error("Unexpected key '" + tmpKey + "', ignoring...");
 							break;
 					}
 					

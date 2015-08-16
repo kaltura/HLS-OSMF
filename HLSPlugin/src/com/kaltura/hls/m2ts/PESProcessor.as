@@ -41,10 +41,10 @@ package com.kaltura.hls.m2ts
 
         public function logStreams():void
         {
-            trace("----- PES state -----");
+            logger.debug("----- PES state -----");
             for(var k:* in streams)
             {
-                trace("   " + k + " has " + streams[k].buffer.length + " bytes, type=" + types[k]);
+                logger.debug("   " + k + " has " + streams[k].buffer.length + " bytes, type=" + types[k]);
             }
         }
 
@@ -62,11 +62,11 @@ package com.kaltura.hls.m2ts
 
             // Check the section length for a single PMT.
             if (sectionLen > 13)
-                trace("Saw multiple PMT entries in the PAT; blindly choosing first one.");
+                logger.debug("Saw multiple PMT entries in the PAT; blindly choosing first one.");
 
             // Grab the PMT ID.
             pmtStreamId = ((bytes[cursor+10] << 8) | bytes[cursor+11]) & 0x1FFF;
-            trace("Saw PMT ID of " + pmtStreamId);
+            logger.debug("Saw PMT ID of " + pmtStreamId);
 
             return true;
         }
@@ -98,7 +98,7 @@ package com.kaltura.hls.m2ts
 
             if(sectionLength + cursor > bytes.length)
             {
-                trace("Not enough data to read. 1");
+                logger.debug("Not enough data to read. 1");
                 return false;
             }
             
@@ -113,7 +113,7 @@ package com.kaltura.hls.m2ts
             // If not enough data to proceed, bail.
             if(programInfoLength + cursor > bytes.length)
             {
-                trace("Not enough data to read. 2");
+                logger.debug("Not enough data to read. 2");
                 return false;
             }
 
@@ -162,13 +162,13 @@ package com.kaltura.hls.m2ts
 
         public function append(packet:PESPacket):Boolean
         {
-//            trace("saw packet of " + packet.buffer.length);
+//            logger.debug("saw packet of " + packet.buffer.length);
             var b:ByteArray = packet.buffer;
             b.position = 0;
 
             if(b.length < 8)
             {
-                trace("Ignoring too short PES packet, length=" + b.length);
+                logger.debug("Ignoring too short PES packet, length=" + b.length);
                 return true;
             }
 
@@ -192,7 +192,7 @@ package com.kaltura.hls.m2ts
 
                 var tmp:ByteArray = new ByteArray();
                 tmp.writeInt(startCode);
-                trace("ES prefix was wrong, expected 00:00:01:xx but got " + Hex.fromArray(tmp, true));
+                logger.debug("ES prefix was wrong, expected 00:00:01:xx but got " + Hex.fromArray(tmp, true));
                 return true;
             }
 
@@ -205,14 +205,14 @@ package com.kaltura.hls.m2ts
             {
                 if(b.length < packetLength )
                 {
-                    trace("WARNING: parsePESPacket - not enough bytes, expecting " + packetLength + ", but have " + b.length);
+                    logger.debug("WARNING: parsePESPacket - not enough bytes, expecting " + packetLength + ", but have " + b.length);
                     return false; // not enough bytes in packet
                 }
             }
             
             if(b.length < 9)
             {
-                trace("WARNING: parsePESPacket - too short to read header!");
+                logger.debug("WARNING: parsePESPacket - too short to read header!");
                 return false;
             }
 
@@ -227,7 +227,7 @@ package com.kaltura.hls.m2ts
             var pesHeaderDataLength:uint = b[cursor];
             cursor++;
 
-            //trace(" PES align=" + dataAlignment + " ptsDts=" + ptsDts + " header=" + pesHeaderDataLength);
+            //logger.debug(" PES align=" + dataAlignment + " ptsDts=" + ptsDts + " header=" + pesHeaderDataLength);
 
             var pts:Number = 0, dts:Number = 0;
             
@@ -267,26 +267,26 @@ package com.kaltura.hls.m2ts
                 }
                 else
                 {
-                    //trace("Filling in DTS")
+                    //logger.debug("Filling in DTS")
                     dts = pts;
                 }
             }
 
             packet.pts = pts;
             packet.dts = dts;
-            //trace("   PTS=" + pts/90000 + " DTS=" + dts/90000);
+            //logger.debug("   PTS=" + pts/90000 + " DTS=" + dts/90000);
 
             cursor += pesHeaderDataLength;
             
             if(cursor > b.length)
             {
-                trace("WARNING: parsePESPacket - ran out of bytes");
+                logger.debug("WARNING: parsePESPacket - ran out of bytes");
                 return true;
             }
             
             if(types[packet.packetID] == undefined)
             {
-                trace("WARNING: parsePESPacket - unknown type");
+                logger.debug("WARNING: parsePESPacket - unknown type");
                 return true;
             }
             
@@ -296,7 +296,7 @@ package com.kaltura.hls.m2ts
             {
                 if(dts < 0.0)
                 {
-                    trace("WARNING: parsePESPacket - invalid decode timestamp, skipping");
+                    logger.debug("WARNING: parsePESPacket - invalid decode timestamp, skipping");
                     return true;
                 }
                 
@@ -310,7 +310,7 @@ package com.kaltura.hls.m2ts
             
             if(headerSent == false)
             {
-                trace("Skipping data that came before PMT");
+                logger.debug("Skipping data that came before PMT");
                 return true;
             }
 
@@ -324,7 +324,7 @@ package com.kaltura.hls.m2ts
                 var start:int = NALU.scan(b, cursor, true);
                 if(start == -1 && lastVideoNALU)
                 {
-                    trace("Stuff entire " + (b.length - cursor) + " bytes into previous NALU.");
+                    logger.debug("Stuff entire " + (b.length - cursor) + " bytes into previous NALU.");
                     lastVideoNALU.buffer.position = lastVideoNALU.buffer.length;
                     b.position = 0;
                     lastVideoNALU.buffer.writeBytes(b, cursor, b.length - cursor);
@@ -334,7 +334,7 @@ package com.kaltura.hls.m2ts
                 else if((start - cursor) > 0 && lastVideoNALU)
                 {
                     // Shove into previous buffer.
-                    trace("Stuffing first " + (start - cursor) + " bytes into previous NALU.");
+                    logger.debug("Stuffing first " + (start - cursor) + " bytes into previous NALU.");
                     lastVideoNALU.buffer.position = lastVideoNALU.buffer.length;
                     b.position = 0;
                     lastVideoNALU.buffer.writeBytes(b, cursor, start - cursor);
@@ -368,7 +368,7 @@ package com.kaltura.hls.m2ts
             }
             else
             {
-                trace("Unknown packet ID type " + types[packet.packetID] + ", ignoring (A).");
+                logger.debug("Unknown packet ID type " + types[packet.packetID] + ", ignoring (A).");
             }
 
             bufferPendingNalus();
@@ -406,7 +406,7 @@ package com.kaltura.hls.m2ts
                     }
                     else
                     {
-                        trace("Unknown packet ID type " + packet.type + ", ignoring (B).");
+                        logger.debug("Unknown packet ID type " + packet.type + ", ignoring (B).");
                     }
                 }
             }

@@ -62,7 +62,7 @@ package com.kaltura.hls.manifest
 			
 			if ( firstEqualSignIndex == -1 )
 			{
-				trace( "ENCOUNTERED BAD KEY PAIR IN '" + input + "', IGNORING." );
+				logger.error( "ENCOUNTERED BAD KEY PAIR IN '" + input + "', IGNORING." );
 				return;
 			}
 			else if ( firstQuoteIndex == -1 || ( firstCommaIndex > -1 && firstQuoteIndex > firstCommaIndex ) )

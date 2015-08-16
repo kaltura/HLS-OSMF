@@ -194,7 +194,7 @@ package com.kaltura.hls.manifest
 
 			fullUrl = _fullUrl;
 			baseUrl = _fullUrl.substring(0, _fullUrl.lastIndexOf("/") + 1);
-			//trace("BASE URL " + baseUrl);
+			//logger.debug("BASE URL " + baseUrl);
 			
 			// Normalize line endings.
 			var windowsEndingPattern:RegExp = /\r\n/g;
@@ -216,7 +216,7 @@ package com.kaltura.hls.manifest
 				// Determine if we are parsing good information
 				if (i == 0 && curLine.search("#EXTM3U") == -1)
 				{
-					trace("Bad stream, #EXTM3U not found on the first line");
+					logger.debug("Bad stream, #EXTM3U not found on the first line");
 					goodManifest = false;
 					break;
 				}
@@ -255,7 +255,7 @@ package com.kaltura.hls.manifest
 				{
 					case "EXTM3U":
 						if(i != 0)
-							trace("Saw EXTM3U out of place! Ignoring...");
+							logger.debug("Saw EXTM3U out of place! Ignoring...");
 						break;
 					
 					case "EXT-X-TARGETDURATION":
@@ -309,7 +309,7 @@ package com.kaltura.hls.manifest
 							subtitleList.uri = getNormalizedUrl( baseUrl, subtitleList.uri );
 							subtitlePlayLists.push( subtitleList );
 						}
-						else trace( "Encountered " + tagType + " tag that is not supported, ignoring." );
+						else logger.debug( "Encountered " + tagType + " tag that is not supported, ignoring." );
 						break;
 					
 					case "EXT-X-STREAM-INF":
@@ -348,8 +348,8 @@ package com.kaltura.hls.manifest
 						break;
 					
 					case "EXT-X-DISCONTINUITY":
-						trace("Found Discontinuity");
-						//trace(input);
+						logger.debug("Found Discontinuity");
+						//logger.debug(input);
 						++continuityEra;
 						break;
 					
@@ -357,7 +357,7 @@ package com.kaltura.hls.manifest
 						break;
 					
 					default:
-						trace("Unknown tag '" + tagType + "', ignoring...");
+						logger.debug("Unknown tag '" + tagType + "', ignoring...");
 						break;
 				}		
 			}
@@ -388,7 +388,7 @@ package com.kaltura.hls.manifest
 			
 			for(i=0; i<keys.length; i++)
 			{
-				trace("Key #" + i + " " + keys[i].toString());
+				logger.debug("Key #" + i + " " + keys[i].toString());
 			}
 
 			announceIfComplete();
@@ -494,7 +494,7 @@ package com.kaltura.hls.manifest
 		{
 			timestamp = getTimer();
 
-			trace("REQUESTING " + item.uri);
+			logger.debug("REQUESTING " + item.uri);
 			var manifestLoader:URLLoader = new URLLoader(new URLRequest(item.uri));
 			manifestLoader.addEventListener(Event.COMPLETE, closurizeAppend(onManifestLoadComplete, item) );
 			manifestLoader.addEventListener(IOErrorEvent.IO_ERROR, onManifestError);
@@ -505,7 +505,7 @@ package com.kaltura.hls.manifest
 		protected function onManifestLoadComplete(e:Event, manifestItem:BaseHLSManifestItem):void
 		{
 			var manifestLoader:URLLoader = e.target as URLLoader;
-			//trace("HLSManifestParser.onManifestLoadComplete");
+			//logger.debug("HLSManifestParser.onManifestLoadComplete");
 			//try {
 				var resourceData:String = String(manifestLoader.data);
 				
@@ -514,7 +514,7 @@ package com.kaltura.hls.manifest
 				if(idx != -1)
 					manifestLoaders.splice(idx, 1);
 				else
-					trace("Manifest loader not in loader list.");
+					logger.debug("Manifest loader not in loader list.");
 				
 				// Start parsing the manifest.
 				var parser:HLSManifestParser = new HLSManifestParser();
@@ -526,7 +526,7 @@ package com.kaltura.hls.manifest
 //			}
 //			catch (parseError:Error)
 //			{
-//				trace("ERROR loading manifest " + parseError.toString());
+//				logger.debug("ERROR loading manifest " + parseError.toString());
 //			}
 
 			timestamp = getTimer();
@@ -541,7 +541,7 @@ package com.kaltura.hls.manifest
 		
 		protected function onManifestError(e:Event):void
 		{
-			trace("ERROR loading manifest " + e.toString());
+			logger.debug("ERROR loading manifest " + e.toString());
 			
 			// Remove the loader from our list of loaders so that the load process completes
 			var manifestLoader:URLLoader = e.target as URLLoader;
@@ -550,14 +550,14 @@ package com.kaltura.hls.manifest
 			if(idx != -1)
 				manifestLoaders.splice(idx, 1);
 			else
-				trace("Manifest loader not in loader list.");
+				logger.debug("Manifest loader not in loader list.");
 
 			announceIfComplete()
 		}		
 		
 		protected function onManifestReloadError(e:Event):void
 		{
-			trace("ERROR loading manifest " + e.toString());
+			logger.debug("ERROR loading manifest " + e.toString());
 			
 			// parse the error and send up the manifest url
 			var event:IOErrorEvent = e as IOErrorEvent;
@@ -572,7 +572,7 @@ package com.kaltura.hls.manifest
 
 			fullUrl = manifest.fullUrl;
 			var manifestLoader:URLLoader = new URLLoader(new URLRequest(fullUrl));
-			trace("REQUESTING " + fullUrl);
+			logger.debug("REQUESTING " + fullUrl);
 			manifestLoader.addEventListener(Event.COMPLETE, onManifestReloadComplete );
 			manifestLoader.addEventListener(IOErrorEvent.IO_ERROR, onManifestReloadError);
 			manifestLoader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onManifestReloadError);
@@ -581,9 +581,9 @@ package com.kaltura.hls.manifest
 		public function onManifestReloadComplete(e:Event):void
 		{
 			var manifestLoader:URLLoader = e.target as URLLoader;
-			//trace("HLSManifestParser.onManifestReloadComplete");
+			//logger.debug("HLSManifestParser.onManifestReloadComplete");
 			var resourceData:String = String(manifestLoader.data);
-			trace("onManifestReloadComplete - resourceData.length = " + resourceData.length);
+			logger.debug("onManifestReloadComplete - resourceData.length = " + resourceData.length);
 			timestamp = getTimer();
 			
 			// Start parsing the manifest.
@@ -592,7 +592,7 @@ package com.kaltura.hls.manifest
 		
 		private function onSubtitleLoaded( e:Event ):void
 		{
-			trace( "SUBTITLE LOADED" );
+			logger.debug( "SUBTITLE LOADED" );
 			_subtitlesLoading--;
 			announceIfComplete(); 
 		}

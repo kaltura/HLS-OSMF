@@ -65,7 +65,7 @@ package com.kaltura.hls.m2ts
                 }
 
                 if(scanCount > 0)
-                    trace("WARNING: appendBytes - skipped " + scanCount + " bytes to sync point.");
+                    logger.debug("WARNING: appendBytes - skipped " + scanCount + " bytes to sync point.");
                 
                 // Confirm we have something to read.
                 if(!(cursor + 188 < len))
@@ -110,7 +110,7 @@ package com.kaltura.hls.m2ts
 
             if(logHeaders)
             {
-                trace("TS Pkt @" + _totalConsumed + " sync=" + raw_syncByte + " pid=" + raw_pid + " tei=" + raw_tei + " pusi=" + raw_pusi + " tp=" + raw_tp + " scramble=" + raw_scramble + " adapt? " + raw_hasAdaptation + " continuity=" + raw_continuity);
+                logger.debug("TS Pkt @" + _totalConsumed + " sync=" + raw_syncByte + " pid=" + raw_pid + " tei=" + raw_tei + " pusi=" + raw_pusi + " tp=" + raw_tp + " scramble=" + raw_scramble + " adapt? " + raw_hasAdaptation + " continuity=" + raw_continuity);
             }
 
             // Handle adaptation field.
@@ -119,7 +119,7 @@ package com.kaltura.hls.m2ts
                 var adaptationFieldLength:uint = _buffer.readUnsignedByte();
                 if(adaptationFieldLength >= 183)
                 {
-                    //trace("Saw only adaptation data, skipping TS packet.");
+                    //logger.debug("Saw only adaptation data, skipping TS packet.");
                     return;
                 }
 
@@ -136,7 +136,7 @@ package com.kaltura.hls.m2ts
 
             if(raw_pid == 0x1fff)
             {
-                trace("Skipping padding TS packet.");
+                logger.debug("Skipping padding TS packet.");
                 return;
             }
 
@@ -149,7 +149,7 @@ package com.kaltura.hls.m2ts
                 if( (!raw_hasPayload)
                  && (!discontinuity))
                 {
-                    trace("WARNING: duplicate packet!");
+                    logger.debug("WARNING: duplicate packet!");
                     return; // duplicate
                 }
             }
@@ -158,7 +158,7 @@ package com.kaltura.hls.m2ts
             {
                 if(stream.buffer.length > 0 && stream.packetLength > 0)
                 {
-                    trace("WARNING: Flushed " + stream.buffer.length + " due to payloadStart flag, didn't predict length properly! (Guessed " + stream.packetLength + ")");
+                    logger.debug("WARNING: Flushed " + stream.buffer.length + " due to payloadStart flag, didn't predict length properly! (Guessed " + stream.packetLength + ")");
                 }
 
                 completeStreamPacket(stream);
@@ -167,7 +167,7 @@ package com.kaltura.hls.m2ts
             {
                 if(stream.lastContinuity < 0)
                 {
-                    trace("WARNING: Saw discontinuous packet!");
+                    logger.debug("WARNING: Saw discontinuous packet!");
                     return;
                 }
                 
@@ -175,14 +175,14 @@ package com.kaltura.hls.m2ts
                     && !discontinuity)
                 {
                     // Corrupt packet - skip it.
-                    trace("WARNING: Saw corrupt packet, skipping!");
+                    logger.debug("WARNING: Saw corrupt packet, skipping!");
                     stream.buffer.length = 0;
                     stream.lastContinuity = -1;
                     return;
                 }
 
                 if(stream.buffer.length == 0 && length > 0)
-                    trace("WARNING: Got new bytes without PUSI set!");
+                    logger.debug("WARNING: Got new bytes without PUSI set!");
             }
             
             // Append to end.
@@ -205,7 +205,7 @@ package com.kaltura.hls.m2ts
             if(timeToComplete)
             {
                 if(stream.buffer.length > stream.packetLength + 6)
-                    trace("WARNING: Got buffer strictly longer (" + (stream.buffer.length - (stream.packetLength + 6)) + " bytes longer) than expected. This is OK when on first packet of stream.");
+                    logger.debug("WARNING: Got buffer strictly longer (" + (stream.buffer.length - (stream.packetLength + 6)) + " bytes longer) than expected. This is OK when on first packet of stream.");
                 completeStreamPacket(stream);
                 stream.finishedLast = true;
             }
@@ -219,7 +219,7 @@ package com.kaltura.hls.m2ts
             if(stream.buffer.length == 0)
             {
                 if(!stream.finishedLast)
-                    trace("Tried to complete zero length packet.");
+                    logger.debug("Tried to complete zero length packet.");
                 stream.finishedLast = false;
                 return;
             }
@@ -235,10 +235,10 @@ package com.kaltura.hls.m2ts
 
         public function flush():void
         {
-            trace("FLUSHING");
+            logger.debug("FLUSHING");
             for (var idx:* in _streams)
             {
-                trace("Flushing stream id " + idx + " which has " + _streams[idx].buffer.length);
+                logger.debug("Flushing stream id " + idx + " which has " + _streams[idx].buffer.length);
                 completeStreamPacket(_streams[idx]);
             }
 

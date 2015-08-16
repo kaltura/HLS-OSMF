@@ -76,7 +76,7 @@ package com.kaltura.hls.m2ts
 			weights.push(0.0);
 			weights.push(0.0);
 			var bw:BandwidthMetric = switcher.metricRepository.getMetric(MetricType.BANDWIDTH, weights) as BandwidthMetric;
-			trace("Tried to override BandwidthMetric to N=1, and N=" + bw.weights.length);
+			logger.debug("Tried to override BandwidthMetric to N=1, and N=" + bw.weights.length);
 
 			// Second, bias the bandwidthrule.
 			for(var i:int=0; i<switcher.normalRules.length; i++)
@@ -90,7 +90,7 @@ package com.kaltura.hls.m2ts
 				bwr.weights[1] = 0.0;
 				bwr.weights[2] = 0.0;
 
-				trace("Adjusted BandwidthRule");
+				logger.debug("Adjusted BandwidthRule");
 			}
 
 			// Third, adjust the switch logic to be less restrictive.
