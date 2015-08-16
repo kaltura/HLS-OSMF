@@ -8,11 +8,22 @@ package com.kaltura.hls.m2ts
     import flash.utils.IDataOutput;
     import com.hurlant.util.Hex;
 
+    CONFIG::LOGGING
+    {
+        import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+    }
+
     /**
      * NALU processing utilities.
      */
     public class NALUProcessor
     {
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.m2ts.NALUProcessor");
+        }
+
         private var ppsList:Vector.<ByteArray> = new Vector.<ByteArray>;
         private var spsList:Vector.<ByteArray> = new Vector.<ByteArray>;
         

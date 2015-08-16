@@ -7,6 +7,12 @@ package com.kaltura.hls.m2ts
     import flash.utils.IDataInput;
     import flash.utils.IDataOutput;
 
+    CONFIG::LOGGING
+    {
+        import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+    }
+
     /**
      * Responsible for emitting FLV data. Also handles AAC conversion
      * config and buffering. FLV tags are buffered for later emission
@@ -14,6 +20,11 @@ package com.kaltura.hls.m2ts
      */
     public class FLVTranscoder
     {
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.m2ts.FLVTranscoder");
+        }
+
         public const MIN_FILE_HEADER_BYTE_COUNT:int = 9;
 
         public var callback:Function;

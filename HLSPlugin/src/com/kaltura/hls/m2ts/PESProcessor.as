@@ -8,11 +8,22 @@ package com.kaltura.hls.m2ts
     import flash.utils.IDataOutput;
     import com.hurlant.util.Hex;
 
+    CONFIG::LOGGING
+    {
+        import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+    }
+
     /**
      * Process packetized elementary streams and extract NALUs and other data.
      */
     public class PESProcessor
     {
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.m2ts.PESProcessor");
+        }
+
         public var types:Object = {};
         public var streams:Object = {};
 

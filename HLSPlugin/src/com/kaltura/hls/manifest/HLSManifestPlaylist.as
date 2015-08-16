@@ -2,8 +2,19 @@ package com.kaltura.hls.manifest
 {
 	import flash.utils.Dictionary;
 
+	CONFIG::LOGGING
+	{
+		import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+	}
+
 	public class HLSManifestPlaylist extends BaseHLSManifestItem
 	{
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.manifest.HLSManifestPlaylist");
+        }
+
 		public var groupId:String = "";
 		public var language:String = "";
 		public var name:String = "";

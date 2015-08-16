@@ -2,8 +2,19 @@ package com.kaltura.hls.manifest
 {
 	import org.osmf.net.DynamicStreamingItem;
 	
+	CONFIG::LOGGING
+	{
+		import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+	}
+
 	public class HLSManifestStream extends BaseHLSManifestItem
 	{
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.manifest.HLSManifestStream");
+        }
+
 		public var programId:int;
 		public var bandwidth:int;
 		public var codecs:String;

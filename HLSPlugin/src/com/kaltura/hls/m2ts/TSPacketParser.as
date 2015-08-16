@@ -7,6 +7,12 @@ package com.kaltura.hls.m2ts
     import flash.utils.IDataInput;
     import flash.utils.IDataOutput;
 
+    CONFIG::LOGGING
+    {
+        import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+    }
+
     /**
      * Parser for MPEG 2 Transport Stream packets.
      * 
@@ -15,6 +21,11 @@ package com.kaltura.hls.m2ts
      */
     public class TSPacketParser
     {
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.m2ts.TSPacketParser");
+        }
+
         public static var logHeaders:Boolean = false;
 
         private var _buffer:ByteArray = new ByteArray();

@@ -29,11 +29,22 @@ package com.kaltura.hls.m2ts
 	import org.osmf.net.metrics.MetricType;
 	import org.osmf.net.rules.BandwidthRule;
 	
+	CONFIG::LOGGING
+	{
+		import org.osmf.logging.Logger;
+		import org.osmf.logging.Log;
+	}
+
 	/**
 	 * Factory to identify and process MPEG2 TS via OSMF.
 	 */
 	public class M2TSNetLoader extends HTTPStreamingNetLoader
 	{
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.m2ts.M2TSNetLoader");
+        }
+
 		private var netStream:HLSHTTPNetStream;
 
 		override public function canHandleResource( resource:MediaResourceBase ):Boolean

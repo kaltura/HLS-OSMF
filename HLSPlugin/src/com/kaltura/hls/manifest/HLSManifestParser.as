@@ -13,11 +13,22 @@ package com.kaltura.hls.manifest
 	import flash.net.URLRequest;
 	import flash.utils.getTimer;
 	
+	CONFIG::LOGGING
+	{
+		import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+	}
+
 	/**
 	 *  Fires Event.COMPLETE when the manifest is fully loaded. 
 	 */
 	public class HLSManifestParser extends EventDispatcher
 	{
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.manifest.HLSManifestParser");
+        }
+
 		public static const DEFAULT:String = "DEFAULT";
 		public static const AUDIO:String = "AUDIO";
 		public static const VIDEO:String = "VIDEO";

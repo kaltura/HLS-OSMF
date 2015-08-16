@@ -19,11 +19,22 @@ package com.kaltura.hls.m2ts
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
 	import org.osmf.net.httpstreaming.flv.FLVTagAudio;
 
+	CONFIG::LOGGING
+	{
+		import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+	}
+
 	/**
 	 * Process M2TS data into FLV data and return it for rendering via OSMF video system.
 	 */
 	public class M2TSFileHandler extends HTTPStreamingFileHandlerBase
 	{
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.m2ts.M2TSFileHandler");
+        }
+
 		public static var SEND_LOGS:Boolean = false;
 		
 		public var subtitleTrait:SubtitleTrait;
