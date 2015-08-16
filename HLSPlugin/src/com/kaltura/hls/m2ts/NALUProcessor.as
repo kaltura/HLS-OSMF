@@ -8,11 +8,22 @@ package com.kaltura.hls.m2ts
     import flash.utils.IDataOutput;
     import com.hurlant.util.Hex;
 
+    CONFIG::LOGGING
+    {
+        import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+    }
+
     /**
      * NALU processing utilities.
      */
     public class NALUProcessor
     {
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.m2ts.NALUProcessor");
+        }
+
         private var ppsList:Vector.<ByteArray> = new Vector.<ByteArray>;
         private var spsList:Vector.<ByteArray> = new Vector.<ByteArray>;
         
@@ -79,13 +90,20 @@ package com.kaltura.hls.m2ts
                 // Debug dump the SPS
                 var spsLength:uint = spsList[i].length;
 
-                trace("SPS #" + i + " profile=" + spsList[i][1] + "   " + Hex.fromArray(spsList[i], true));
+                CONFIG::LOGGING
+                {
+                    logger.debug("SPS #" + i + " profile=" + spsList[i][1] + "   " + Hex.fromArray(spsList[i], true));
+                }
 
                 var eg:ExpGolomb = new ExpGolomb(spsList[i]);
                 // constraint_set[0-5]_flag, u(1), reserved_zero_2bits u(2), level_idc u(8)
                 eg.readBits(8);
                 eg.readBits(24);
-                trace("Saw id " + eg.readUE());
+                
+                CONFIG::LOGGING
+                {
+                    logger.debug("Saw id " + eg.readUE());
+                }
 
                 avcc.position = cursor;
                 spsList[i].position = 0;
@@ -102,12 +120,20 @@ package com.kaltura.hls.m2ts
             for(i=0; i<ppsList.length; i++)
             {
                 var ppsLength:uint = ppsList[i].length;
-                trace("PPS length #" + i + " is " + ppsLength + "   " + Hex.fromArray(ppsList[i], true));
+
+                CONFIG::LOGGING
+                {
+                    logger.debug("PPS length #" + i + " is " + ppsLength + "   " + Hex.fromArray(ppsList[i], true));
+                }
 
                 eg = new ExpGolomb(ppsList[i]);
                 // constraint_set[0-5]_flag, u(1), reserved_zero_2bits u(2), level_idc u(8)
                 eg.readBits(8);
-                trace("Saw id " + eg.readUE());
+
+                CONFIG::LOGGING
+                {
+                    logger.debug("Saw id " + eg.readUE());
+                }
 
                 avcc.position = cursor;
                 ppsList[i].position = 0;
@@ -132,7 +158,7 @@ package com.kaltura.hls.m2ts
             ourEg.readBits(24);
             var ourId:int = ourEg.readUE();
 
-            //trace("Saw potential SPS " + ourId + " " + Hex.fromArray(sps, true));
+            //logger.debug("Saw potential SPS " + ourId + " " + Hex.fromArray(sps, true));
 
             // If not present in list add it!
             for(var i:int=0; i<spsList.length; i++)
@@ -146,7 +172,7 @@ package com.kaltura.hls.m2ts
                 if(foundId != ourId)
                     continue;
 
-                //trace("Got SPS match for " + foundId + "!");
+                //logger.debug("Got SPS match for " + foundId + "!");
                 spsList[i] = sps;
                 return;
             }
@@ -167,7 +193,7 @@ package com.kaltura.hls.m2ts
             ourEg.readBits(8);
             var ourId:int = ourEg.readUE();
 
-            //trace("Saw potential PPS " + ourId + " " + Hex.fromArray(pps, true));
+            //logger.debug("Saw potential PPS " + ourId + " " + Hex.fromArray(pps, true));
 
             // If not present in list add it!
             for(var i:int=0; i<ppsList.length; i++)
@@ -180,7 +206,7 @@ package com.kaltura.hls.m2ts
                 if(foundId != ourId)
                     continue;
 
-                //trace("Got PPS match for " + foundId + "!");
+                //logger.debug("Got PPS match for " + foundId + "!");
                 ppsList[i] = pps;
                 return;
             }
@@ -240,7 +266,7 @@ package com.kaltura.hls.m2ts
                 {
                     if(buffer[i-1] == 0x00 && buffer[i-2] == 0x00)
                     {
-                        //trace("SKIPPING EMULATION BYTE @ " + i);
+                        //logger.debug("SKIPPING EMULATION BYTE @ " + i);
                         continue;
                     }
                 }
@@ -255,7 +281,7 @@ package com.kaltura.hls.m2ts
         {
             // What's the type?
             var naluType:uint = bytes[cursor] & 0x1f;
-            //trace("nalu " + naluType + " len=" + length);
+            //logger.debug("nalu " + naluType + " len=" + length);
             if(naluType == 7)
             {
                 // Handle SPS
