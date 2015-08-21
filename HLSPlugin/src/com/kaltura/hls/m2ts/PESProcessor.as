@@ -330,20 +330,35 @@ package com.kaltura.hls.m2ts
                     cursor = start;
                 }
 
-                // Submit previous data.
-                if(lastVideoNALU)
+                // If it's identical timestamps, accumulate it into the current unit and keep going.
+                if(lastVideoNALU && pts == lastVideoNALU.pts && dts == lastVideoNALU.dts)
                 {
-                    pendingBuffers.push(lastVideoNALU.clone());
+                    CONFIG::LOGGING
+                    {
+                        logger.debug("Combining " + (start-cursor) + " bytes into previous NALU due to matching DTS/PTS.");
+                    }
+                    lastVideoNALU.buffer.position = lastVideoNALU.buffer.length;
+                    b.position = 0;
+                    lastVideoNALU.buffer.writeBytes(b, cursor, start - cursor);
+                    cursor = start;                    
                 }
+                else
+                {
+                    // Submit previous data.
+                    if(lastVideoNALU)
+                    {
+                        pendingBuffers.push(lastVideoNALU.clone());
+                    }
 
-                // Update NALU state.
-                lastVideoNALU = new NALU();
-                lastVideoNALU.buffer = new ByteArray();
-                lastVideoNALU.pts = pts;
-                lastVideoNALU.dts = dts;
-                lastVideoNALU.type = packet.type;
-                lastVideoNALU.buffer.writeBytes(b, cursor);
+                    // Update NALU state.
+                    lastVideoNALU = new NALU();
+                    lastVideoNALU.buffer = new ByteArray();
+                    lastVideoNALU.pts = pts;
+                    lastVideoNALU.dts = dts;
+                    lastVideoNALU.type = packet.type;
+                    lastVideoNALU.buffer.writeBytes(b, cursor);
 
+                }
             }
             else if(types[packet.packetID] == 0x0F)
             {
