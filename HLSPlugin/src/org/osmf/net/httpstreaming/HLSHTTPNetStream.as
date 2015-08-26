@@ -237,7 +237,10 @@ package org.osmf.net.httpstreaming
 			// Always seek on live streams.
 			if(_dvrInfo && indexHandler && indexHandler.manifest && (indexHandler.manifest.streamEnds == false))
 			{
-				trace("Resuming live stream at " + time);
+				CONFIG::LOGGING
+				{
+					logger.info("Resuming live stream at " + time);
+				}
 				seek(time);
 			}
 
@@ -288,7 +291,10 @@ package org.osmf.net.httpstreaming
 			// Make sure we don't go past the buffer for the live edge.
 			if(indexHandler && offset > (indexHandler as HLSIndexHandler).liveEdge)
 			{
-				trace("Capping seek to the known-safe live edge (" + offset + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+				CONFIG::LOGGING
+				{
+					logger.info("Capping seek to the known-safe live edge (" + offset + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+				}
 				offset = (indexHandler as HLSIndexHandler).liveEdge;
 			}
 
@@ -297,12 +303,18 @@ package org.osmf.net.httpstreaming
 			{
 				if(_initialTime < 0)
 				{
-					trace("Setting seek (A) to " + offset);
+					CONFIG::LOGGING
+					{
+						logger.info("Setting seek (A) to " + offset);
+					}
 					_seekTarget = offset + 0;	// this covers the "don't know initial time" case, rare
 				}
 				else
 				{
-					trace("Setting seek (B) to " + offset);
+					CONFIG::LOGGING
+					{
+						logger.info("Setting seek (B) to " + offset);
+					}
 					_seekTarget = offset + _initialTime;
 				}
 				
@@ -503,12 +515,18 @@ package org.osmf.net.httpstreaming
 		private function changeSourceTo(streamName:String, seekTarget:Number):void
 		{
 			_initializeFLVParser = true;
-			trace("Changing source to " + streamName + " , " + seekTarget);
+			CONFIG::LOGGING
+			{
+				logger.debug("Changing source to " + streamName + " , " + seekTarget);
+			}
 
 			// Make sure we don't go past the buffer for the live edge.
 			if(indexHandler && seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
 			{
-				trace("Capping seek (source change) to the known-safe live edge (" + seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+				CONFIG::LOGGING
+				{
+					logger.debug("Capping seek (source change) to the known-safe live edge (" + seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+				}
 				seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
 			}
 
@@ -651,7 +669,10 @@ package org.osmf.net.httpstreaming
 			
 			if ( i >= playLists.length )
 			{
-				trace( "AUDIO STREAM " + streamName + "NOT FOUND" );
+				CONFIG::LOGGING
+				{
+					logger.error( "AUDIO STREAM " + streamName + "NOT FOUND" );
+				}
 				return null;
 			}
 			
@@ -682,7 +703,11 @@ package org.osmf.net.httpstreaming
 					if(bufferBias < HLSManifestParser.BUFFER_EMPTY_MAX_INCREASE && _state != HTTPStreamingState.HALT && neverBuffered == false)
 					{
 						bufferBias += HLSManifestParser.BUFFER_EMPTY_BUMP;
-						trace("NetStream emptied out, increasing buffer time bias by " + HLSManifestParser.BUFFER_EMPTY_BUMP + " seconds to " + bufferBias);
+
+						CONFIG::LOGGING
+						{
+							logger.debug("NetStream emptied out, increasing buffer time bias by " + HLSManifestParser.BUFFER_EMPTY_BUMP + " seconds to " + bufferBias);
+						}
 					}
 
 					neverBuffered = false;
@@ -694,6 +719,7 @@ package org.osmf.net.httpstreaming
 					{
 						logger.debug("Received NETSTREAM_BUFFER_EMPTY. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
 					}
+
 					if  (_state == HTTPStreamingState.HALT) 
 					{
 						if (_notifyPlayUnpublishPending)
@@ -880,7 +906,10 @@ package org.osmf.net.httpstreaming
 								// Check that we have the current index handler.
 								if(HLSHTTPNetStream.indexHandler != indexHandler)
 								{
-									trace("Old streamTooSlowTimer fired; killing.");
+									CONFIG::LOGGING
+									{
+										logger.info("Old streamTooSlowTimer fired; killing.");
+									}
 									streamTooSlowTimer.stop();
 									return;
 								}
@@ -889,16 +918,25 @@ package org.osmf.net.httpstreaming
 								var newStream:String = indexHandler.getQualityLevelStreamName(0);
 								if(!newStream)
 								{
-									trace("streamTooSlowTimer failed to get stream name for quality level 0");
+									CONFIG::LOGGING
+									{
+										logger.error("streamTooSlowTimer failed to get stream name for quality level 0");
+									}
 									return;
 								}
 
-								trace("Warning: Buffer Time of " + _desiredBufferTime_Max * 2 + " seconds exceeded. Switching to quality 0 " + newStream);
+								CONFIG::LOGGING
+								{
+									logger.warn("Warning: Buffer Time of " + _desiredBufferTime_Max * 2 + " seconds exceeded. Switching to quality 0 " + newStream);
+								}
 								changeQualityLevelTo(newStream);
 							}
 							catch(e:Error)
 							{
-								trace("Failure when trying to handle streamTooSlowTimer event: " + e.toString());
+								CONFIG::LOGGING
+								{
+									logger.error("Failure when trying to handle streamTooSlowTimer event: " + e.toString());									
+								}
 							}
 						});
 					}
@@ -925,7 +963,10 @@ package org.osmf.net.httpstreaming
 						// Make sure we don't go past the buffer for the live edge.
 						if(indexHandler && _seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
 						{
-							trace("Capping seek (HTTPStreamingState.SEEK) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+							CONFIG::LOGGING
+							{
+								logger.warn("Capping seek (HTTPStreamingState.SEEK) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+							}
 							_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
 						}
 
@@ -942,7 +983,10 @@ package org.osmf.net.httpstreaming
 
 						if(indexHandler && indexHandler.bumpedTime)
 						{
-							trace("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
+							CONFIG::LOGGING
+							{
+								logger.debug("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
+							}
 							_seekTarget = indexHandler.bumpedSeek;
 							_enhancedSeekTarget = indexHandler.bumpedSeek;
 							indexHandler.bumpedTime = false;
@@ -986,7 +1030,10 @@ package org.osmf.net.httpstreaming
 						// We do not allow the user to seek to before the DVR window
 						if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0)
 						{
-							trace("Attempting to seek outside of DVR window, seeking to last known playlist start time of " + indexHandler.lastKnownPlaylistStartTime);
+							CONFIG::LOGGING
+							{
+								logger.debug("Attempting to seek outside of DVR window, seeking to last known playlist start time of " + indexHandler.lastKnownPlaylistStartTime);
+							}
 							_seekTarget = indexHandler.lastKnownPlaylistStartTime;
 						}
 						
@@ -996,7 +1043,10 @@ package org.osmf.net.httpstreaming
 							timeBeforeSeek = Number.NaN;// This forces the player to finish the seeking process
 						
 						_seekTime = -1;
-						trace("Seeking to " + _seekTarget);
+						CONFIG::LOGGING
+						{
+							logger.info("Seeking to " + _seekTarget);
+						}
 						_source.seek(_seekTarget);
 						setState(HTTPStreamingState.WAIT);
 					}
@@ -1013,7 +1063,10 @@ package org.osmf.net.httpstreaming
 					{
 						neverPlayed = false;
 						_seekTarget = Number.MAX_VALUE;
-						trace("Triggered first time seek to live edge!");
+						CONFIG::LOGGING
+						{
+							logger.debug("Triggered first time seek to live edge!");
+						}
 						setState(HTTPStreamingState.SEEK);
 						break;
 					}
@@ -1314,7 +1367,10 @@ package org.osmf.net.httpstreaming
 						logger.debug("Initialize the FLV Parser ( seekTime = " + _seekTime + ", initialTime = " + _initialTime + ", playForDuration = " + _playForDuration + " ).");
 						if (_insertScriptDataTags != null)
 						{
-							logger.debug("Script tags available (" + _insertScriptDataTags.length + ") for processing." );	
+							CONFIG::LOGGING
+							{
+								logger.debug("Script tags available (" + _insertScriptDataTags.length + ") for processing." );	
+							}
 						}
 					}
 					
@@ -1469,7 +1525,10 @@ package org.osmf.net.httpstreaming
 				if(event.url == "[no request]")
 				{
 					// Stuff index handler down a quality level.
-					trace("TRYING BITRATE DOWNSHIFT");
+					CONFIG::LOGGING
+					{
+						logger.debug("TRYING BITRATE DOWNSHIFT");
+					}
 
 					_videoHandler.changeQualityLevel( (_videoHandler as HLSHTTPStreamSource)._streamNames[0] );
 
@@ -1505,7 +1564,10 @@ package org.osmf.net.httpstreaming
 			// Switch to a backup stream if available
 			if (currentStream)
 			{
-				trace("Marking manifest not gotten.");
+				CONFIG::LOGGING
+				{
+					logger.error("Marking manifest not gotten.");
+				}
 				hasGottenManifest = false;
 				indexHandler.switchToBackup(currentStream);
 			}
@@ -1717,7 +1779,7 @@ package org.osmf.net.httpstreaming
 					// and then pass through the rest of the segment
 					bytes = new ByteArray();
 					_flvParser.flush(bytes);
-					//trace("Flushing " + bytes.length);
+					//logger.debug("Flushing " + bytes.length);
 					_flvParser = null;	
 				}
 			}
@@ -1729,7 +1791,10 @@ package org.osmf.net.httpstreaming
 
 				if(bufferLength == 0 && processed > 4096)
 				{
-					trace("I think I should reset playback.");
+					CONFIG::LOGGING
+					{
+						logger.error("I think I should reset playback.");
+					}
 					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 				}
 			}
@@ -1768,7 +1833,7 @@ package org.osmf.net.httpstreaming
 
 /*			if(_enhancedSeekTarget <= 0.0 && indegetLastSequenceManifest() && getLastSequenceManifest().streamEnds == false)
 			{
-				trace("Setting enhanced seek target to last segment end of " + _lastSegmentEnd);
+				logger.debug("Setting enhanced seek target to last segment end of " + _lastSegmentEnd);
 				_enhancedSeekTarget = _lastSegmentEnd;
 				_seekTarget = _enhancedSeekTarget;
 			}*/
@@ -1778,14 +1843,20 @@ package org.osmf.net.httpstreaming
 				&& (_enhancedSeekTarget > indexHandler.bumpedSeek
 					|| _seekTarget > indexHandler.bumpedSeek))
 			{
-				trace("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
+				CONFIG::LOGGING
+				{
+					logger.debug("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
+				}
 				_seekTarget = indexHandler.bumpedSeek;
 				_enhancedSeekTarget = indexHandler.bumpedSeek;
 			}
 
 			if(_enhancedSeekTarget == Number.MAX_VALUE)
 			{
-				trace("Left over enhanced seek-to-end, aborting (_seekTarget=" + _seekTarget + ").");
+				CONFIG::LOGGING
+				{
+					logger.debug("Left over enhanced seek-to-end, aborting (_seekTarget=" + _seekTarget + ").");
+				}
 				_enhancedSeekTarget = 0.0;
 				_seekTarget = 0.0;
 			}
@@ -1795,7 +1866,10 @@ package org.osmf.net.httpstreaming
 
 			var currentTime:Number = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
 			
-			trace("Saw tag @ " + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget);
+			CONFIG::LOGGING
+			{
+				logger.debug("Saw tag @ " + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget);
+			}
 
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
 			// We need to take into account that flv tags' timestamps are 32-bit unsigned ints
@@ -1842,7 +1916,10 @@ package org.osmf.net.httpstreaming
 			{
 				if (currentTime < _enhancedSeekTarget)
 				{
-					trace("Skipping FLV tag @ " + currentTime + " until " + _enhancedSeekTarget);
+					CONFIG::LOGGING
+					{
+						logger.debug("Skipping FLV tag @ " + currentTime + " until " + _enhancedSeekTarget);
+					}
 					if (_enhancedSeekTags == null)
 					{
 						_enhancedSeekTags = new Vector.<FLVTag>();
@@ -1946,7 +2023,7 @@ package org.osmf.net.httpstreaming
 					bytes = new ByteArray();
 					tag.write(bytes);
 					_flvParserProcessed += bytes.length;
-					//trace("[1] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
+					//logger.debug("[1] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
 					attemptAppendBytes(bytes);
 					
 					if (_playForDuration >= 0)
@@ -1967,7 +2044,7 @@ package org.osmf.net.httpstreaming
 			// finally, pass this one on to appendBytes...
 			var bytes:ByteArray = new ByteArray();
 			tag.write(bytes);
-			//trace("[2] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
+			//logger.debug("[2] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
 			attemptAppendBytes(bytes);
 			_flvParserProcessed += bytes.length;
 			
@@ -2149,7 +2226,10 @@ package org.osmf.net.httpstreaming
 				}				
 			}
 
-			trace("Seeking to retry segment " + requestedTime);
+			CONFIG::LOGGING
+			{
+				logger.debug("Seeking to retry segment " + requestedTime);
+			}
 			_seekTarget = requestedTime;
 			setState(HTTPStreamingState.SEEK);
 		}

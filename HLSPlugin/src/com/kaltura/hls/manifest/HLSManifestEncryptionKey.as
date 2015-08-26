@@ -12,6 +12,12 @@ package com.kaltura.hls.manifest
 	import flash.utils.Dictionary;
 	import flash.utils.getTimer;
 
+	CONFIG::LOGGING
+	{
+		import org.osmf.logging.Logger;
+        import org.osmf.logging.Log;
+	}
+
 	/**
 	 * HLSManifestEncryptionKey is used to parse AES decryption key data from a m3u8
 	 * manifest, load the specified key file into memory, and use the key data to decrypt
@@ -21,6 +27,11 @@ package com.kaltura.hls.manifest
 	
 	public class HLSManifestEncryptionKey extends EventDispatcher
 	{
+        CONFIG::LOGGING
+        {
+            private static const logger:Logger = Log.getLogger("com.kaltura.hls.manifest.HLSManifestEncryptionKey");
+        }
+
 		private static const LOADER_CACHE:Dictionary = new Dictionary();
 		private var _key:FastAESKey;
 		public var usePadding:Boolean = false;
@@ -104,7 +115,7 @@ package com.kaltura.hls.manifest
 		
 		public function decrypt( data:ByteArray, iv:ByteArray ):ByteArray
 		{
-			//trace("got " + data.length + " bytes");
+			//logger.debug("got " + data.length + " bytes");
 			if(data.length == 0)
 				return data;
 				
@@ -120,7 +131,7 @@ package com.kaltura.hls.manifest
 			if ( usePadding ){
 				data = unpad( data );
 			}
-		//	trace( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
+		//	logger.debug( "DECRYPTION OF " + data.length + " BYTES TOOK " + ( getTimer() - startTime ) + " MS" );
 			return data;
 		}
 		
@@ -185,7 +196,10 @@ package com.kaltura.hls.manifest
 
 		public function retrieveStoredIV():ByteArray
 		{
-			trace("IV of " + iv + " for " + url + ", key=" + Hex.fromArray(_keyData));
+			CONFIG::LOGGING
+			{
+				logger.debug("IV of " + iv + " for " + url + ", key=" + Hex.fromArray(_keyData));
+			}
 			return Hex.toArray( iv );
 		}
 		
@@ -213,7 +227,10 @@ package com.kaltura.hls.manifest
 		{
 			isLoading = false;
 
-			trace("KEY LOADED! " + url);
+			CONFIG::LOGGING
+			{
+				logger.debug("KEY LOADED! " + url);
+			}
 
 			var loader:URLLoader = getLoader( url );
 			_keyData = loader.data as ByteArray;
