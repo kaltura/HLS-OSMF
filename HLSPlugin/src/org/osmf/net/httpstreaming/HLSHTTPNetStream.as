@@ -123,8 +123,10 @@ package org.osmf.net.httpstreaming
 		private var bufferFeedMin:Number = 0.25; // How many seconds to actually keep fed into the native buffer.
 		private var bufferFeedAmount:Number = 0.1; // How many seconds of data to feed when we feed.
 		private var scanningForIFrame:Boolean = false; // When true, we are scanning video tags until we hit a keyframe/I-frame.
-		private var bufferParser:FLVParser = new FLVParser(false);
-
+		private var bufferParser:FLVParser = new FLVParser(false); // Used to parse incoming FLV stream to buffer. TODO: Refactor to be unnecessary.
+		private var needPendingSort:Boolean = false; // Set when we detect a new tag that's not after the last one, to save on resorts.
+		private var endAfterPending:Boolean = false;
+		
 		// Operations on buffer
 		/**
 			State/Logic
@@ -1068,6 +1070,7 @@ package org.osmf.net.httpstreaming
 						CONFIG::FLASH_10_1
 						{
 							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+							flushPendingTags();
 						}
 						
 						_wasBufferEmptied = true;
@@ -1239,28 +1242,9 @@ package org.osmf.net.httpstreaming
 					break;
 				
 				case HTTPStreamingState.STOP:
-					CONFIG::FLASH_10_1
-					{
-						appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
-						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-					}
 
-					var playCompleteInfo:Object = new Object();
-					playCompleteInfo.code = NetStreamCodes.NETSTREAM_PLAY_COMPLETE;
-					playCompleteInfo.level = "status";
-					
-					var playCompleteInfoSDOTag:FLVTagScriptDataObject = new FLVTagScriptDataObject();
-					playCompleteInfoSDOTag.objects = ["onPlayStatus", playCompleteInfo];
-					
-					var tagBytes:ByteArray = new ByteArray();
-					playCompleteInfoSDOTag.write(tagBytes);
-					attemptAppendBytes(tagBytes);
-					
-					CONFIG::FLASH_10_1
-					{
-						appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
-					}
-					
+					endAfterPending = true;
+
 					setState(HTTPStreamingState.HALT);
 					break;
 				
@@ -1862,6 +1846,7 @@ package org.osmf.net.httpstreaming
 						logger.error("I think I should reset playback.");
 					}
 					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+					flushPendingTags();
 				}
 			}
 
@@ -2220,7 +2205,9 @@ package org.osmf.net.httpstreaming
 				var header:FLVHeader = new FLVHeader();
 				var headerBytes:ByteArray = new ByteArray();
 				header.write(headerBytes);
-				attemptAppendBytes(headerBytes);
+				appendBytes(headerBytes);
+
+				flushPendingTags();
 			}
 		}
 		
@@ -2230,9 +2217,13 @@ package org.osmf.net.httpstreaming
 			if(super.bufferLength >= bufferFeedMin)
 				return;
 
-			var curTagOffset:int = 0;
+			// We want to keep the actual required buffer short so we don't stall with
+			// tags still pending.
+			super.bufferTime = bufferFeedMin;
 
-			while(super.bufferLength < (bufferFeedMin + bufferFeedAmount)
+			// Append tag bytes until we've hit our time buffer goal.
+			var curTagOffset:int = 0;
+			while(super.bufferLength <= (bufferFeedMin + bufferFeedAmount)
 			      && (pendingTags.length - curTagOffset) > 0)
 			{
 				// Append some tags.
@@ -2249,11 +2240,37 @@ package org.osmf.net.httpstreaming
 				appendBytes(buffer);
 			}
 
-			// Erase the consumed tags.
+			// Erase the consumed tags. Do it after to avoid costly array shifting.
 			if(curTagOffset)
 			{
 				trace("Submitted " + curTagOffset + " tags, " + (pendingTags.length - curTagOffset) + " left");
 				pendingTags.splice(0, curTagOffset);				
+			}
+
+			// If we're at the end of the stream, emit termination events.
+			if(endAfterPending && pendingTags.length == 0)
+			{
+				trace("FIRING STREAM END");
+				// For us, ending means ending the sequence, firing an onPlayStatus event,
+				// and then really ending.	
+				appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
+				appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+
+				var playCompleteInfo:Object = new Object();
+				playCompleteInfo.code = NetStreamCodes.NETSTREAM_PLAY_COMPLETE;
+				playCompleteInfo.level = "status";
+				
+				var playCompleteInfoSDOTag:FLVTagScriptDataObject = new FLVTagScriptDataObject();
+				playCompleteInfoSDOTag.objects = ["onPlayStatus", playCompleteInfo];
+				
+				var tagBytes:ByteArray = new ByteArray();
+				playCompleteInfoSDOTag.write(tagBytes);
+				appendBytes(tagBytes);
+				
+				appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
+
+				// And done ending.
+				endAfterPending = false;
 			}
 		}
 
@@ -2262,33 +2279,38 @@ package org.osmf.net.httpstreaming
 			if(pendingTags.length == 0)
 				return super.bufferLength;
 
-			// Get active range of pending tags.
-			var minTime:Number = Number.MAX_VALUE, maxTime:Number = 0.0;
-			for(var i:int=0; i<pendingTags.length; i++)
-			{
-				var curTag:FLVTag = pendingTags[i];
-				var curTime:Number = curTag.timestamp;
-				if(curTime < minTime)
-					minTime = curTime;
-				if(curTime > maxTime)
-					maxTime = curTime;
-			}
-
+			// Get active range of pending tags. Since we keep them sorted this is easy.
+			var minTime:Number = pendingTags[0].timestamp
+			var maxTime:Number = pendingTags[pendingTags.length - 1].timestamp;
 			var len:Number = (maxTime - minTime) / 1000 + super.bufferLength;
-			trace("CALCULATED LENGTH TO BE " + len + " (" + (maxTime/1000) + " , " + (minTime/1000) + ", " + super.bufferLength + ")");
+			//trace("CALCULATED LENGTH TO BE " + len + " (" + (maxTime/1000) + " , " + (minTime/1000) + ", " + super.bufferLength + ")");
 			return len;
 		}
+
 
 
 		private function onBufferTag(tag:FLVTag):Boolean
 		{
 			trace("Got tag " + tag);
+
 			// Do filter logic here.
 
-			// Add to the queue.
+			// Add to the queue, marking if we need to resort.
+			if(pendingTags.length > 0 
+				&& tag.timestamp < pendingTags[pendingTags.length-1].timestamp)
+				needPendingSort = true;
 			pendingTags.push(tag);
 
 			return true;
+		}
+
+		// Reset the pending buffer actions.
+		private function flushPendingTags():void
+		{
+			trace("FLUSHING PENDING TAGS");
+			pendingTags.length = 0;
+			endAfterPending = false;
+			needPendingSort = false;
 		}
 
 		/**
@@ -2313,7 +2335,7 @@ package org.osmf.net.httpstreaming
 			// Feed Flash buffer if needed.
 			keepBufferFed();
 		}
-		
+
 		/**
 		 * @private
 		 * 
