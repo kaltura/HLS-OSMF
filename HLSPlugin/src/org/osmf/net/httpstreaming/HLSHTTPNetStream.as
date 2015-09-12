@@ -118,6 +118,69 @@ package org.osmf.net.httpstreaming
 		private var neverBuffered:Boolean = true; // Set after first buffering event.
 		private var bufferBias:Number = 0.0; // Used to forcibly add more time to the buffer based on other logic.
 
+		// Explicit buffer management
+		private var pendingTags:Vector.<FLVTag> = new Vector.<FLVTag>;
+		private var bufferFeedMin:Number = 0.25; // How many seconds to actually keep fed into the native buffer.
+		private var bufferFeedAmount:Number = 0.1; // How many seconds of data to feed when we feed.
+		private var scanningForIFrame:Boolean = false; // When true, we are scanning video tags until we hit a keyframe/I-frame.
+		private var bufferParser:FLVParser = new FLVParser(false);
+
+		// Operations on buffer
+		/**
+			State/Logic
+				isBackInTime = if (lastTime - newTime) > 100ms
+				scanningForIFrame
+
+				if isBackInTime then
+					scanningForIFrame = true
+
+				if scanningForIFrame && !iFrame then
+					skip it
+
+				if scanningForIFrame && iFrame then
+					scanningForIFrame = false
+					splice and add IFrame, resume adding as normal
+
+			Questions
+				Do I splice audio or just add to end?
+					Can we just sync with video?
+				Do I splice script or just add to end?
+				Is it a bad idea to maintain a single vector for this? 
+					Will we hate splice/trim?
+					We could LL but not needed till we see perf #s
+
+			Append tag
+				if new tag goes back in time...
+				find the first i-frame in the new section at or after buffered tags
+				splice at that point
+
+			Feed buffer
+				If >= min in buffer, return
+				add tags until bufferfeedamount added
+				trim buffer
+
+			Flush? - not needed?
+				We resync on iframe so we'll catch up anyway. 
+				I-frame sync is an instant decision so we don't have to reset state
+		
+			To hook up:
+				line 1156 - processAndAppend loop
+				line 2224 - attemptAppendBytes
+					- Accept everything here
+					- check to push on every append?
+					- filter if needed
+
+				Need to flush internal buffer when on seek/reset appendBytesAction
+
+			Concerns:
+				Now potentially running three layers of parsing
+					Can we couple things a bit more directly to minimize re-parsing?
+					probably, but we can do it "raw" first to get it going
+				Do we even need enhanced seeking?
+					yes - this allows us to seek through P frames to a specific time.
+
+		*/
+
 		/**
 		 * Constructor.
 		 * 
@@ -202,7 +265,7 @@ package org.osmf.net.httpstreaming
 			var header:FLVHeader = new FLVHeader();
 			var headerBytes:ByteArray = new ByteArray();
 			header.write(headerBytes);
-			attemptAppendBytes(headerBytes);
+			appendBytes(headerBytes);
 			
 			// Initialize ourselves.
 			_mainTimer.start();
@@ -827,6 +890,9 @@ package org.osmf.net.httpstreaming
 			// Trigger buffer update.
 			updateBufferTime();
 
+			// Feed buffer.
+			keepBufferFed();
+
 			// Check for seeking state.
 			if (seeking && time != timeBeforeSeek && _state != HTTPStreamingState.HALT)
 			{
@@ -886,8 +952,8 @@ package org.osmf.net.httpstreaming
 						// If the timer doesn't yet exist, create it, setting the delay to twice the maximum desired buffer time
 						streamTooSlowTimer = new Timer(_desiredBufferTime_Max * 2000);
 
-						streamTooSlowTimer.addEventListener(TimerEvent.TIMER, function(timerEvent:TimerEvent = null):void {
-
+						streamTooSlowTimer.addEventListener(TimerEvent.TIMER, 
+							function(timerEvent:TimerEvent = null):void {
 							try
 							{
 								// Check we have a valid stream to switch to.
@@ -1131,7 +1197,7 @@ package org.osmf.net.httpstreaming
 							
 							// we can reset the recovery state if we are able to process some bytes and the time has changed since the last error
 							if (time != lastErrorTime && recoveryStateNum == URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED)
-							{	
+							{
 								errorSurrenderTimer.reset();
 								firstSeekForwardCount = -1;
 								recoveryStateNum = URLErrorRecoveryStates.IDLE;
@@ -1898,8 +1964,7 @@ package org.osmf.net.httpstreaming
 						return false;
 					}
 				}
-			}
-			
+			}			
 			
 			if (_enhancedSeekTarget < 0)
 			{
@@ -2009,7 +2074,6 @@ package org.osmf.net.httpstreaming
 							_unmuteTag.codecID = codecID;
 							_unmuteTag.frameType = FLVTagVideo.FRAME_TYPE_INFO;
 							_unmuteTag.infoPacketValue = FLVTagVideo.INFO_PACKET_SEEK_END;
-							
 							bytes = new ByteArray();
 							_unmuteTag.write(bytes);
 							_flvParserProcessed += bytes.length;
@@ -2160,21 +2224,94 @@ package org.osmf.net.httpstreaming
 			}
 		}
 		
+		private function keepBufferFed():void
+		{
+			// Check the actual amount of content present.
+			if(super.bufferLength >= bufferFeedMin)
+				return;
+
+			var curTagOffset:int = 0;
+
+			while(super.bufferLength < (bufferFeedMin + bufferFeedAmount)
+			      && (pendingTags.length - curTagOffset) > 0)
+			{
+				// Append some tags.
+				var buffer:ByteArray = new ByteArray();
+				var tag:FLVTag = pendingTags[curTagOffset];
+				buffer.length = FLVTag.TAG_HEADER_BYTE_COUNT + tag.dataSize;
+				tag.write(buffer);
+				curTagOffset++;
+
+				// Do writing.
+				trace("Writing " + buffer.length + " bytes");
+				if(writeToMasterBuffer)
+					_masterBuffer.writeBytes(buffer);				
+				appendBytes(buffer);
+			}
+
+			// Erase the consumed tags.
+			if(curTagOffset)
+			{
+				trace("Submitted " + curTagOffset + " tags, " + (pendingTags.length - curTagOffset) + " left");
+				pendingTags.splice(0, curTagOffset);				
+			}
+		}
+
+		public override function get bufferLength():Number
+		{
+			if(pendingTags.length == 0)
+				return super.bufferLength;
+
+			// Get active range of pending tags.
+			var minTime:Number = Number.MAX_VALUE, maxTime:Number = 0.0;
+			for(var i:int=0; i<pendingTags.length; i++)
+			{
+				var curTag:FLVTag = pendingTags[i];
+				var curTime:Number = curTag.timestamp;
+				if(curTime < minTime)
+					minTime = curTime;
+				if(curTime > maxTime)
+					maxTime = curTime;
+			}
+
+			var len:Number = (maxTime - minTime) / 1000 + super.bufferLength;
+			trace("CALCULATED LENGTH TO BE " + len + " (" + (maxTime/1000) + " , " + (minTime/1000) + ", " + super.bufferLength + ")");
+			return len;
+		}
+
+
+		private function onBufferTag(tag:FLVTag):Boolean
+		{
+			trace("Got tag " + tag);
+			// Do filter logic here.
+
+			// Add to the queue.
+			pendingTags.push(tag);
+
+			return true;
+		}
+
 		/**
 		 * @private
 		 * 
-		 * Attempts to use the appendsBytes method. Do noting if this is not compiled
+		 * Attempts to use the appendsBytes method. Do nothing if this is not compiled
 		 * for an Argo player or newer.
 		 */
 		private function attemptAppendBytes(bytes:ByteArray):void
 		{
-			if(writeToMasterBuffer)
-				_masterBuffer.writeBytes(bytes);
+			trace("Parsing " + bytes.length);
 
-			CONFIG::FLASH_10_1
+			// Parse to FLV tags and insert into queue.
+			bufferParser.parse(bytes, true, onBufferTag);
+
+			// Sort tags.
+			pendingTags.sort(function(a:FLVTag, b:FLVTag):int
 			{
-				appendBytes(bytes);
-			}
+				return a.timestamp - b.timestamp;
+			});
+
+			// Feed Flash buffer if needed.
+			keepBufferFed();
 		}
 		
 		/**
