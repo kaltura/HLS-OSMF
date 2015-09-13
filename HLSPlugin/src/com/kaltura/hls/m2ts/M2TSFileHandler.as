@@ -407,9 +407,9 @@ package com.kaltura.hls.m2ts
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
 			
-		public var flvLowWaterAudio:uint = 0;
-		public var flvLowWaterVideo:uint = 0;
-		public var flvRecoveringIFrame:Boolean = false;
+		public static var flvLowWaterAudio:Number = 0;
+		public static var flvLowWaterVideo:Number = 0;
+		public static var flvRecoveringIFrame:Boolean = false;
 		public const filterThresholdMs:uint = 64;
 
 		private function clearFLVWaterMarkFilter():void
@@ -447,7 +447,7 @@ package com.kaltura.hls.m2ts
 			// Alway pass through SPS/PPS...
 			var alwaysPass:Boolean = false
 			var isKeyFrame:Boolean = false;
-			if(type == 9)
+			if(type == 9 && false)
 			{
 				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
 					&& message[12] == FLVTags.AVC_MODE_AVCC)
@@ -464,7 +464,7 @@ package com.kaltura.hls.m2ts
 					isKeyFrame = true;
 			}
 
-			if(type == 9)
+			if(type == 9 && false)
 			{
 				var videoWasBelowWatermark:Boolean = (timestamp < flvLowWaterVideo - filterThresholdMs);
 				var willSkip:Boolean = false;
@@ -493,7 +493,7 @@ package com.kaltura.hls.m2ts
 				{
 					CONFIG::LOGGING
 					{
-						logger.debug("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
+						logger.debug("SKIPPING TOO LOW FLV VID TS @ " + timestamp + " mark=" + flvLowWaterVideo);
 					}
 
 					if(SEND_LOGS)
@@ -507,7 +507,7 @@ package com.kaltura.hls.m2ts
 				if(!alwaysPass)
 					flvLowWaterVideo = timestamp + duration;
 			}
-			else if(type == 8)
+			else if(type == 8 && false)
 			{
 				if(timestamp < flvLowWaterAudio - filterThresholdMs)
 				{

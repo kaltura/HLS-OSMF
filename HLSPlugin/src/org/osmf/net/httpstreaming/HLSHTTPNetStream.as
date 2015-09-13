@@ -1845,8 +1845,8 @@ package org.osmf.net.httpstreaming
 					{
 						logger.error("I think I should reset playback.");
 					}
-					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-					flushPendingTags();
+					//appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+					//flushPendingTags();
 				}
 			}
 
@@ -2195,10 +2195,7 @@ package org.osmf.net.httpstreaming
 					logger.debug("We need to to an appendBytesAction in order to reset NetStream internal state");
 				}
 				
-				CONFIG::FLASH_10_1
-				{
-					appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
-				}
+				appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
 				
 				// Before we feed any TCMessages to the Flash Player, we must feed
 				// an FLV header first.
@@ -2280,25 +2277,99 @@ package org.osmf.net.httpstreaming
 				return super.bufferLength;
 
 			// Get active range of pending tags. Since we keep them sorted this is easy.
-			var minTime:Number = pendingTags[0].timestamp
-			var maxTime:Number = pendingTags[pendingTags.length - 1].timestamp;
-			var len:Number = (maxTime - minTime) / 1000 + super.bufferLength;
+			var minTime:Number = pendingTags[0].timestamp / 1000.0;
+			var maxTime:Number = pendingTags[pendingTags.length - 1].timestamp / 1000.0;
+			var len:Number = (maxTime - minTime) + super.bufferLength;
 			//trace("CALCULATED LENGTH TO BE " + len + " (" + (maxTime/1000) + " , " + (minTime/1000) + ", " + super.bufferLength + ")");
 			return len;
 		}
 
-
+		public var videoHighWater:Number = 0;
 
 		private function onBufferTag(tag:FLVTag):Boolean
 		{
-			trace("Got tag " + tag);
+			//trace("Got tag " + tag);
 
 			// Do filter logic here.
+
+			// First, is it audio/video/other?
+			if(tag is FLVTagAudio)
+			{
+
+			}
+			else if (tag is FLVTagVideo)
+			{
+				var vTag = tag as FLVTagVideo;
+
+				// Get highest video time.
+				var isBackInTime:Boolean = videoHighWater > tag.timestamp;
+				var isIFrame:Boolean = vTag.isIFrame;
+
+				if(isBackInTime)
+				{
+					trace("   o I-FRAME SCAN due to backwards time (" + videoHighWater + " > " + vTag.timestamp + ")");
+					scanningForIFrame = true;
+				}
+				else
+				{
+					// Update high water mark.
+					videoHighWater = tag.timestamp;
+				}
+
+				// Skip totally implausible tags.
+				if(pendingTags.length > 0 
+					&& vTag.timestamp < pendingTags[0].timestamp - 100)
+				{
+					trace("   - I-FRAME SCAN due to impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");
+					scanningForIFrame = true;					
+					return true;
+				}
+
+				// Skip until we find our I-frame.
+				if(scanningForIFrame && !isIFrame)
+				{
+					trace("   - SKIPPING non-I-FRAME");
+					return true;
+				}
+
+				if(scanningForIFrame && isIFrame)
+				{
+					trace("   + GOT I-FRAME");
+					scanningForIFrame = false;
+
+					// Drop video frames until we get to before
+					// the timestamp of this I-frame. Then add
+					// this frame as normal.
+					for(var i:int=pendingTags.length-1; i>=0 && pendingTags.length > 0; i--)
+					{
+						// Consider every video tag.
+						var potentialFilterTag:FLVTagVideo = pendingTags[i] as FLVTagVideo;
+						if(!potentialFilterTag)
+							continue;
+
+						// Stop scanning once we find tag before our tag.
+						if(potentialFilterTag.timestamp < vTag.timestamp)
+							break;
+
+						// Remove this tag, update i.
+						trace("   o removing tag at index " + i);
+						pendingTags.splice(i, 1);
+						i++;
+					}
+
+					// Drop through to let tag be added.
+				}
+			}
+			else 
+			{
+				// Just pass it through.
+			}
 
 			// Add to the queue, marking if we need to resort.
 			if(pendingTags.length > 0 
 				&& tag.timestamp < pendingTags[pendingTags.length-1].timestamp)
 				needPendingSort = true;
+
 			pendingTags.push(tag);
 
 			return true;
