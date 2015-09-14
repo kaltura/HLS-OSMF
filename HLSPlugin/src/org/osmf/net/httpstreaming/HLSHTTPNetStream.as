@@ -2208,6 +2208,8 @@ package org.osmf.net.httpstreaming
 			}
 		}
 		
+		public var lastWrittenTime:Number = -1;
+
 		private function keepBufferFed():void
 		{
 			// Check the actual amount of content present.
@@ -2230,8 +2232,20 @@ package org.osmf.net.httpstreaming
 				tag.write(buffer);
 				curTagOffset++;
 
+				if(lastWrittenTime == -1)
+					lastWrittenTime = tag.timestamp / 1000;
+
+				// If it's more than 0.5 second jump ahead of current playhead, insert a RESET_SEEK so we won't stall forever.
+				if((tag.timestamp / 1000) - lastWrittenTime > bufferFeedMin + bufferFeedAmount * 2)
+				{
+					trace("Inserting RESET_SEEK due to " + (tag.timestamp / 1000) + " being too far ahead of " + (super.time + super.bufferLength));
+					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+				}
+
+				lastWrittenTime = tag.timestamp / 1000;
+
 				// Do writing.
-				trace("Writing " + buffer.length + " bytes");
+				trace("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec");
 				if(writeToMasterBuffer)
 					_masterBuffer.writeBytes(buffer);				
 				appendBytes(buffer);
@@ -2268,6 +2282,9 @@ package org.osmf.net.httpstreaming
 
 				// And done ending.
 				endAfterPending = false;
+
+				// Also flush our other state.
+				flushPendingTags();
 			}
 		}
 
@@ -2275,6 +2292,8 @@ package org.osmf.net.httpstreaming
 		{
 			if(pendingTags.length == 0)
 				return super.bufferLength;
+
+			ensurePendingSorted();
 
 			// Get active range of pending tags. Since we keep them sorted this is easy.
 			var minTime:Number = pendingTags[0].timestamp / 1000.0;
@@ -2284,55 +2303,104 @@ package org.osmf.net.httpstreaming
 			return len;
 		}
 
-		public var videoHighWater:Number = 0;
+		// Get last video tag's time.
+		private function getHighestVideoTime():Number
+		{
+			//ensurePendingSorted();
+
+			for(var i:int=pendingTags.length-1; i>=0; i--)
+			{
+				var vTag:FLVTagVideo = pendingTags[i] as FLVTagVideo;
+				
+				if(!vTag)
+					continue;
+
+				return vTag.timestamp;
+			}
+
+			return 0;
+		}
+
+		// Get last audio tag's time.
+		private function getHighestAudioTime():Number
+		{
+			//ensurePendingSorted();
+
+			for(var i:int=pendingTags.length-1; i>=0; i--)
+			{
+				var aTag:FLVTagAudio = pendingTags[i] as FLVTagAudio;
+				
+				if(!aTag)
+					continue;
+
+				return aTag.timestamp;
+			}
+
+			return 0;
+		}
 
 		private function onBufferTag(tag:FLVTag):Boolean
 		{
 			//trace("Got tag " + tag);
 
-			// Do filter logic here.
-
 			// First, is it audio/video/other?
 			if(tag is FLVTagAudio)
 			{
-
+				if(tag.timestamp <= getHighestAudioTime())
+				{
+					trace("Skipping audio due to too low time.");
+					return true;
+				}
 			}
 			else if (tag is FLVTagVideo)
 			{
-				var vTag = tag as FLVTagVideo;
+				var vTag:FLVTagVideo = tag as FLVTagVideo;
 
-				// Get highest video time.
-				var isBackInTime:Boolean = videoHighWater > tag.timestamp;
+				var timeDelta:Number = getHighestVideoTime() - tag.timestamp;
+				var isBackInTime:Boolean = timeDelta > 150;
 				var isIFrame:Boolean = vTag.isIFrame;
 
-				if(isBackInTime)
+				//trace("was i-frame " + isIFrame + " was AVCC " + vTag.isAVCC);
+
+				if(!scanningForIFrame && isBackInTime)
 				{
-					trace("   o I-FRAME SCAN due to backwards time (" + videoHighWater + " > " + vTag.timestamp + ")");
+					trace("   o I-FRAME SCAN due to backwards time (delta=" + timeDelta + ")");
 					scanningForIFrame = true;
-				}
-				else
-				{
-					// Update high water mark.
-					videoHighWater = tag.timestamp;
 				}
 
 				// Skip totally implausible tags.
-				if(pendingTags.length > 0 
-					&& vTag.timestamp < pendingTags[0].timestamp - 100)
+				if(!scanningForIFrame && 
+					pendingTags.length > 0 && vTag.timestamp < pendingTags[0].timestamp)
 				{
-					trace("   - I-FRAME SCAN due to impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");
-					scanningForIFrame = true;					
-					return true;
+					scanningForIFrame = true;
+
+					if(vTag.isAVCC == false)
+					{
+						trace("   - I-FRAME SCAN and reject due to impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");
+						return true;
+					}
+					else
+					{
+						trace("   - I-FRAME SCAN and but kept AVCC in face of impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");						
+					}
 				}
 
 				// Skip until we find our I-frame.
 				if(scanningForIFrame && !isIFrame)
 				{
-					trace("   - SKIPPING non-I-FRAME");
-					return true;
+					// Always pass AVCC info.
+					if(!vTag.isAVCC)
+					{
+						trace("   - SKIPPING non-I-FRAME");
+						return true;						
+					}
+					else
+					{
+						trace("    - preserving AVCC during I-frame scan");
+					}
 				}
 
-				if(scanningForIFrame && isIFrame)
+				if(scanningForIFrame && isIFrame && !vTag.isAVCC)
 				{
 					trace("   + GOT I-FRAME");
 					scanningForIFrame = false;
@@ -2342,13 +2410,17 @@ package org.osmf.net.httpstreaming
 					// this frame as normal.
 					for(var i:int=pendingTags.length-1; i>=0 && pendingTags.length > 0; i--)
 					{
+						// Extra sanity.
+						if(i > pendingTags.length - 1)
+							i = pendingTags.length - 1;
+							
 						// Consider every video tag.
 						var potentialFilterTag:FLVTagVideo = pendingTags[i] as FLVTagVideo;
 						if(!potentialFilterTag)
 							continue;
 
 						// Stop scanning once we find tag before our tag.
-						if(potentialFilterTag.timestamp < vTag.timestamp)
+						if(pendingTags[i].timestamp < vTag.timestamp - 2)
 							break;
 
 						// Remove this tag, update i.
@@ -2357,12 +2429,13 @@ package org.osmf.net.httpstreaming
 						i++;
 					}
 
+					// We know next thing we write will be somewhere crazy as we 
+					// ate the whole buffer.
+					if(pendingTags.length == 0)
+						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+
 					// Drop through to let tag be added.
 				}
-			}
-			else 
-			{
-				// Just pass it through.
 			}
 
 			// Add to the queue, marking if we need to resort.
@@ -2382,6 +2455,20 @@ package org.osmf.net.httpstreaming
 			pendingTags.length = 0;
 			endAfterPending = false;
 			needPendingSort = false;
+			scanningForIFrame = false;
+		}
+
+		private function ensurePendingSorted():void
+		{
+			if(needPendingSort == false)
+				return;
+
+			pendingTags.sort(function(a:FLVTag, b:FLVTag):int
+			{
+				return a.timestamp - b.timestamp;
+			});
+
+			needPendingSort = false;
 		}
 
 		/**
@@ -2395,13 +2482,13 @@ package org.osmf.net.httpstreaming
 			trace("Parsing " + bytes.length);
 
 			// Parse to FLV tags and insert into queue.
+			bytes.position = 0;
 			bufferParser.parse(bytes, true, onBufferTag);
 
 			// Sort tags.
-			pendingTags.sort(function(a:FLVTag, b:FLVTag):int
-			{
-				return a.timestamp - b.timestamp;
-			});
+			ensurePendingSorted();
+
+			trace("    In buffer: " + pendingTags.length + " tags");
 
 			// Feed Flash buffer if needed.
 			keepBufferFed();

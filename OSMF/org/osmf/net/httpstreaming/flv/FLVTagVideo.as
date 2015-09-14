@@ -56,19 +56,23 @@ package org.osmf.net.httpstreaming.flv
 			super(type);
 		}
 		
+		public function get isAVCC():Boolean
+		{
+			// Must be keyframe.
+			if(frameType != FRAME_TYPE_KEYFRAME)
+				return false;
+
+			// And config record.
+			if(bytes[12] == 0)
+				return true;
+
+			return false;
+		}
 
 		public function get isIFrame():Boolean
 		{
-			// Must be video tag.
-			if(bytes[0] != 9)
-				return false;
-
-			// Make sure we don't overrun buffer.
-			if(bytes.length < 13)
-				return false;
-
 			// Must be keyframe.
-			if(bytes[11] != FRAME_TYPE_KEYFRAME)
+			if(frameType != FRAME_TYPE_KEYFRAME)
 				return false;
 
 			// But not config record.
