@@ -2388,19 +2388,19 @@ package org.osmf.net.httpstreaming
 				// Skip until we find our I-frame.
 				if(scanningForIFrame && !isIFrame)
 				{
-					// Always pass AVCC info.
-					if(!vTag.isAVCC)
+					if(vTag.isAVCC == false)
 					{
 						trace("   - SKIPPING non-I-FRAME");
-						return true;						
+						return true;
 					}
 					else
 					{
+						// Always pass AVCC info.
 						trace("    - preserving AVCC during I-frame scan");
 					}
 				}
 
-				if(scanningForIFrame && isIFrame && !vTag.isAVCC)
+				if(scanningForIFrame && isIFrame)
 				{
 					trace("   + GOT I-FRAME");
 					scanningForIFrame = false;
@@ -2419,8 +2419,11 @@ package org.osmf.net.httpstreaming
 						if(!potentialFilterTag)
 							continue;
 
+						if(potentialFilterTag.isAVCC)
+							continue;
+
 						// Stop scanning once we find tag before our tag.
-						if(pendingTags[i].timestamp < vTag.timestamp - 2)
+						if(pendingTags[i].timestamp <= vTag.timestamp)
 							break;
 
 						// Remove this tag, update i.
