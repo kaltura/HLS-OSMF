@@ -193,10 +193,10 @@ package com.kaltura.hls.manifest
 			timestamp = getTimer();
 
 			fullUrl = _fullUrl;
-			if(fullUrl.indexOf("?") >= 0){
-				fullUrl = fullUrl.slice(0, fullUrl.indexOf("?"));
+			if(_fullUrl.indexOf("?") >= 0){
+				_fullUrl = _fullUrl.slice(0, _fullUrl.indexOf("?"));
 			}
-			baseUrl = fullUrl.substring(0, fullUrl.lastIndexOf("/") + 1);
+			baseUrl = _fullUrl.substring(0, _fullUrl.lastIndexOf("/") + 1);	
 			//logger.debug("BASE URL " + baseUrl);
 			
 			// Normalize line endings.
