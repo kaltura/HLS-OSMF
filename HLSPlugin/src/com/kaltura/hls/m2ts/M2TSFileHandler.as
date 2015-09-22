@@ -407,9 +407,9 @@ package com.kaltura.hls.m2ts
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
 			
-		public static var flvLowWaterAudio:uint = 0;
-		public static var flvLowWaterVideo:uint = 0;
-		public static var flvRecoveringIFrame:Boolean = false;
+		public var flvLowWaterAudio:uint = 0;
+		public var flvLowWaterVideo:uint = 0;
+		public var flvRecoveringIFrame:Boolean = false;
 		public const filterThresholdMs:uint = 64;
 
 		private function clearFLVWaterMarkFilter():void
