@@ -120,7 +120,7 @@ package org.osmf.net.httpstreaming
 
 		// Explicit buffer management
 		private var pendingTags:Vector.<FLVTag> = new Vector.<FLVTag>;
-		private var bufferFeedMin:Number = 0.25; // How many seconds to actually keep fed into the native buffer.
+		private var bufferFeedMin:Number = 1.0; // How many seconds to actually keep fed into the native buffer.
 		private var bufferFeedAmount:Number = 0.1; // How many seconds of data to feed when we feed.
 		private var scanningForIFrame:Boolean = false; // When true, we are scanning video tags until we hit a keyframe/I-frame.
 		private var bufferParser:FLVParser = new FLVParser(false); // Used to parse incoming FLV stream to buffer. TODO: Refactor to be unnecessary.
