@@ -2233,19 +2233,19 @@ package org.osmf.net.httpstreaming
 				curTagOffset++;
 
 				if(lastWrittenTime == -1)
-					lastWrittenTime = tag.timestamp / 1000;
+					lastWrittenTime = tag.cachedTimestamp / 1000;
 
 				// If it's more than 0.5 second jump ahead of current playhead, insert a RESET_SEEK so we won't stall forever.
-				if((tag.timestamp / 1000) - lastWrittenTime > bufferFeedMin + bufferFeedAmount * 2)
+				if((tag.cachedTimestamp / 1000) - lastWrittenTime > bufferFeedMin + bufferFeedAmount * 2)
 				{
-					trace("Inserting RESET_SEEK due to " + (tag.timestamp / 1000) + " being too far ahead of " + (super.time + super.bufferLength));
+					trace("Inserting RESET_SEEK due to " + (tag.cachedTimestamp / 1000) + " being too far ahead of " + (super.time + super.bufferLength));
 					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 				}
 
-				lastWrittenTime = tag.timestamp / 1000;
+				lastWrittenTime = tag.cachedTimestamp / 1000;
 
 				// Do writing.
-				trace("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec");
+				trace("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType);
 				if(writeToMasterBuffer)
 					_masterBuffer.writeBytes(buffer);				
 				appendBytes(buffer);
@@ -2463,7 +2463,7 @@ package org.osmf.net.httpstreaming
 
 		static protected function pendingSortCallback(a:FLVTag, b:FLVTag):int
 		{
-			if(a.timestamp == b.timestamp)
+			if(a.cachedTimestamp == b.cachedTimestamp)
 			{
 				var vTagA:FLVTagVideo = a as FLVTagVideo;
 				var vTagB:FLVTagVideo = b as FLVTagVideo;
@@ -2478,7 +2478,7 @@ package org.osmf.net.httpstreaming
 				}
 			}
 
-			return a.timestamp - b.timestamp;
+			return a.cachedTimestamp - b.cachedTimestamp;
 		}
 
 		private function ensurePendingSorted():void
