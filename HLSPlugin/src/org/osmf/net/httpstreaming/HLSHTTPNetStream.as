@@ -2346,7 +2346,7 @@ package org.osmf.net.httpstreaming
 			// First, is it audio/video/other?
 			if(tag is FLVTagAudio)
 			{
-				if(tag.timestamp <= getHighestAudioTime())
+				if(tag.timestamp < getHighestAudioTime())
 				{
 					trace("Skipping audio due to too low time.");
 					return true;
@@ -2461,15 +2461,17 @@ package org.osmf.net.httpstreaming
 			scanningForIFrame = false;
 		}
 
+		static protected function pendingSortCallback(a:FLVTag, b:FLVTag):int
+		{
+			return a.timestamp - b.timestamp;
+		}
+
 		private function ensurePendingSorted():void
 		{
 			if(needPendingSort == false)
 				return;
 
-			pendingTags.sort(function(a:FLVTag, b:FLVTag):int
-			{
-				return a.timestamp - b.timestamp;
-			});
+			pendingTags.sort(pendingSortCallback);
 
 			needPendingSort = false;
 		}
