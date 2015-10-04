@@ -2463,6 +2463,21 @@ package org.osmf.net.httpstreaming
 
 		static protected function pendingSortCallback(a:FLVTag, b:FLVTag):int
 		{
+			if(a.timestamp == b.timestamp)
+			{
+				var vTagA:FLVTagVideo = a as FLVTagVideo;
+				var vTagB:FLVTagVideo = b as FLVTagVideo;
+
+				if(vTagA && vTagB)
+				{
+					// Both video tags at same time - make sure SPS/PPS comes first.
+					if(vTagA.isAVCC && !vTagB.isAVCC)
+						return -1;
+					else if(!vTagA.isAVCC && vTagB.isAVCC)
+						return 1;
+				}
+			}
+
 			return a.timestamp - b.timestamp;
 		}
 
