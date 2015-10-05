@@ -480,7 +480,7 @@ package com.kaltura.hls.m2ts
 				//ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + ", true, " + isKeyFrame + ")");			
 			}
 
-			logger.debug("Got FLV " + type + " with " + message.length + " bytes at " + timestampSeconds + " seconds");
+			//logger.debug("Got FLV " + type + " with " + message.length + " bytes at " + timestampSeconds + " seconds");
 
 			if(_timeOriginNeeded)
 			{

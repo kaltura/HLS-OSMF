@@ -68,8 +68,7 @@ package com.kaltura.hls.m2ts
 
             CONFIG::LOGGING
             {
-                //logger.debug("FLV @ " + flvts + " dur=" + duration + " len=" + tag.length + " type=" + type + " payloadLen=" + msgLength);
-                ;
+                logger.debug("FLV @ " + flvts + " dur=" + duration + " len=" + tag.length + " type=" + type + " payloadLen=" + msgLength);
             }
 
             tag[cursor++] = type;

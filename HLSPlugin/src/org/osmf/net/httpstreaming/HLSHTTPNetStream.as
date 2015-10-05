@@ -2499,7 +2499,7 @@ package org.osmf.net.httpstreaming
 		 */
 		private function attemptAppendBytes(bytes:ByteArray):void
 		{
-			trace("Parsing " + bytes.length);
+			//trace("Parsing " + bytes.length);
 
 			// Parse to FLV tags and insert into queue.
 			bytes.position = 0;
@@ -2508,7 +2508,6 @@ package org.osmf.net.httpstreaming
 			// Sort tags.
 			ensurePendingSorted();
 
-			trace("    In buffer: " + pendingTags.length + " tags");
 
 			// Feed Flash buffer if needed.
 			keepBufferFed();
