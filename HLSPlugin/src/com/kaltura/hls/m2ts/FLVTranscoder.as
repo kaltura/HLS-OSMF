@@ -260,12 +260,11 @@ package com.kaltura.hls.m2ts
             
             CONFIG::LOGGING
             {
-                ;
                 //logger.debug("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+
+                if(flvts > int.MAX_VALUE)
+                    logger.error("FLVTranscoder - warning - timestamp too big for FLV time value: " + flvts);
             }
-            
-            if(flvts > int.MAX_VALUE)
-                trace("GOT TOOO BIG FLVTS: " + flvts);
 
             sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length, tsDelta);
         }

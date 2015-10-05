@@ -193,7 +193,7 @@ package org.osmf.net.httpstreaming.flv
 			//trace("byteSource - " + numBytes);
 			if (savedBytes.bytesAvailable + input.bytesAvailable < numBytes)
 			{
-				trace("byteSource - " + numBytes + " not available");
+				//trace("byteSource - " + numBytes + " not available");
 				return null;
 			}
 			
