@@ -28,7 +28,7 @@ package com.kaltura.hls.muxing
 					switch(header)
 					{
 						case "ID3":
-						trace("Got ID3 at " + data.position);
+							//trace("Got ID3 at " + data.position);
 
 							data.position += 3;
 							
@@ -59,14 +59,14 @@ package com.kaltura.hls.muxing
 									var cursor:int = data.position;
 									var pts:Number = 0;
 
-					                pts  = data[cursor] & 0x01; pts = pts << 8;
-					                pts  += data[cursor + 1];    pts = pts << 8;
-					                pts  += data[cursor + 2];    pts = pts << 8;
-					                pts  += data[cursor + 3];    pts = pts << 8;
-					                pts  += data[cursor + 4];
+									pts  = data[cursor] & 0x01; pts = pts << 8;
+									pts  += data[cursor + 1];    pts = pts << 8;
+									pts  += data[cursor + 2];    pts = pts << 8;
+									pts  += data[cursor + 3];    pts = pts << 8;
+									pts  += data[cursor + 4];
 
 									timestamp = pts / 90;
-									trace("saw timestamp " + timestamp + " pts=" + pts + "@ " + cursor);
+									//trace("saw timestamp " + timestamp + " pts=" + pts + "@ " + cursor);
 									hasTimestamp = true;
 									return;
 								}								

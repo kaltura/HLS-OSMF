@@ -24,11 +24,21 @@ package com.kaltura.hls.muxing
 		private static const SAMPLE_RATES:Vector.<int> = 
 			new<int> [96000, 88200, 64000, 48000, 44100, 32000,
 					  24000, 22050, 16000, 12000, 11025, 8000, 7350];
-				
+
+
+		// Set if we have found an ID3 tag.
+		public var lastId3:ID3Parser = null;
+
+		// Once we encounter an ADIF, it's stored for reuse.
+		public var lastAdif:ByteArray = null;
+
+		// Last PTS so we can resume emitting data at right time.
+		public var lastPts:Number = 0;
+
 		// Helper to determine if some bytes probably have AAC data in them.
 		public static function probe(data:ByteArray):Boolean 
 		{
-			trace("AAC Probing " + data.length + " bytes, pos = " + data.position);
+			//trace("AAC Probing " + data.length + " bytes, pos = " + data.position);
 
 			// Extract ID3 header.
 			var pos:Number = data.position;
@@ -39,12 +49,12 @@ package com.kaltura.hls.muxing
 			// If we failed to extract a timestamp, bail.
 			if(!id3.hasTimestamp)
 			{
-				trace("NO ID3 TIMESTAMP");
+				//trace("NO ID3 TIMESTAMP");
 				data.position = pos;
 				return false;
 			}
 			
-			trace("ID3 TIMESTAMP = " + id3.timestamp);
+			//trace("ID3 TIMESTAMP = " + id3.timestamp);
 
 			// Scan a little ways into the buffer looking for an ADTS syncword.
 			var searchDistance:Number = Math.min(data.bytesAvailable, 4096);
@@ -58,20 +68,16 @@ package com.kaltura.hls.muxing
 				
 				// It's a match!
 				data.position-=2;
-				trace("SYNC");
+				//trace("SYNC");
 				return true;
 			}
 			while(data.position < searchDistance);
 			
 			// Clean up and return, no sync.
-			trace("NO SYNC");
+			//trace("NO SYNC");
 			data.position = pos;
 			return false;
 		}
-
-		public var lastId3:ID3Parser = null;
-		public var lastAdif:ByteArray = null;
-		public var lastPts:Number = 0;
 		
 		/**
 		 * Parse and return how many bytes we consumed.
@@ -91,7 +97,7 @@ package com.kaltura.hls.muxing
 				lastId3 = new ID3Parser();
 				lastId3.parse(data);
 				lastPts = lastId3.timestamp;
-				trace("Start timestamp of " + lastPts);
+				//trace("Start timestamp of " + lastPts);
 			}
 			
 			// Parse frames/ADIF data.
@@ -106,7 +112,7 @@ package com.kaltura.hls.muxing
 			for(var i:int=0; i<frameExtents.length; i++)
 			{
 				lastPts += 1024000 / frameExtents[i].sampleRate;
-				trace("lastPts = " + lastPts + " , sampleRate = " + frameExtents[i].sampleRate);
+				//trace("lastPts = " + lastPts + " , sampleRate = " + frameExtents[i].sampleRate);
 				curPTS = Math.round(lastPts);
 				
 				curTag = new FLVTagAudio();

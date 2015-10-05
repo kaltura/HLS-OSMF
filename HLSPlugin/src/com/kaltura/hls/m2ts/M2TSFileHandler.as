@@ -288,7 +288,7 @@ package com.kaltura.hls.m2ts
 			if(!aacParser && AACParser.probe(tmpBuffer))
 			{
 				aacParser = new AACParser();
-				logger.debug("GOT AAC " + tmpBuffer.length);
+				//logger.debug("GOT AAC " + tmpBuffer.length);
 			}
 
 			// If we know we're an AAC, process it.
@@ -297,27 +297,27 @@ package com.kaltura.hls.m2ts
 				_fragReadBuffer = new ByteArray();
 
 				// Stick any bytes that we have into the AAC accumulator...
-				trace("Adding to AAC accum " + tmpBuffer.length + " bytes");
+				//logger.debug("Adding to AAC accum " + tmpBuffer.length + " bytes");
 				var oldLen:int = aacAccumulator.length;
 				aacAccumulator.length += tmpBuffer.length;
 				aacAccumulator.writeBytes(tmpBuffer, oldLen, tmpBuffer.length);
-				trace("accum now " + aacAccumulator.length);
+				//logger.debug("accum now " + aacAccumulator.length);
 
 				var aacBytesRead:int = aacParser.parse(aacAccumulator, _fragReadHandler, _flush);
-				trace("AAC parsed " + aacBytesRead + " bytes out of " + aacAccumulator.length);
+				//logger.debug("AAC parsed " + aacBytesRead + " bytes out of " + aacAccumulator.length);
 
 				// Save off any bytes we haven't processed yet.
 				if(aacBytesRead > 0 && aacBytesRead < aacAccumulator.length)
 				{
-					trace("Moving bytes to beginning");
+					//logger.debug("Moving bytes to beginning");
 					// Move remaining bytes to beginning.
 					aacAccumulator.writeBytes(aacAccumulator, aacBytesRead, aacAccumulator.length);
 					aacAccumulator.length -= aacBytesRead;
-					trace("Bytes left: " + aacAccumulator.length);
+					//logger.debug("Bytes left: " + aacAccumulator.length);
 				}
 				else if(aacBytesRead >= aacAccumulator.length)
 				{
-					trace("Read too many bytes; assuming that means all of them.");
+					//logger.debug("Read too many bytes; assuming that means all of them.");
 					aacAccumulator.length = 0;
 				}
 
@@ -331,7 +331,7 @@ package com.kaltura.hls.m2ts
 				}
 
 				_fragReadBuffer.position = 0;
-				trace("Returning " + _fragReadBuffer.length + " bytes of AAC data");
+				//logger.debug("Returning " + _fragReadBuffer.length + " bytes of AAC data");
 				return _fragReadBuffer;
 			}
 			
@@ -377,7 +377,7 @@ package com.kaltura.hls.m2ts
 			for(var i:int=0; i<audioTags.length; i++)
 			{
 				var timestampSeconds:Number = audioTags[i].timestamp / 1000.0;
-				trace("Writing AAC Tag @ " + timestampSeconds)
+				//trace("Writing AAC Tag @ " + timestampSeconds)
 				_segmentLastSeconds = timestampSeconds;
 
 				if(_segmentBeginSeconds < 0)
@@ -477,7 +477,12 @@ package com.kaltura.hls.m2ts
 
 			if(SEND_LOGS)
 			{
-				//ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + ", true, " + isKeyFrame + ")");			
+				var alwaysPass:Boolean = false
+				var isKeyFrame:Boolean = false;
+				if(type == 9 && message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
+						isKeyFrame = true;
+				
+				ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + 0 + "," + 0 + ", true, " + isKeyFrame + ")");	
 			}
 
 			//logger.debug("Got FLV " + type + " with " + message.length + " bytes at " + timestampSeconds + " seconds");

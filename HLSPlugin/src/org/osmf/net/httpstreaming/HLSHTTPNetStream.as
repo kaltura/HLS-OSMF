@@ -2238,14 +2238,21 @@ package org.osmf.net.httpstreaming
 				// If it's more than 0.5 second jump ahead of current playhead, insert a RESET_SEEK so we won't stall forever.
 				if((tag.cachedTimestamp / 1000) - lastWrittenTime > bufferFeedMin + bufferFeedAmount * 2)
 				{
-					trace("Inserting RESET_SEEK due to " + (tag.cachedTimestamp / 1000) + " being too far ahead of " + (super.time + super.bufferLength));
+					CONFIG::LOGGING
+					{
+						logger.debug("Inserting RESET_SEEK due to " + (tag.cachedTimestamp / 1000) + " being too far ahead of " + (super.time + super.bufferLength));
+					}
 					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 				}
 
 				lastWrittenTime = tag.cachedTimestamp / 1000;
 
 				// Do writing.
-				trace("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType);
+				CONFIG::LOGGING
+				{
+					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType);
+				}
+
 				if(writeToMasterBuffer)
 					_masterBuffer.writeBytes(buffer);				
 				appendBytes(buffer);
@@ -2254,14 +2261,22 @@ package org.osmf.net.httpstreaming
 			// Erase the consumed tags. Do it after to avoid costly array shifting.
 			if(curTagOffset)
 			{
-				trace("Submitted " + curTagOffset + " tags, " + (pendingTags.length - curTagOffset) + " left");
+				CONFIG::LOGGING
+				{
+					logger.debug("Submitted " + curTagOffset + " tags, " + (pendingTags.length - curTagOffset) + " left");
+				}
+
 				pendingTags.splice(0, curTagOffset);				
 			}
 
 			// If we're at the end of the stream, emit termination events.
 			if(endAfterPending && pendingTags.length == 0)
 			{
-				trace("FIRING STREAM END");
+				CONFIG::LOGGING
+				{
+					logger.debug("FIRING STREAM END");
+				}
+
 				// For us, ending means ending the sequence, firing an onPlayStatus event,
 				// and then really ending.	
 				appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
@@ -2348,7 +2363,10 @@ package org.osmf.net.httpstreaming
 			{
 				if(tag.timestamp < getHighestAudioTime())
 				{
-					trace("Skipping audio due to too low time.");
+					CONFIG::LOGGING
+					{
+						logger.warn("Skipping audio due to too low time.");
+					}
 					return true;
 				}
 			}
@@ -2364,7 +2382,11 @@ package org.osmf.net.httpstreaming
 
 				if(!scanningForIFrame && isBackInTime)
 				{
-					trace("   o I-FRAME SCAN due to backwards time (delta=" + timeDelta + ")");
+					CONFIG::LOGGING
+					{
+						logger.debug("   o I-FRAME SCAN due to backwards time (delta=" + timeDelta + ")");
+					}
+					
 					scanningForIFrame = true;
 				}
 
@@ -2376,12 +2398,20 @@ package org.osmf.net.httpstreaming
 
 					if(vTag.isAVCC == false)
 					{
-						trace("   - I-FRAME SCAN and reject due to impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");
+						CONFIG::LOGGING
+						{
+							logger.debug("   - I-FRAME SCAN and reject due to impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");
+						}
+						
 						return true;
 					}
 					else
 					{
-						trace("   - I-FRAME SCAN and but kept AVCC in face of impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");						
+						CONFIG::LOGGING
+						{
+							logger.debug("   - I-FRAME SCAN and but kept AVCC in face of impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");						
+						}
+						
 					}
 				}
 
@@ -2390,19 +2420,30 @@ package org.osmf.net.httpstreaming
 				{
 					if(vTag.isAVCC == false)
 					{
-						trace("   - SKIPPING non-I-FRAME");
+						CONFIG::LOGGING
+						{
+							logger.debug("   - SKIPPING non-I-FRAME");
+						}
+						
 						return true;
 					}
 					else
 					{
 						// Always pass AVCC info.
-						trace("    - preserving AVCC during I-frame scan");
+						CONFIG::LOGGING
+						{
+							logger.debug("    - preserving AVCC during I-frame scan");
+						}
 					}
 				}
 
 				if(scanningForIFrame && isIFrame)
 				{
-					trace("   + GOT I-FRAME");
+					CONFIG::LOGGING
+					{
+						logger.debug("   + GOT I-FRAME");
+					}
+					
 					scanningForIFrame = false;
 
 					// Drop video frames until we get to before
@@ -2427,7 +2468,11 @@ package org.osmf.net.httpstreaming
 							break;
 
 						// Remove this tag, update i.
-						trace("   o removing tag at index " + i);
+						CONFIG::LOGGING
+						{
+							logger.debug("   o removing tag at index " + i);
+						}
+						
 						pendingTags.splice(i, 1);
 						i++;
 					}
@@ -2454,7 +2499,11 @@ package org.osmf.net.httpstreaming
 		// Reset the pending buffer actions.
 		private function flushPendingTags():void
 		{
-			trace("FLUSHING PENDING TAGS");
+			CONFIG::LOGGING
+			{
+				logger.debug("FLUSHING PENDING TAGS");
+			}
+			
 			pendingTags.length = 0;
 			endAfterPending = false;
 			needPendingSort = false;
@@ -2508,6 +2557,7 @@ package org.osmf.net.httpstreaming
 			// Sort tags.
 			ensurePendingSorted();
 
+			//trace("    In buffer: " + pendingTags.length + " tags");
 
 			// Feed Flash buffer if needed.
 			keepBufferFed();
