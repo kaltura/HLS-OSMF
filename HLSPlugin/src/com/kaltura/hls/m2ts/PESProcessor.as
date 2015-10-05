@@ -311,6 +311,7 @@ package com.kaltura.hls.m2ts
 
             packet.pts = pts;
             packet.dts = dts;
+
             //logger.debug("   PTS=" + pts/90000 + " DTS=" + dts/90000);
 
             cursor += pesHeaderDataLength;
@@ -341,9 +342,9 @@ package com.kaltura.hls.m2ts
                 {
                     CONFIG::LOGGING
                     {
-                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp, skipping");
+                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp?");
                     }
-                    return true;
+                    //return true;
                 }
                 
                 pes = new PESPacketStream();

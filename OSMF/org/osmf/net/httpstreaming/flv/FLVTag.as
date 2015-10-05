@@ -156,6 +156,16 @@ package org.osmf.net.httpstreaming.flv
 			// noting the unusual order
 			return (bytes[7] << 24) | (bytes[4] << 16) | (bytes[5] << 8) | (bytes[6]);
 		}
+
+		private var _cachedTimestamp:Number = -1;
+
+		public function get cachedTimestamp():uint
+		{
+			if(_cachedTimestamp == -1)
+				_cachedTimestamp = timestamp;
+			return _cachedTimestamp;
+		}
+
 		
 		public function set timestamp(value:uint):void
 		{
@@ -163,6 +173,7 @@ package org.osmf.net.httpstreaming.flv
 			bytes[4] = (value >> 16) & 0xff;
 			bytes[5] = (value >> 8) & 0xff;
 			bytes[6] = (value) & 0xff;
+			_cachedTimestamp = -1;
 		}
 		
 		public function get data():ByteArray
@@ -174,6 +185,7 @@ package org.osmf.net.httpstreaming.flv
 		
 		public function set data(value:ByteArray):void
 		{
+			_cachedTimestamp = -1;
 			bytes.length = TAG_HEADER_BYTE_COUNT + value.length;	// resize first
 			bytes.position = TAG_HEADER_BYTE_COUNT;
 			bytes.writeBytes(value, 0, value.length); // copy in
