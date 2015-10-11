@@ -133,7 +133,7 @@ package com.kaltura.hls.m2ts
                 {
                     CONFIG::LOGGING
                     {
-                        logger.error("Discarding buffered FLV tag due to no callback!");                        
+                        logger.error("Discarding buffered FLV tag due to no callback!");
                     }
                 }
             }
@@ -220,15 +220,15 @@ package com.kaltura.hls.m2ts
         }
 
         // State used to estimate video framerate.
-        public var videoLastDTS:int = -1000000.0;
+        public var videoLastDTS:Number = 0.0;
 
         /**
          * Convert and emit AVC NALU data.
          */
         public function convert(unit:NALU):void
         {
-            var flvts:uint = convertFLVTimestamp(unit.dts);
-            var tsu:uint = convertFLVTimestamp(unit.pts - unit.dts);
+            var flvts:Number = convertFLVTimestamp(unit.dts);
+            var tsu:Number = convertFLVTimestamp(unit.pts - unit.dts);
 
             // Estimate current framerate, default to 30hz if can't get a plausible estimate.
             var tsDelta:int = convertFLVTimestamp(unit.dts - videoLastDTS);
@@ -260,9 +260,12 @@ package com.kaltura.hls.m2ts
             
             CONFIG::LOGGING
             {
-                logger.debug("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+                //logger.debug("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+
+                if(flvts > int.MAX_VALUE)
+                    logger.error("FLVTranscoder - warning - timestamp too big for FLV time value: " + flvts);
             }
-            
+
             sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length, tsDelta);
         }
 

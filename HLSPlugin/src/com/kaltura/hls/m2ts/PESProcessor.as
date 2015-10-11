@@ -303,14 +303,17 @@ package com.kaltura.hls.m2ts
             }
 
             // Handle rollover PTS/DTS values.
-            if (pts > 4294967295)
+            // We handle this elsewhere in the system, so don't reinstate this wrap check without
+            // careful testing of long-lived streams.
+            /*if (pts > 4294967295)
                 pts -= 8589934592;
 
             if (dts > 4294967295)
-                dts -= 8589934592;
+                dts -= 8589934592; */
 
             packet.pts = pts;
             packet.dts = dts;
+
             //logger.debug("   PTS=" + pts/90000 + " DTS=" + dts/90000);
 
             cursor += pesHeaderDataLength;
@@ -341,9 +344,9 @@ package com.kaltura.hls.m2ts
                 {
                     CONFIG::LOGGING
                     {
-                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp, skipping");
+                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp?");
                     }
-                    return true;
+                    //return true;
                 }
                 
                 pes = new PESPacketStream();

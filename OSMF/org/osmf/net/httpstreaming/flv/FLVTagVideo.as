@@ -56,6 +56,33 @@ package org.osmf.net.httpstreaming.flv
 			super(type);
 		}
 		
+		public function get isAVCC():Boolean
+		{
+			// Must be keyframe.
+			if(frameType != FRAME_TYPE_KEYFRAME)
+				return false;
+
+			// And config record.
+			if(bytes[12] == 0)
+				return true;
+
+			return false;
+		}
+
+		public function get isIFrame():Boolean
+		{
+			// Must be keyframe.
+			if(frameType != FRAME_TYPE_KEYFRAME)
+				return false;
+
+			// But not config record.
+			if(bytes[12] == 0)
+				return false;
+
+			// It's an I-frame!
+			return true;
+		}
+
 		public function get frameType():int
 		{
 			return (bytes[TAG_HEADER_BYTE_COUNT + 0] >> 4) & 0x0f;

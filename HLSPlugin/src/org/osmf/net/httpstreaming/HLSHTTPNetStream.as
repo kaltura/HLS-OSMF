@@ -118,6 +118,71 @@ package org.osmf.net.httpstreaming
 		private var neverBuffered:Boolean = true; // Set after first buffering event.
 		private var bufferBias:Number = 0.0; // Used to forcibly add more time to the buffer based on other logic.
 
+		// Explicit buffer management
+		private var pendingTags:Vector.<FLVTag> = new Vector.<FLVTag>;
+		private var bufferFeedMin:Number = 1.0; // How many seconds to actually keep fed into the native buffer.
+		private var bufferFeedAmount:Number = 0.1; // How many seconds of data to feed when we feed.
+		private var scanningForIFrame:Boolean = false; // When true, we are scanning video tags until we hit a keyframe/I-frame.
+		private var bufferParser:FLVParser = new FLVParser(false); // Used to parse incoming FLV stream to buffer. TODO: Refactor to be unnecessary.
+		private var needPendingSort:Boolean = false; // Set when we detect a new tag that's not after the last one, to save on resorts.
+		private var endAfterPending:Boolean = false;
+		
+		// Operations on buffer
+		/**
+			State/Logic
+				isBackInTime = if (lastTime - newTime) > 100ms
+				scanningForIFrame
+
+				if isBackInTime then
+					scanningForIFrame = true
+
+				if scanningForIFrame && !iFrame then
+					skip it
+
+				if scanningForIFrame && iFrame then
+					scanningForIFrame = false
+					splice and add IFrame, resume adding as normal
+
+			Questions
+				Do I splice audio or just add to end?
+					Can we just sync with video?
+				Do I splice script or just add to end?
+				Is it a bad idea to maintain a single vector for this? 
+					Will we hate splice/trim?
+					We could LL but not needed till we see perf #s
+
+			Append tag
+				if new tag goes back in time...
+				find the first i-frame in the new section at or after buffered tags
+				splice at that point
+
+			Feed buffer
+				If >= min in buffer, return
+				add tags until bufferfeedamount added
+				trim buffer
+
+			Flush? - not needed?
+				We resync on iframe so we'll catch up anyway. 
+				I-frame sync is an instant decision so we don't have to reset state
+		
+			To hook up:
+				line 1156 - processAndAppend loop
+				line 2224 - attemptAppendBytes
+					- Accept everything here
+					- check to push on every append?
+					- filter if needed
+
+				Need to flush internal buffer when on seek/reset appendBytesAction
+
+			Concerns:
+				Now potentially running three layers of parsing
+					Can we couple things a bit more directly to minimize re-parsing?
+					probably, but we can do it "raw" first to get it going
+				Do we even need enhanced seeking?
+					yes - this allows us to seek through P frames to a specific time.
+
+		*/
+
 		/**
 		 * Constructor.
 		 * 
@@ -202,7 +267,7 @@ package org.osmf.net.httpstreaming
 			var header:FLVHeader = new FLVHeader();
 			var headerBytes:ByteArray = new ByteArray();
 			header.write(headerBytes);
-			attemptAppendBytes(headerBytes);
+			appendBytes(headerBytes);
 			
 			// Initialize ourselves.
 			_mainTimer.start();
@@ -827,6 +892,9 @@ package org.osmf.net.httpstreaming
 			// Trigger buffer update.
 			updateBufferTime();
 
+			// Feed buffer.
+			keepBufferFed();
+
 			// Check for seeking state.
 			if (seeking && time != timeBeforeSeek && _state != HTTPStreamingState.HALT)
 			{
@@ -886,8 +954,8 @@ package org.osmf.net.httpstreaming
 						// If the timer doesn't yet exist, create it, setting the delay to twice the maximum desired buffer time
 						streamTooSlowTimer = new Timer(_desiredBufferTime_Max * 2000);
 
-						streamTooSlowTimer.addEventListener(TimerEvent.TIMER, function(timerEvent:TimerEvent = null):void {
-
+						streamTooSlowTimer.addEventListener(TimerEvent.TIMER, 
+							function(timerEvent:TimerEvent = null):void {
 							try
 							{
 								// Check we have a valid stream to switch to.
@@ -1002,6 +1070,7 @@ package org.osmf.net.httpstreaming
 						CONFIG::FLASH_10_1
 						{
 							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+							flushPendingTags();
 						}
 						
 						_wasBufferEmptied = true;
@@ -1131,7 +1200,7 @@ package org.osmf.net.httpstreaming
 							
 							// we can reset the recovery state if we are able to process some bytes and the time has changed since the last error
 							if (time != lastErrorTime && recoveryStateNum == URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED)
-							{	
+							{
 								errorSurrenderTimer.reset();
 								firstSeekForwardCount = -1;
 								recoveryStateNum = URLErrorRecoveryStates.IDLE;
@@ -1173,28 +1242,9 @@ package org.osmf.net.httpstreaming
 					break;
 				
 				case HTTPStreamingState.STOP:
-					CONFIG::FLASH_10_1
-					{
-						appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
-						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-					}
 
-					var playCompleteInfo:Object = new Object();
-					playCompleteInfo.code = NetStreamCodes.NETSTREAM_PLAY_COMPLETE;
-					playCompleteInfo.level = "status";
-					
-					var playCompleteInfoSDOTag:FLVTagScriptDataObject = new FLVTagScriptDataObject();
-					playCompleteInfoSDOTag.objects = ["onPlayStatus", playCompleteInfo];
-					
-					var tagBytes:ByteArray = new ByteArray();
-					playCompleteInfoSDOTag.write(tagBytes);
-					attemptAppendBytes(tagBytes);
-					
-					CONFIG::FLASH_10_1
-					{
-						appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
-					}
-					
+					endAfterPending = true;
+
 					setState(HTTPStreamingState.HALT);
 					break;
 				
@@ -1795,7 +1845,8 @@ package org.osmf.net.httpstreaming
 					{
 						logger.error("I think I should reset playback.");
 					}
-					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+					//appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+					//flushPendingTags();
 				}
 			}
 
@@ -1898,8 +1949,7 @@ package org.osmf.net.httpstreaming
 						return false;
 					}
 				}
-			}
-			
+			}			
 			
 			if (_enhancedSeekTarget < 0)
 			{
@@ -2009,7 +2059,6 @@ package org.osmf.net.httpstreaming
 							_unmuteTag.codecID = codecID;
 							_unmuteTag.frameType = FLVTagVideo.FRAME_TYPE_INFO;
 							_unmuteTag.infoPacketValue = FLVTagVideo.INFO_PACKET_SEEK_END;
-							
 							bytes = new ByteArray();
 							_unmuteTag.write(bytes);
 							_flvParserProcessed += bytes.length;
@@ -2146,37 +2195,374 @@ package org.osmf.net.httpstreaming
 					logger.debug("We need to to an appendBytesAction in order to reset NetStream internal state");
 				}
 				
-				CONFIG::FLASH_10_1
-				{
-					appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
-				}
+				appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
 				
 				// Before we feed any TCMessages to the Flash Player, we must feed
 				// an FLV header first.
 				var header:FLVHeader = new FLVHeader();
 				var headerBytes:ByteArray = new ByteArray();
 				header.write(headerBytes);
-				attemptAppendBytes(headerBytes);
+				appendBytes(headerBytes);
+
+				flushPendingTags();
 			}
 		}
 		
+		public var lastWrittenTime:Number = -1;
+
+		private function keepBufferFed():void
+		{
+			// Check the actual amount of content present.
+			if(super.bufferLength >= bufferFeedMin)
+				return;
+
+			// We want to keep the actual required buffer short so we don't stall with
+			// tags still pending.
+			super.bufferTime = bufferFeedMin;
+
+			// Append tag bytes until we've hit our time buffer goal.
+			var curTagOffset:int = 0;
+			while(super.bufferLength <= (bufferFeedMin + bufferFeedAmount)
+			      && (pendingTags.length - curTagOffset) > 0)
+			{
+				// Append some tags.
+				var buffer:ByteArray = new ByteArray();
+				var tag:FLVTag = pendingTags[curTagOffset];
+				buffer.length = FLVTag.TAG_HEADER_BYTE_COUNT + tag.dataSize;
+				tag.write(buffer);
+				curTagOffset++;
+
+				if(lastWrittenTime == -1)
+					lastWrittenTime = tag.cachedTimestamp / 1000;
+
+				// If it's more than 0.5 second jump ahead of current playhead, insert a RESET_SEEK so we won't stall forever.
+				if((tag.cachedTimestamp / 1000) - lastWrittenTime > bufferFeedMin + bufferFeedAmount * 2)
+				{
+					CONFIG::LOGGING
+					{
+						logger.debug("Inserting RESET_SEEK due to " + (tag.cachedTimestamp / 1000) + " being too far ahead of " + (super.time + super.bufferLength));
+					}
+					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+				}
+
+				lastWrittenTime = tag.cachedTimestamp / 1000;
+
+				// Do writing.
+				CONFIG::LOGGING
+				{
+					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType);
+				}
+
+				if(writeToMasterBuffer)
+					_masterBuffer.writeBytes(buffer);				
+				appendBytes(buffer);
+			}
+
+			// Erase the consumed tags. Do it after to avoid costly array shifting.
+			if(curTagOffset)
+			{
+				CONFIG::LOGGING
+				{
+					logger.debug("Submitted " + curTagOffset + " tags, " + (pendingTags.length - curTagOffset) + " left");
+				}
+
+				pendingTags.splice(0, curTagOffset);				
+			}
+
+			// If we're at the end of the stream, emit termination events.
+			if(endAfterPending && pendingTags.length == 0)
+			{
+				CONFIG::LOGGING
+				{
+					logger.debug("FIRING STREAM END");
+				}
+
+				// For us, ending means ending the sequence, firing an onPlayStatus event,
+				// and then really ending.	
+				appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
+				appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+
+				var playCompleteInfo:Object = new Object();
+				playCompleteInfo.code = NetStreamCodes.NETSTREAM_PLAY_COMPLETE;
+				playCompleteInfo.level = "status";
+				
+				var playCompleteInfoSDOTag:FLVTagScriptDataObject = new FLVTagScriptDataObject();
+				playCompleteInfoSDOTag.objects = ["onPlayStatus", playCompleteInfo];
+				
+				var tagBytes:ByteArray = new ByteArray();
+				playCompleteInfoSDOTag.write(tagBytes);
+				appendBytes(tagBytes);
+				
+				appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
+
+				// And done ending.
+				endAfterPending = false;
+
+				// Also flush our other state.
+				flushPendingTags();
+			}
+		}
+
+		public override function get bufferLength():Number
+		{
+			if(pendingTags.length == 0)
+				return super.bufferLength;
+
+			ensurePendingSorted();
+
+			// Get active range of pending tags. Since we keep them sorted this is easy.
+			var minTime:Number = pendingTags[0].timestamp / 1000.0;
+			var maxTime:Number = pendingTags[pendingTags.length - 1].timestamp / 1000.0;
+			var len:Number = (maxTime - minTime) + super.bufferLength;
+			//trace("CALCULATED LENGTH TO BE " + len + " (" + (maxTime/1000) + " , " + (minTime/1000) + ", " + super.bufferLength + ")");
+			return len;
+		}
+
+		// Get last video tag's time.
+		private function getHighestVideoTime():Number
+		{
+			//ensurePendingSorted();
+
+			for(var i:int=pendingTags.length-1; i>=0; i--)
+			{
+				var vTag:FLVTagVideo = pendingTags[i] as FLVTagVideo;
+				
+				if(!vTag)
+					continue;
+
+				return vTag.timestamp;
+			}
+
+			return 0;
+		}
+
+		// Get last audio tag's time.
+		private function getHighestAudioTime():Number
+		{
+			//ensurePendingSorted();
+
+			for(var i:int=pendingTags.length-1; i>=0; i--)
+			{
+				var aTag:FLVTagAudio = pendingTags[i] as FLVTagAudio;
+				
+				if(!aTag)
+					continue;
+
+				return aTag.timestamp;
+			}
+
+			return 0;
+		}
+
+		private function onBufferTag(tag:FLVTag):Boolean
+		{
+			//trace("Got tag " + tag);
+
+			// First, is it audio/video/other?
+			if(tag is FLVTagAudio)
+			{
+				if(tag.timestamp < getHighestAudioTime())
+				{
+					CONFIG::LOGGING
+					{
+						logger.warn("Skipping audio due to too low time.");
+					}
+					return true;
+				}
+			}
+			else if (tag is FLVTagVideo)
+			{
+				var vTag:FLVTagVideo = tag as FLVTagVideo;
+
+				var timeDelta:Number = getHighestVideoTime() - tag.timestamp;
+				var isBackInTime:Boolean = timeDelta > 150;
+				var isIFrame:Boolean = vTag.isIFrame;
+
+				//trace("was i-frame " + isIFrame + " was AVCC " + vTag.isAVCC);
+
+				if(!scanningForIFrame && isBackInTime)
+				{
+					CONFIG::LOGGING
+					{
+						logger.debug("   o I-FRAME SCAN due to backwards time (delta=" + timeDelta + ")");
+					}
+					
+					scanningForIFrame = true;
+				}
+
+				// Skip totally implausible tags.
+				if(!scanningForIFrame && 
+					pendingTags.length > 0 && vTag.timestamp < pendingTags[0].timestamp)
+				{
+					scanningForIFrame = true;
+
+					if(vTag.isAVCC == false)
+					{
+						CONFIG::LOGGING
+						{
+							logger.debug("   - I-FRAME SCAN and reject due to impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");
+						}
+						
+						return true;
+					}
+					else
+					{
+						CONFIG::LOGGING
+						{
+							logger.debug("   - I-FRAME SCAN and but kept AVCC in face of impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");						
+						}
+						
+					}
+				}
+
+				// Skip until we find our I-frame.
+				if(scanningForIFrame && !isIFrame)
+				{
+					if(vTag.isAVCC == false)
+					{
+						CONFIG::LOGGING
+						{
+							logger.debug("   - SKIPPING non-I-FRAME");
+						}
+						
+						return true;
+					}
+					else
+					{
+						// Always pass AVCC info.
+						CONFIG::LOGGING
+						{
+							logger.debug("    - preserving AVCC during I-frame scan");
+						}
+					}
+				}
+
+				if(scanningForIFrame && isIFrame)
+				{
+					CONFIG::LOGGING
+					{
+						logger.debug("   + GOT I-FRAME");
+					}
+					
+					scanningForIFrame = false;
+
+					// Drop video frames until we get to before
+					// the timestamp of this I-frame. Then add
+					// this frame as normal.
+					for(var i:int=pendingTags.length-1; i>=0 && pendingTags.length > 0; i--)
+					{
+						// Extra sanity.
+						if(i > pendingTags.length - 1)
+							i = pendingTags.length - 1;
+							
+						// Consider every video tag.
+						var potentialFilterTag:FLVTagVideo = pendingTags[i] as FLVTagVideo;
+						if(!potentialFilterTag)
+							continue;
+
+						if(potentialFilterTag.isAVCC)
+							continue;
+
+						// Stop scanning once we find tag before our tag.
+						if(pendingTags[i].timestamp <= vTag.timestamp)
+							break;
+
+						// Remove this tag, update i.
+						CONFIG::LOGGING
+						{
+							logger.debug("   o removing tag at index " + i);
+						}
+						
+						pendingTags.splice(i, 1);
+						i++;
+					}
+
+					// We know next thing we write will be somewhere crazy as we 
+					// ate the whole buffer.
+					if(pendingTags.length == 0)
+						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+
+					// Drop through to let tag be added.
+				}
+			}
+
+			// Add to the queue, marking if we need to resort.
+			if(pendingTags.length > 0 
+				&& tag.timestamp < pendingTags[pendingTags.length-1].timestamp)
+				needPendingSort = true;
+
+			pendingTags.push(tag);
+
+			return true;
+		}
+
+		// Reset the pending buffer actions.
+		private function flushPendingTags():void
+		{
+			CONFIG::LOGGING
+			{
+				logger.debug("FLUSHING PENDING TAGS");
+			}
+			
+			pendingTags.length = 0;
+			endAfterPending = false;
+			needPendingSort = false;
+			scanningForIFrame = false;
+		}
+
+		static protected function pendingSortCallback(a:FLVTag, b:FLVTag):int
+		{
+			if(a.cachedTimestamp == b.cachedTimestamp)
+			{
+				var vTagA:FLVTagVideo = a as FLVTagVideo;
+				var vTagB:FLVTagVideo = b as FLVTagVideo;
+
+				if(vTagA && vTagB)
+				{
+					// Both video tags at same time - make sure SPS/PPS comes first.
+					if(vTagA.isAVCC && !vTagB.isAVCC)
+						return -1;
+					else if(!vTagA.isAVCC && vTagB.isAVCC)
+						return 1;
+				}
+			}
+
+			return a.cachedTimestamp - b.cachedTimestamp;
+		}
+
+		private function ensurePendingSorted():void
+		{
+			if(needPendingSort == false)
+				return;
+
+			pendingTags.sort(pendingSortCallback);
+
+			needPendingSort = false;
+		}
+
 		/**
 		 * @private
 		 * 
-		 * Attempts to use the appendsBytes method. Do noting if this is not compiled
+		 * Attempts to use the appendsBytes method. Do nothing if this is not compiled
 		 * for an Argo player or newer.
 		 */
 		private function attemptAppendBytes(bytes:ByteArray):void
 		{
-			if(writeToMasterBuffer)
-				_masterBuffer.writeBytes(bytes);
+			//trace("Parsing " + bytes.length);
 
-			CONFIG::FLASH_10_1
-			{
-				appendBytes(bytes);
-			}
+			// Parse to FLV tags and insert into queue.
+			bytes.position = 0;
+			bufferParser.parse(bytes, true, onBufferTag);
+
+			// Sort tags.
+			ensurePendingSorted();
+
+			//trace("    In buffer: " + pendingTags.length + " tags");
+
+			// Feed Flash buffer if needed.
+			keepBufferFed();
 		}
-		
+
 		/**
 		 * @private
 		 * 
