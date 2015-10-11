@@ -302,12 +302,12 @@ package com.kaltura.hls.m2ts
                 }
             }
 
-            // Handle rollover PTS/DTS values.
-            if (pts > 4294967295)
-                pts -= 8589934592;
+            // Handle partially overflowed PTS/DTS values.
+            if (pts < (1<<31) && dts > 3*(1<<31))
+                dts -= 1<<33;
 
-            if (dts > 4294967295)
-                dts -= 8589934592;
+            if (dts < (1<<31) && pts > 3*(1<<31))
+                pts -= 1<<33;
 
             packet.pts = pts;
             packet.dts = dts;
