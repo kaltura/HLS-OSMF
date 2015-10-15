@@ -69,6 +69,9 @@ package com.kaltura.hls.m2ts
             streams = {};
             lastVideoNALU = null;
             transcoder.clear(clearAACConfig);
+
+            // Reset PTS/DTS reference.
+            lastPTS = lastDTS = 0;
         }
 
         private function parseProgramAssociationTable(bytes:ByteArray, cursor:uint):Boolean
