@@ -38,6 +38,19 @@ package com.kaltura.hls.m2ts
         protected var pendingBuffers:Vector.<Object> = new Vector.<Object>();
         protected var pendingLastConvertedIndex:int = 0;
 
+        public var lastPTS:Number = 0, lastDTS:Number = 0;
+
+        /**
+         * Given a MPEG timestamp we've seen previously, determine if the new timestamp
+         * has wrapped and correct it to follow the old timestamp.
+         */
+        static function handleMpegTimestampWrap(newTime:Number, oldTime:Number):Number
+        {
+            while (!isNaN(oldTime) && (Math.abs(newTime - oldTime) > 4294967296))
+                newTime += (oldTime < newTime) ? -8589934592 : 8589934592;
+
+            return newTime;
+        }
 
         public function logStreams():void
         {
@@ -302,12 +315,12 @@ package com.kaltura.hls.m2ts
                 }
             }
 
-            // Handle partially overflowed PTS/DTS values.
-            //if (pts < (1<<31) && dts > 3*(1<<31))
-            //    dts -= 1<<33;
+            // Condition PTS and DTS.
+            pts = handleMpegTimestampWrap(pts, lastPTS);
+            lastPTS = pts;
 
-            //if (dts < (1<<31) && pts > 3*(1<<31))
-            //    pts -= 1<<33;
+            dts = handleMpegTimestampWrap(dts, lastDTS);
+            lastDTS = dts;
 
             packet.pts = pts;
             packet.dts = dts;
