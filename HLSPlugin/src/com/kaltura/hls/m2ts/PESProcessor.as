@@ -357,9 +357,9 @@ package com.kaltura.hls.m2ts
                 {
                     CONFIG::LOGGING
                     {
-                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp, skipping");
+                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp? DTS="  + dts);
                     }
-                    return true;
+                    //return true;
                 }
                 
                 pes = new PESPacketStream();
