@@ -2,6 +2,7 @@ package com.kaltura.hls
 {
 	import com.kaltura.hls.m2ts.IExtraIndexHandlerState;
 	import com.kaltura.hls.m2ts.M2TSFileHandler;
+	import com.kaltura.hls.m2ts.PESProcessor;
 	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.manifest.HLSManifestSegment;
@@ -39,7 +40,7 @@ package com.kaltura.hls
 	{
 		// Polling interval when waiting on stuff like manifest reloads.
 		public static const SHORT_LIVE_STALL_DELAY:Number = 0.25;
-		
+
 		// Time in seconds to wait before retrying a LIVE_STALL
 		public static const RETRY_INTERVAL:uint = 3;
 		
@@ -47,36 +48,34 @@ package com.kaltura.hls
 		public var bumpedTime:Boolean = false;
 		// The new current seek target.
 		public var bumpedSeek:Number = 0;
-		
+
 		public var _lastSequence:int = 0;
 		public var _lastSequenceManifest:HLSManifestParser = null;
-		
-		public var _pendingStartTime:Number = NaN;
-		
+
 		public function updateLastSequence(newManifest:HLSManifestParser, newSeq:int):void
 		{
 			trace("UPDATING LAST SEQUENCE " + newSeq + " manifest=" + newManifest.fullUrl);
 			_lastSequence = newSeq;
 			_lastSequenceManifest = newManifest;
 		}
-		
+
 		public function getLastSequence():int
 		{
 			return _lastSequence;
 		}
-		
+
 		public function getLastSequenceManifest():HLSManifestParser
 		{
 			return _lastSequenceManifest;
 		}
-		
+
 		public function getLastSequenceSegments():Vector.<HLSManifestSegment>
 		{
 			if(_lastSequenceManifest)
 				return _lastSequenceManifest.segments;
 			return new Vector.<HLSManifestSegment>();
 		}
-		
+
 		public var lastKnownPlaylistStartTime:Number = 0.0;
 		public var lastQuality:int = 0;
 		public var targetQuality:int = 0;
@@ -113,12 +112,12 @@ package com.kaltura.hls
 		private var _bestEffortLastGoodFragmentDownloadTime:Date = null;
 		
 		private var _pendingBestEffortRequest:HTTPStreamRequest = null;
-		
+
 		private var _pendingBestEffortStartTime:int = -1;
-		
+
 		public static var _lastBestEffortFetchURI:String;
 		public static var _lastBestEffortFetchDuration:Number;
-		
+
 		private function isBestEffortActive():Boolean
 		{
 			var dt:int = getTimer() - _pendingBestEffortStartTime;
@@ -130,27 +129,27 @@ package com.kaltura.hls
 				return true;
 			return false;
 		}
-		
+
 		// constants used by getNextRequestForBestEffortPlay:
 		private static const BEST_EFFORT_PLAY_SITUAUTION_NORMAL:String = "normal";
 		private static const BEST_EFFORT_PLAY_SITUAUTION_DROPOUT:String = "dropout";
 		private static const BEST_EFFORT_PLAY_SITUAUTION_LIVENESS:String = "liveness";
 		private static const BEST_EFFORT_PLAY_SITUAUTION_DONE:String = "done";
-		
+
 		// We keep a list of witnesses of known PTS start values for segments.
 		// This is indexed by segment URL and returns the PTS start for that
 		// seg if known.  Since all segments are immutable, we can keep this
 		// as a global cache.
 		public static var startTimeWitnesses:Object = {};
 		public static var endTimeWitnesses:Object = {};
-		
-		
+
+
 		CONFIG::LOGGING
 		{
 			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HTTPNetStream");
 			private var previouslyLoggedState:String = null;
 		}
-		
+
 		public function HLSIndexHandler(_resource:MediaResourceBase, _fileHandler:HTTPStreamingFileHandlerBase)
 		{
 			resource = _resource as HLSStreamingResource;
@@ -158,34 +157,47 @@ package com.kaltura.hls
 			baseUrl = manifest.baseUrl;
 			fileHandler = _fileHandler as M2TSFileHandler;
 			fileHandler.extendedIndexHandler = this;
-			
+
 			_bestEffortFileHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onBestEffortParsed);
 			_bestEffortFileHandler.isBestEffort = true;
 		}
-		
-		
-		// Using our witnesses, fill in as much knowledge as we can about 
-		// segment start/end times.
-		public function updateSegmentTimes(segments:Vector.<HLSManifestSegment>):Vector.<HLSManifestSegment>
+
+
+		/**
+		 * Convert timestamps to MPEG 90khz timebase and unwrap them.
+		 */
+        public static function handleMpegTimestampWrapInSeconds(newTime:Number, oldTime:Number):Number
+        {
+        	return PESProcessor.handleMpegTimestampWrap(newTime * 90000, oldTime * 90000) / 90000;
+        }
+
+		/**
+		 * Using our witnesses, fill in as much knowledge as we can about segment start/end times.
+		 *
+		 * referenceTime, when available, is used to normalize the time values to avoid issues with
+		 * streams that overflow the MPEG TS timestamps. Very long windows (>27 hours) may not work
+		 * properly.
+		 */
+		public function updateSegmentTimes(segments:Vector.<HLSManifestSegment>, referenceTime:Number = 0):Vector.<HLSManifestSegment>
 		{
 			// Keep track of whatever segments we've assigned to.
 			var setSegments:Object = {};
-			
+
 			// First, set any exactly known values.
 			for(var i:int=0; i<segments.length; i++)
 			{
 				// Skip unknowns.
 				if(!startTimeWitnesses.hasOwnProperty(segments[i].uri))
 					continue;
-				
+
 				segments[i].startTime = Math.max(0, startTimeWitnesses[segments[i].uri]);
-				
+
 				if(endTimeWitnesses.hasOwnProperty(segments[i].uri))
 					segments[i].duration = endTimeWitnesses[segments[i].uri] - segments[i].startTime;
 				
 				setSegments[i] = 1;
 			}
-			
+
 			if(segments.length > 1)
 			{
 				// Then fill in any unknowns scanning forward....
@@ -194,35 +206,41 @@ package com.kaltura.hls
 					// Skip unknowns.
 					if(!setSegments.hasOwnProperty(i-1) || setSegments.hasOwnProperty(i))
 						continue;
-					
+
 					segments[i].startTime = Math.max(0, segments[i-1].startTime + segments[i-1].duration);
 					setSegments[i] = 1;
 				}
-				
+
 				// And scanning back...
 				for(i=segments.length-2; i>=0; i--)
 				{
 					// Skip unknowns.
 					if(!setSegments.hasOwnProperty(i+1) || setSegments.hasOwnProperty(i))
 						continue;
-					
+
 					segments[i].startTime = Math.max(0, segments[i+1].startTime - segments[i].duration);
 					setSegments[i] = 1;
 				}
 			}
-			
+
+			// Apply time unwrap fixup if needed.
+			for(i=0; i<segments.length; i++)
+			{
+				segments[i].startTime = handleMpegTimestampWrapInSeconds(segments[i].startTime, referenceTime);
+			}
+
 			// Dump results:
 			/*trace("Last 10 manifest time reconstruction");
 			for(i=Math.max(0, segments.length - 100); i<segments.length; i++)
 			{
-			trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + "uri=" + segments[i].uri);
+				trace("segment #" + i + " start=" + segments[i].startTime + " duration=" + segments[i].duration + "uri=" + segments[i].uri);
 			}
 			trace("Reconstructed manifest time with knowledge=" + checkAnySegmentKnowledge(segments) + " firstTime=" + (segments.length > 1 ? segments[0].startTime : -1) + " lastTime=" + (segments.length > 1 ? segments[segments.length-1].startTime : -1));*/
-			
+
 			// Done!
 			return segments;
 		}
-		
+
 		/**
 		 * Return true if we have encountered any segments from this list of segments. Useful for
 		 * determining if we need to do a best effort based seek and/or if the estimates are any good.
@@ -236,10 +254,10 @@ package com.kaltura.hls
 				if(startTimeWitnesses.hasOwnProperty(segments[i].uri))
 					return true;
 			}
-			
+
 			return false;
 		}
-		
+
 		public static function getSegmentBySequence(segments:Vector.<HLSManifestSegment>, id:int):HLSManifestSegment
 		{
 			// Find matches.
@@ -250,11 +268,11 @@ package com.kaltura.hls
 					continue;
 				return seg;
 			}
-			
+
 			return null;
 		}
-		
-		
+
+
 		public static function getSegmentBySequenceCapped(segments:Vector.<HLSManifestSegment>, id:int):HLSManifestSegment
 		{
 			if(segments.length >= 1)
@@ -267,7 +285,7 @@ package com.kaltura.hls
 					return segments[segments.length - 1];
 				}
 			}
-			
+
 			// Find matches via linear search.
 			for(var i:int=0; i<segments.length; i++)
 			{
@@ -276,10 +294,10 @@ package com.kaltura.hls
 					continue;
 				return seg;
 			}
-			
+
 			return null;
 		}
-		
+
 		public static function getSegmentStartTimeBySequence(segments:Vector.<HLSManifestSegment>, id:int):Number
 		{
 			// Find matches.
@@ -289,10 +307,10 @@ package com.kaltura.hls
 				if(seg.id == id)
 					return seg.startTime;
 			}
-			
+
 			return -1;
 		}
-		
+
 		/** 
 		 * Find the segment from a time-ordered list containing the specified time.
 		 *
@@ -336,7 +354,7 @@ package com.kaltura.hls
 						return segments[i];
 				}				
 			}
-			
+
 			// No match, dump to aid debug.
 			var seg:HLSManifestSegment;
 			if(segments.length <= 10)
@@ -355,9 +373,9 @@ package com.kaltura.hls
 					seg = segments[i];
 					trace("#" + i + " id=" + seg.id + " start=" + seg.startTime + " end=" + (seg.startTime + seg.duration));
 				}
-				
+
 				trace(" .... skipping middle ....");
-				
+
 				// Last 3
 				for(i=segments.length-4; i<segments.length-1; i++)
 				{
@@ -365,10 +383,10 @@ package com.kaltura.hls
 					trace("#" + i + " id=" + seg.id + " start=" + seg.startTime + " end=" + (seg.startTime + seg.duration));
 				}
 			}
-			
+
 			return null;
 		}
-		
+
 		/**
 		 * Get the index of the segment containing a certain time.
 		 */
@@ -379,7 +397,7 @@ package com.kaltura.hls
 				return -1;
 			return seg.id;
 		}
-		
+
 		public override function initialize(indexInfo:Object):void
 		{
 			postRatesReady();
@@ -423,10 +441,10 @@ package com.kaltura.hls
 		{
 			if (reloadTimer)
 				reloadTimer.stop(); // In case the timer is active - don't want to do another reload in the middle of it
-			
+
 			trace("Scheduling reload for quality " + quality);
 			reloadingQuality = quality;
-			
+
 			// Reload the manifest we were given, if we were given a manifest
 			var manToReload:HLSManifestParser = manifest ? manifest : getManifestForQuality(reloadingQuality);
 			if(getTimer() - manToReload.timestamp < (manToReload.targetDuration * 500))
@@ -436,12 +454,12 @@ package com.kaltura.hls
 				dispatchDVRStreamInfo();
 				updateTotalDuration();
 				reloadingManifest = null; // don't want to hang on to it
-				
+
 				if (reloadTimer) reloadTimer.start();
-				
+
 				stalled = false;
 				HLSHTTPNetStream.hasGottenManifest = true;
-				
+
 				return;
 			}
 			
@@ -562,7 +580,7 @@ package com.kaltura.hls
 			
 			return true;
 		}
-		
+
 		/**
 		 * Attempt to remap a sequence from an old manifest to a new.
 		 *
@@ -579,21 +597,21 @@ package com.kaltura.hls
 				trace("remapSequence - no currentManifest!")
 				return -1;
 			}
-			
+
 			if(newManifest == null)
 			{
 				trace("remapSequence - no newManifest!");
 				return -1;
 			}
-			
+
 			if(currentManifest.fullUrl == newManifest.fullUrl)
 			{
 				trace("Remapping from/to same URL, no op.");
 				return currentSequence;
 			}
-			
+
 			var newSequence:int = -1;
-			
+
 			// Check knowledge on both sequences and queue request as appropriate.
 			if(!checkAnySegmentKnowledge(newManifest.segments) && !isBestEffortActive())
 			{
@@ -605,7 +623,7 @@ package com.kaltura.hls
 				trace("(B) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
 				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, lastQuality, currentManifest.segments, currentManifest);
 			}
-			
+
 			if(!checkAnySegmentKnowledge(newManifest.segments) || !checkAnySegmentKnowledge(currentManifest.segments))
 			{
 				trace("Bailing on remap due to lack of knowledge!");
@@ -613,18 +631,18 @@ package com.kaltura.hls
 				// re-reload.
 				reloadingManifest = null; // don't want to hang on to this one.
 				if (reloadTimer) reloadTimer.start();
-				
+
 				return -1;
 			}
-			
+
 			// Remap time!
 			updateSegmentTimes(currentManifest.segments);
-			updateSegmentTimes(newManifest.segments);
-			
+			updateSegmentTimes(newManifest.segments, currentManifest.segments[0].startTime);
+
 			const fudgeTime:Number = 0.2; //1.0 / 24; // Approximate acceptable jump.
 			var currentSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, currentSequence);
 			var newSeg:HLSManifestSegment = currentSeg ? getSegmentContainingTime(newManifest.segments, currentSeg.startTime + (end ? currentSeg.duration + fudgeTime : 0) , end) : null;
-			
+
 			// When in live stream, try to keep things in bound.
 			if(newSeg == null)
 			{
@@ -635,12 +653,12 @@ package com.kaltura.hls
 				}
 				
 				trace("Remapping from " + currentSequence);
-				
+
 				if(currentSeg)
 				{
 					// Guess by time....
 					trace("Found last seg with startTime = " + currentSeg.startTime + " duration=" + currentSeg.duration);
-					
+
 					// If the segment is beyond last ID, then jump to end...
 					if(currentSeg.startTime + currentSeg.duration >= newManifest.segments[newManifest.segments.length-1].startTime)
 					{
@@ -657,7 +675,7 @@ package com.kaltura.hls
 				{
 					// Guess by sequence number...
 					trace("No last seg found");
-					
+
 					// If the segment is beyond last ID, then jump to end...
 					if(currentSequence >= newManifest.segments[newManifest.segments.length-1].id)
 					{
@@ -677,12 +695,12 @@ package com.kaltura.hls
 				newSequence = newSeg.id;
 				trace("===== Remapping to #" + newSequence + " start=" + newSeg.startTime + " end=" + (newSeg.startTime + newSeg.duration) );
 			}
-			
+
 			// And note how we ended.
 			trace("   o Ended at " + newSequence);
 			return newSequence;
 		}
-		
+
 		private function onReloadComplete(event:Event):void
 		{
 			if(event.target != reloadingManifest)
@@ -690,22 +708,22 @@ package com.kaltura.hls
 				trace("Rejecting invalid onReloadComplete call.");
 				return;
 			}
-			
+
 			trace ("::onReloadComplete - last/reload/target: " + lastQuality + "/" + reloadingQuality + "/" + targetQuality);
 			var newManifest:HLSManifestParser = event.target as HLSManifestParser;
 			trace ("     - url=" + newManifest.fullUrl);
-			
+
 			if(!newManifest)
 			{
 				trace("::onReloadComplete - failed to get new manifest?!");
-				
+
 				// Same as at end of function.
 				dispatchDVRStreamInfo();
 				reloadingManifest = null; // don't want to hang on to it
 				if (reloadTimer) reloadTimer.start();
 				return;
 			}
-			
+
 			// Detect if there are 0 segments in the new manifest
 			if (newManifest.segments.length == 0)
 			{
@@ -744,22 +762,22 @@ package com.kaltura.hls
 					}
 				}				
 			}
-			
+
 			var currentManifest:HLSManifestParser = getManifestForQuality(lastQuality);
 			
 			var timerOnErrorDelay:Number = newManifest.targetDuration * 1000  / 2;
 			
-			
+
 			// Remap if needed.
 			var newSequence:int = remapSequence(getLastSequenceManifest(), newManifest, getLastSequence(), false);
-			
+
 			// Store the new manifest.
 			trace("Updating manifest for quality " + reloadingQuality);
 			if(manifest.streams.length)
 				manifest.streams[reloadingQuality].manifest = newManifest;
 			else
 				manifest = newManifest;
-			
+
 			// If it's a change and remap fails, we can abort.
 			if(newSequence == -1 && (!getLastSequenceManifest() || newManifest.fullUrl != getLastSequenceManifest().fullUrl))
 			{
@@ -768,35 +786,35 @@ package com.kaltura.hls
 				trace("Can't remap to new manifest, aborting!")
 				return;
 			}
-			
+
 			// Update our manifest for this quality level.
 			//trace("Changing from " + lastQuality + " to " + reloadingQuality);
 			lastQuality = reloadingQuality;
-			
+
 			// Update last sequence state.
 			updateLastSequence(newManifest, newSequence);
-			
+
 			// Kick off the next round as appropriate.
 			dispatchDVRStreamInfo();
 			updateTotalDuration();
 			reloadingManifest = null; // don't want to hang on to it
 			if (reloadTimer) reloadTimer.start();
-			
+
 			stalled = false;
 			HLSHTTPNetStream.hasGottenManifest = true;
-			
+
 			// Debug to JS.
 			manifest.postToJS();
 		}
-		
+
 		public function getQualityLevelStreamName(index:int):String
 		{
 			if(!resource)
 				return null;
-			
+
 			if(index < 0 || index > resource.streamItems.length)
 				return null;
-			
+
 			return resource.streamItems[index].streamName;
 		}
 		
@@ -804,7 +822,7 @@ package com.kaltura.hls
 		{
 			var streams:Array = [];
 			var rates:Array = [];
-			
+
 			// Make a copy of the streamItems and sort them by bitrate ascending.
 			for(var i:int=0; i<resource.streamItems.length; i++)
 			{
@@ -853,30 +871,6 @@ package com.kaltura.hls
 			return lastQuality;
 		}
 
-		public function get windowDuration():Number
-		{
-			var curManifest:HLSManifestParser = getManifestForQuality(lastQuality);
-			var segments:Vector.<HLSManifestSegment> = curManifest.segments;
-			if (segments.length == 0) 
-			{
-				trace("Failed to get windowDuration, no segments!");
-				return 0.0;
-			}
-
-			updateSegmentTimes(segments);
-
-			var firstSegment:HLSManifestSegment = segments[0];
-			var lastSegment:HLSManifestSegment  = segments[segments.length - 1];
-
-			return (lastSegment.startTime + lastSegment.duration) - firstSegment.startTime;
-		}
-
-		public function get isLiveEdgeValid():Boolean
-		{
-			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
-			return checkAnySegmentKnowledge(seg);
-		}
-
 		public function get liveEdge():Number
 		{
 			trace("Getting live edge using targetQuality=" + targetQuality);
@@ -891,26 +885,14 @@ package com.kaltura.hls
 		public override function getFileForTime(time:Number, quality:int):HTTPStreamRequest
 		{	
 			trace("--- getFileForTime(time=" + time + ", quality=" + quality + ")");
-			
+
 			targetQuality = quality;
-			
+
 			// Force a reload if needed.
 			var manifestResponse:HTTPStreamRequest = issueManifestReloadIfNeeded(quality);
-			if(manifestResponse != null){
-				_pendingStartTime = time;
+			if(manifestResponse != null)
 				return manifestResponse;
-			}
-			
-			// Fire any pending best effort.
-			if(_pendingBestEffortRequest)
-			{
-				trace("getFileForTime - Firing pending best effort request: " + _pendingBestEffortRequest);
-				var tmpR:HTTPStreamRequest = _pendingBestEffortRequest;
-				_pendingBestEffortRequest = null;
-				_pendingStartTime = time;
-				return tmpR;
-			}
-			
+
 			var origQuality:int = quality;
 			quality = getWorkingQuality(quality);
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( origQuality );
@@ -919,8 +901,6 @@ package com.kaltura.hls
 			{
 				if(!isBestEffortActive())
 				{
-					_pendingStartTime = time;
-					
 					// We may also need to establish a timebase.
 					trace("getFileForTime - Seeking without timebase; initiating request.");
 					if(getLastSequenceManifest())
@@ -959,32 +939,29 @@ package com.kaltura.hls
 					return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 				}
 			}
-			
-			// If we get here pending start time isn't needed any longer.
-			_pendingStartTime = NaN;
-			
+
 			// Debug to JS.
 			manifest.postToJS();
-			
+
 			if(time < segments[0].startTime)
 			{
 				trace("getFileForTime - SequenceSkip - time: " + time + " playlistStartTime: " + segments[0].startTime);				
 				time = segments[0].startTime;   /// TODO: HACK Alert!!! < this should likely be handled by DVRInfo (see dash plugin index handler)
-				/// No longer quite so sure this is a hack, but a requirement
+												/// No longer quite so sure this is a hack, but a requirement
 				++sequenceSkips;
-				
+
 				//bumpedTime = true;
 				//bumpedSeek = time;
 			}
-			
+
 			var seq:int = getSegmentSequenceContainingTime(segments, time);
-			
+
 			if(seq == -1 && segments.length >= 2)
 			{
-				trace("getFileForTime - Got out of bound timestamp " + time + ". Trying to recover...");
+				trace("getFileForTime - Got out of bound timestamp. Trying to recover...");
 
 				var lastSeg:HLSManifestSegment = segments[Math.max(0, segments.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
-				
+
 				if(time < segments[0].startTime)
 				{
 					trace("getFileForTime - Fell off oldest segment, going to start #" + segments[0].id)
@@ -998,18 +975,18 @@ package com.kaltura.hls
 					//bumpedTime = true;
 				}
 			}
-			
+
 			if(seq != -1)
 			{
 				var curSegment:HLSManifestSegment = getSegmentBySequence(segments, seq);
-				
+
 				// If we need to, stall on the decrypt key.
 				var theKey:HLSManifestEncryptionKey = getKeyForSequence( curSegment.id, manifest );
 				if(theKey)
 				{
 					if(theKey.isLoading == false && theKey.isLoaded == false)
 						theKey.load();
-					
+
 					if(theKey.isLoaded == false)
 					{
 						// Stall on key.
@@ -1017,9 +994,9 @@ package com.kaltura.hls
 						return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);					
 					}
 				}
-				
+
 				updateLastSequence(getManifestForQuality(origQuality), seq);
-				
+
 				fileHandler.segmentId = seq;
 				fileHandler.key = theKey;
 				fileHandler.segmentUri = curSegment.uri;
@@ -1052,19 +1029,19 @@ package com.kaltura.hls
 			}
 			return null;
 		}
-		
+
 		private function issueManifestReloadIfNeeded(quality:int):HTTPStreamRequest
 		{
 			// If we don't need a reload, return null.
 			var manToReload:HLSManifestParser = getManifestForQuality(quality);
-			
+
 			// If it's VOD, never need this.
 			if(manToReload.streamEnds)
 			{
 				trace("issueManifestReloadIfNeeded - VODs do not need to reload, returning.");
 				return null;
 			}
-			
+
 			var curTime:uint = getTimer();
 			if(curTime - manToReload.timestamp < manToReload.targetDuration * 500)
 			{
@@ -1072,7 +1049,7 @@ package com.kaltura.hls
 				trace("issueManifestReloadIfNeeded - Don't need to reload yet.");
 				return null;
 			}
-			
+
 			if(reloadingManifest 
 				&& reloadingManifest.quality == quality 
 				&& curTime - reloadingManifest.lastReloadRequestTime < manToReload.targetDuration * 500 
@@ -1082,38 +1059,31 @@ package com.kaltura.hls
 				trace("issueManifestReloadIfNeeded - waiting on reload");
 				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 			}
-			
+
 			// Otherwise, issue a reload and return a stall.
 			if (reloadTimer)
 				reloadTimer.stop(); // In case the timer is active - don't want to do another reload in the middle of it
-			
+
 			trace("issueManifestReloadIfNeeded - Firing reload for quality " + quality);
 			
 			reloadingQuality = quality;
-			
+
 			reloadingManifest = new HLSManifestParser();
 			reloadingManifest.quality = quality;
 			reloadingManifest.type = manToReload.type;
 			reloadingManifest.addEventListener(Event.COMPLETE, onReloadComplete);
 			reloadingManifest.addEventListener(IOErrorEvent.IO_ERROR, onReloadError);
 			reloadingManifest.reload(manToReload);
-			
+
 			return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 		}
 		
 		public override function getNextFile(quality:int):HTTPStreamRequest
 		{
 			trace("--- getNextFile(" + quality + ")");
-			
+
 			targetQuality = quality;
-			
-			// Switch to getFileForTime if a pending time is present.
-			if(!isNaN(_pendingStartTime))
-			{
-				trace("getNextFile - pending start time, going to getFileForTime");
-				return getFileForTime(_pendingStartTime, quality);
-			}
-			
+
 			// Fire any pending best effort requests.
 			if(_pendingBestEffortRequest)
 			{
@@ -1122,32 +1092,32 @@ package com.kaltura.hls
 				_pendingBestEffortRequest = null;
 				return pber;
 			}
-			
+
 			var manifestResponse:HTTPStreamRequest = issueManifestReloadIfNeeded(quality);
 			if(manifestResponse != null)
 			{
 				trace("Got a manifest response");
 				return manifestResponse;
 			}
-			
+
 			// Report stalls and/or wait on timebase establishment.
 			if (stalled)
 			{
 				trace("Stalling -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
-				
+
 				// TODO - ensure a reload is pending?
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 			}
-			
+
 			HLSHTTPNetStream.recoveryStateNum = URLErrorRecoveryStates.NEXT_SEG_ATTEMPTED;
 			
 			//trace("Pre GWQ " + quality);
 			var origQuality:int = quality;
 			quality = getWorkingQuality(quality);
-			
+
 			var currentManifest:HLSManifestParser = getManifestForQuality ( origQuality );
 			var oldManifest:HLSManifestParser = getLastSequenceManifest();
-			
+
 			// If this would be the final file on the original quality level, end.
 			if(currentManifest.streamEnds 
 				&& currentManifest.segments.length > 0 
@@ -1160,20 +1130,20 @@ package com.kaltura.hls
 				
 				return new HTTPStreamRequest(HTTPStreamRequestKind.DONE);
 			}
-			
+
 			if(quality != origQuality && isBestEffortActive())
 			{
 				trace("Waiting on best effort to resolve...");
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 			}
-			
+
 			// If no old manifest, it's a new play session.
 			var didWeSeedLastSequence:Boolean = false;
 			if(oldManifest == null)
 			{
 				trace("SEEDING LAST SEQUENCE");
 				didWeSeedLastSequence = true;
-				
+
 				if(currentManifest.streamEnds == true)
 				{
 					updateLastSequence(currentManifest, 0);
@@ -1185,24 +1155,24 @@ package com.kaltura.hls
 							currentManifest.segments.length - HLSManifestParser.MAX_SEG_BUFFER - 1)].id);
 				}
 			}
-			
+
 			// Fire a reload if needed.
 			if(quality != origQuality && manifest.streamEnds == false)
 			{
 				trace("Firing reload of manifest for quality " + origQuality);
-				
+
 				var hadPendingReload:Boolean = reloadingManifest != null;
-				
+
 				// Kick the reloader.
 				onReloadTimer(null);
 			}
-			
+
 			// Attempt remap.
 			var newSequence:int = remapSequence(getLastSequenceManifest(), currentManifest, getLastSequence());
 			
 			// Debug to JS.
 			manifest.postToJS();
-			
+
 			if(newSequence == -1)
 			{
 				if(_pendingBestEffortRequest && !isBestEffortActive())
@@ -1218,38 +1188,38 @@ package com.kaltura.hls
 					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 				}
 			}
-			
+
 			// Stall if we aren't ready to go.
 			if(quality != origQuality && manifest.streamEnds == false)
 			{
 				trace("Stalling for manifest -- quality[" + quality + "] lastQuality[" + lastQuality + "]");
-				
+
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, 2);
 			}
-			
+
 			// Advance sequence number if we didn't seed. This prevents us from
 			// inadvertantly advancing past the first segment of a video in streams 
 			// with non-zero start times. We also don't increment when moving across
 			// quality levels as the remap and low water systems handles any overlap.
 			if(!didWeSeedLastSequence && (currentManifest.fullUrl == getLastSequenceManifest().fullUrl))
 				newSequence++;
-			
+
 			var segments:Vector.<HLSManifestSegment> = currentManifest.segments;
-			
+
 			if( segments.length > 0 && newSequence < segments[0].id)
 			{
 				trace("Resetting too low sequence " + newSequence + " to " + segments[0].id);
 				newSequence = segments[0].id;
 			}
-			
+
 			if (segments.length > 0 && newSequence > (segments[Math.max(0, segments.length-1)].id + 3))
 			{
 				trace("Got in a bad state of " + newSequence + " , resetting to near end of stream " + segments[segments.length-HLSManifestParser.MAX_SEG_BUFFER].id);
 				newSequence = segments[segments.length-HLSManifestParser.MAX_SEG_BUFFER].id;
 			}
-			
+
 			var curSegment:HLSManifestSegment = getSegmentBySequence(segments, newSequence);
-			
+
 			if ( curSegment != null ) 
 			{
 				// If we need to, stall on the decrypt key.
@@ -1258,7 +1228,7 @@ package com.kaltura.hls
 				{
 					if(theKey.isLoading == false && theKey.isLoaded == false)
 						theKey.load();
-					
+
 					if(theKey.isLoaded == false)
 					{
 						// Stall on key.
@@ -1266,25 +1236,25 @@ package com.kaltura.hls
 						return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);					
 					}
 				}
-				
+
 				trace("Getting Next Segment[" + newSequence + "] StartTime: " + curSegment.startTime + " Continuity: " + curSegment.continuityEra + " URI: " + curSegment.uri);
 				
 				// Note new value.
 				updateLastSequence(currentManifest, newSequence);
-				
+
 				//bumpedSeek = curSegment.startTime;
-				
+
 				fileHandler.segmentId = newSequence;
 				fileHandler.key = theKey;
 				fileHandler.segmentUri = curSegment.uri;
-				
+
 				return createHTTPStreamRequest( curSegment );
 			}
 			
 			if ( reloadingManifest || !manifest.streamEnds )
 			{
 				trace("Stalling -- requested segment " + newSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream");
-				
+
 				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, segments[segments.length-1].duration / 2);
 			}
 			
@@ -1303,7 +1273,7 @@ package com.kaltura.hls
 			
 			if(localManifest)
 				keys = localManifest.keys;
-			
+
 			// What is the index of this id?
 			var foundIdx:int = -1;
 			for(var i:int=0; i<localManifest.segments.length; i++)
@@ -1311,10 +1281,10 @@ package com.kaltura.hls
 				if(localManifest.segments[i].id == segId)
 					foundIdx = i;
 			}
-			
+
 			if(foundIdx == -1)
 				return null;
-			
+
 			for (i = 0; i < keys.length; i++ )
 			{
 				var key:HLSManifestEncryptionKey = keys[ i ];
@@ -1347,11 +1317,11 @@ package com.kaltura.hls
 			
 			if(!manifest)
 				return;
-			
+
 			// Fetch active data.
 			var activeManifest:HLSManifestParser = getManifestForQuality(lastQuality);
 			var segments:Vector.<HLSManifestSegment> = activeManifest.segments;
-			
+
 			if(segments.length > 0)
 			{
 				lastKnownPlaylistStartTime = segments[0].startTime;
@@ -1361,7 +1331,7 @@ package com.kaltura.hls
 					accum = (segments[i].startTime + segments[i].duration) - lastKnownPlaylistStartTime;
 				}
 			}
-			
+
 			// Push the metadata out.
 			var metadata:Object = new Object();
 			metadata.duration = accum;
@@ -1369,7 +1339,7 @@ package com.kaltura.hls
 			tag.objects = ["onMetaData", metadata];
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.SCRIPT_DATA, false, false, 0, tag, FLVTagScriptDataMode.IMMEDIATE));
 		}
-		
+
 		// getSegmentIndexForTime()
 		//		returns
 		//			-1 if there is no manifest or no valid segments
@@ -1385,7 +1355,7 @@ package com.kaltura.hls
 				return -1;
 			
 			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality( lastQuality );
-			
+
 			for (var i:int = segments.length - 1; i >= 0; --i)
 			{
 				if (segments[i].startTime < time)
@@ -1418,12 +1388,12 @@ package com.kaltura.hls
 				trace("Failed to dispatch DVR info, no segments!");
 				return;
 			}
-			
+
 			updateSegmentTimes(segments);
-			
+
 			var firstSegment:HLSManifestSegment = segments[0];
 			var lastSegment:HLSManifestSegment  = segments[segments.length - 1];
-			
+
 			var dvrInfo:DVRInfo = new DVRInfo();
 			dvrInfo.offline = false;
 			dvrInfo.isRecording = !curManifest.streamEnds;  // TODO: verify that this is what we REALLY want to be doing
@@ -1467,13 +1437,13 @@ package com.kaltura.hls
 			if (!manifest) return new HLSManifestParser();
 			if (manifest.streams.length < 1 || manifest.streams[0].manifest == null) return manifest;
 			else if ( quality >= manifest.streams.length ) return manifest.streams[0].manifest;
-			
+
 			// We give the HLSHTTPNetStream the stream for the quality we are currently using to help it recover after a URL error
 			HLSHTTPNetStream.currentStream = manifest.streams[quality];
-			
+
 			// Also give HLSHTTPNetStream a reference to ourselves so it can call postRatesReady()
 			HLSHTTPNetStream.indexHandler = this;
-			
+
 			return manifest.streams[quality].manifest;
 		}
 		
@@ -1507,7 +1477,7 @@ package com.kaltura.hls
 				trace("lastSegmentIndex: " + getLastSequence() + " | max allowed index: " + segments[segments.length - 1].id);
 				trace("Setting lastSegmentIndex to " + segments[segments.length - 1].id);
 				getLastSequence() = segments[segments.length - 1].id;
-				
+
 				// Back off by one as it will get incremented later.
 				//lastSequence--; */
 			}
@@ -1540,12 +1510,12 @@ package com.kaltura.hls
 			var segment:HLSManifestSegment = getSegmentBySequence( segments, getLastSequence() );
 			return segment ? segment.startTime + segment.duration : 0.0;
 		}
-		
+
 		public function getTargetSegmentDuration():Number
 		{
 			return getManifestForQuality(lastQuality).targetDuration;
 		}
-		
+
 		/**
 		 * @private
 		 * 
@@ -1570,23 +1540,23 @@ package com.kaltura.hls
 				trace("initiateBestEffortRequest - No manifest found to best effort request quality level " + quality);
 				return null;
 			}
-			
+
 			if(!segments)
 			{
 				segments = newMan.segments;
 			}
-			
+
 			if(!segments)
 			{
 				trace("initiateBestEffortRequest - NO SEGMENTS FOUND, ABORTING initiateBestEffortRequest");
 				return null;
 			}
-			
+
 			var nextSeg:HLSManifestSegment = getSegmentBySequenceCapped(segments, nextFragmentId);
 			if(nextSeg.id != nextFragmentId)
 			{
 				trace("Out of bounds best effort segment ID request, using " + nextSeg.id + " instead of " + nextFragmentId);
-				
+
 				// Wait for manifest to reload, we probably hit live edge!
 				if(nextSeg.id < nextFragmentId)
 				{
@@ -1602,14 +1572,14 @@ package com.kaltura.hls
 					}
 				}
 			}
-			
+
 			// If we need to, stall on the decrypt key.
 			var theKey:HLSManifestEncryptionKey = getKeyForSequence( nextSeg.id, newMan );
 			if(theKey)
 			{
 				if(theKey.isLoading == false && theKey.isLoaded == false)
 					theKey.load();
-				
+
 				if(theKey.isLoaded == false)
 				{
 					// Stall on key.
@@ -1617,18 +1587,18 @@ package com.kaltura.hls
 					return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);					
 				}
 			}
-			
+
 			// recreate the best effort download monitor
 			// this protects us against overlapping best effort downloads
 			_bestEffortDownloaderMonitor = new EventDispatcher();
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
-			
-			
+
+
 			_bestEffortFileHandler.segmentId = nextSeg.id;
 			_bestEffortFileHandler.key = theKey;
 			_bestEffortFileHandler.segmentUri = nextSeg.uri;
-			
+
 			var streamRequest:HTTPStreamRequest =  new HTTPStreamRequest(
 				HTTPStreamRequestKind.BEST_EFFORT_DOWNLOAD,
 				_bestEffortFileHandler.segmentUri, // url
@@ -1636,9 +1606,9 @@ package com.kaltura.hls
 				_bestEffortDownloaderMonitor); // bestEffortDownloaderMonitor
 			
 			_pendingBestEffortStartTime = getTimer();
-			
+
 			trace("initiateBestEffortRequest - Requesting: " + streamRequest.toString());
-			
+
 			return streamRequest;
 		}
 		
@@ -1672,7 +1642,7 @@ package com.kaltura.hls
 				trace("bufferAndParseDownloadedBestEffortBytes - Already set our reply to " + _bestEffortDownloadReply + ", so ignoring data...");
 				return;
 			}
-			
+
 			try
 			{
 				var downloaderAvailableBytes:uint = downloader.totalAvailableBytes;
@@ -1692,13 +1662,13 @@ package com.kaltura.hls
 					
 					// Reset parsing process.
 					_bestEffortFileHandler.beginProcessFile(false, 0.0);
-					
+
 					// feed the bytes to our f4f handler in order to parse out the bootstrap box.
 					trace("processing segment");
 					_bestEffortFileHandler.processFileSegment(_bestEffortSeekBuffer); 
-					
+
 					_bestEffortFileHandler.endProcessFile(_bestEffortSeekBuffer);
-					
+
 					if(_bestEffortDownloadReply == HTTPStreamingEvent.DOWNLOAD_CONTINUE)
 					{
 						// we're done parsing and the HTTPStreamSource is going to process the file,
@@ -1724,15 +1694,15 @@ package com.kaltura.hls
 				trace("Failed to parse best effort segment due to " + e.toString() + "\n " + e.getStackTrace());
 			}
 		}
-		
+
 		protected function onBestEffortParsed(e:Event):void
 		{
 			// Currently a nop.
 			trace("Got duration from best effort segment: " + _bestEffortFileHandler.segmentUri);
-			
+
 			// Try again.
 			stalled = false;
-			
+
 			// Update DVR info in case we gained knowledge.
 			dispatchDVRStreamInfo();
 		}
@@ -1751,7 +1721,7 @@ package com.kaltura.hls
 				trace("Got event for abandoned best effort download!");
 				return;
 			}
-			
+
 			trace("Best effort download complete " + event.toString());
 			
 			// unregister the listeners
@@ -1760,7 +1730,7 @@ package com.kaltura.hls
 			trace("Start download parse");
 			bufferAndParseDownloadedBestEffortBytes(event.url, event.downloader as HLSHTTPStreamDownloader);
 			trace("end download parse");
-			
+
 			// forward the DOWNLOAD_COMPLETE to HTTPStreamSource, but change the reason
 			var clone:HTTPStreamingEvent = new HTTPStreamingEvent(
 				event.type,
@@ -1774,35 +1744,35 @@ package com.kaltura.hls
 				HTTPStreamingEventReason.BEST_EFFORT,
 				event.downloader);
 			dispatchEvent(clone);
-			
+
 			// Note our download time so we can force the right duration
 			// rather than getting confused by speedy cache responses.
 			_lastBestEffortFetchURI = _bestEffortFileHandler.segmentUri;
 			_lastBestEffortFetchDuration = getTimer() - _pendingBestEffortStartTime;
-			
+
 			// Is it the next one we want?
 			// This code path seems to result in buffer time getting screwed up and doesn't solve the
 			// bandwidth calculation/bitrate selection issues.
 			/*if(getLastSequenceManifest() && getManifestForQuality(targetQuality))
 			{
-			var nextSeg:HLSManifestSegment = getSegmentBySequence(getManifestForQuality(targetQuality).segments, getLastSequence() + 1);
-			if(nextSeg)
-			{
-			var nextUri:String = nextSeg.uri;
-			trace("onBestEffortDownloadComplete - Checking " + _bestEffortFileHandler.segmentUri + " vs " + nextUri);
-			if(_bestEffortFileHandler.segmentUri == nextUri)
-			{
-			trace("Keeping this download buddy.");
-			continueBestEffortFetch(nextUri, event.downloader);
-			
-			// And update the last sequence state.
-			updateLastSequence(getManifestForQuality(targetQuality), getLastSequence() + 1);
-			
-			return;
-			}
-			}
+				var nextSeg:HLSManifestSegment = getSegmentBySequence(getManifestForQuality(targetQuality).segments, getLastSequence() + 1);
+				if(nextSeg)
+				{
+					var nextUri:String = nextSeg.uri;
+					trace("onBestEffortDownloadComplete - Checking " + _bestEffortFileHandler.segmentUri + " vs " + nextUri);
+					if(_bestEffortFileHandler.segmentUri == nextUri)
+					{
+						trace("Keeping this download buddy.");
+						continueBestEffortFetch(nextUri, event.downloader);
+
+						// And update the last sequence state.
+						updateLastSequence(getManifestForQuality(targetQuality), getLastSequence() + 1);
+
+						return;
+					}
+				}
 			}*/
-			
+
 			// Otherwise skip.
 			skipBestEffortFetch(_bestEffortFileHandler.segmentUri, event.downloader as HLSHTTPStreamDownloader);
 		}
@@ -1820,9 +1790,9 @@ package com.kaltura.hls
 				// we're receiving an event for a download we abandoned
 				return;
 			}
-			
+
 			trace("Best effort download error " + event.toString());
-			
+
 			// unregister our listeners
 			stopListeningToBestEffortDownload();
 			
@@ -1863,7 +1833,7 @@ package com.kaltura.hls
 				bestEffortLog("Best effort wanted to skip fragment, but we already replied with "+_bestEffortDownloadReply);
 				return;
 			}
-			
+
 			bestEffortLog("Best effort skipping fragment.");
 			var event:HTTPStreamingEvent = new HTTPStreamingEvent(HTTPStreamingEvent.DOWNLOAD_SKIP,
 				false, // bubbles
