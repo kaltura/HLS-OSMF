@@ -44,7 +44,7 @@ package com.kaltura.hls.m2ts
          * Given a MPEG timestamp we've seen previously, determine if the new timestamp
          * has wrapped and correct it to follow the old timestamp.
          */
-        static function handleMpegTimestampWrap(newTime:Number, oldTime:Number):Number
+        public static function handleMpegTimestampWrap(newTime:Number, oldTime:Number):Number
         {
             while (!isNaN(oldTime) && (Math.abs(newTime - oldTime) > 4294967296))
                 newTime += (oldTime < newTime) ? -8589934592 : 8589934592;
