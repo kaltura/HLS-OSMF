@@ -53,7 +53,7 @@ package com.kaltura.hls.m2ts
 
         protected var sendingDebugEvents:Boolean = false;
 
-        private function sendFLVTag(flvts:uint, type:uint, codec:int, mode:int, bytes:ByteArray, offset:uint, length:uint, duration:uint, buffer:Boolean = true):void
+        private function sendFLVTag(flvts:int, type:uint, codec:int, mode:int, bytes:ByteArray, offset:uint, length:uint, duration:uint, buffer:Boolean = true):void
         {
             var tag:ByteArray = new ByteArray();
             
@@ -227,8 +227,8 @@ package com.kaltura.hls.m2ts
          */
         public function convert(unit:NALU):void
         {
-            var flvts:uint = convertFLVTimestamp(unit.dts);
-            var tsu:uint = convertFLVTimestamp(unit.pts - unit.dts);
+            var flvts:int = convertFLVTimestamp(unit.dts);
+            var tsu:int = convertFLVTimestamp(unit.pts - unit.dts);
 
             // Estimate current framerate, default to 30hz if can't get a plausible estimate.
             var tsDelta:int = convertFLVTimestamp(unit.dts - videoLastDTS);
