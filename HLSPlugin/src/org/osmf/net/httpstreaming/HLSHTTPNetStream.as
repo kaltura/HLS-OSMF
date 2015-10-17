@@ -1874,6 +1874,8 @@ package org.osmf.net.httpstreaming
 				_enhancedSeekTarget = _seekTarget;
 			}
 
+			var realTimestamp:int = tag.timestamp as int;
+
 			// Apply bump if present.
 			if(indexHandler && indexHandler.bumpedTime 
 				&& (_enhancedSeekTarget > indexHandler.bumpedSeek
@@ -1900,11 +1902,11 @@ package org.osmf.net.httpstreaming
 			if(indexHandler)
 				indexHandler.bumpedTime = false;
 
-			var currentTime:Number = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
+			var currentTime:Number = (realTimestamp / 1000.0) + _fileTimeAdjustment;
 			
 			CONFIG::LOGGING
 			{
-				logger.debug("Saw tag @ " + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget);
+				logger.debug("Saw tag @ " + realTimestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget);
 			}
 
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
