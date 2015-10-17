@@ -60,6 +60,11 @@ package com.kaltura.hls.m2ts
 		
 		private var _decryptionIV:ByteArray;
 		
+		public var flvLowWaterAudio:int = int.MIN_VALUE;
+		public var flvLowWaterVideo:int = int.MIN_VALUE;
+		public var flvRecoveringIFrame:Boolean = false;
+		public const filterThresholdMs:int = 64;
+
 		public function M2TSFileHandler()
 		{
 			super();
@@ -72,8 +77,8 @@ package com.kaltura.hls.m2ts
 			_timeOrigin = 0;
 			_timeOriginNeeded = true;
 			
-			_segmentBeginSeconds = -1;
-			_segmentLastSeconds = -1;
+			_segmentBeginSeconds = Number.MAX_VALUE;
+			_segmentLastSeconds = -Number.MAX_VALUE;
 			
 			_firstSeekTime = 0;
 			
@@ -182,8 +187,8 @@ package com.kaltura.hls.m2ts
 				}
 			}
 			
-			_segmentBeginSeconds = -1;
-			_segmentLastSeconds = -1;
+			_segmentBeginSeconds = Number.MAX_VALUE;
+			_segmentLastSeconds = -Number.MAX_VALUE;
 			_lastInjectedSubtitleTime = -1;
 			_encryptedDataBuffer.length = 0;
 
@@ -406,11 +411,6 @@ package com.kaltura.hls.m2ts
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
 			
-		public var flvLowWaterAudio:int = int.MIN_VALUE;
-		public var flvLowWaterVideo:int = int.MIN_VALUE;
-		public var flvRecoveringIFrame:Boolean = false;
-		public const filterThresholdMs:int = 64;
-
 		private function clearFLVWaterMarkFilter():void
 		{
 			flvLowWaterAudio = int.MIN_VALUE;
