@@ -45,11 +45,10 @@ package com.kaltura.hls.m2ts
 		public var isBestEffort:Boolean = false;
 		
 		private var _parser:TSPacketParser;
-		private var _curTimeOffset:uint;
 		private var _buffer:ByteArray;
 		private var _fragReadBuffer:ByteArray;
 		private var _encryptedDataBuffer:ByteArray;
-		private var _timeOrigin:uint;
+		private var _timeOrigin:Number;
 		private var _timeOriginNeeded:Boolean;
 		private var _segmentBeginSeconds:Number;
 		private var _segmentLastSeconds:Number;
@@ -61,6 +60,11 @@ package com.kaltura.hls.m2ts
 		
 		private var _decryptionIV:ByteArray;
 		
+		public var flvLowWaterAudio:int = int.MIN_VALUE;
+		public var flvLowWaterVideo:int = int.MIN_VALUE;
+		public var flvRecoveringIFrame:Boolean = false;
+		public const filterThresholdMs:int = 64;
+
 		public function M2TSFileHandler()
 		{
 			super();
@@ -73,8 +77,8 @@ package com.kaltura.hls.m2ts
 			_timeOrigin = 0;
 			_timeOriginNeeded = true;
 			
-			_segmentBeginSeconds = -1;
-			_segmentLastSeconds = -1;
+			_segmentBeginSeconds = Number.MAX_VALUE;
+			_segmentLastSeconds = -Number.MAX_VALUE;
 			
 			_firstSeekTime = 0;
 			
@@ -183,8 +187,8 @@ package com.kaltura.hls.m2ts
 				}
 			}
 			
-			_segmentBeginSeconds = -1;
-			_segmentLastSeconds = -1;
+			_segmentBeginSeconds = Number.MAX_VALUE;
+			_segmentLastSeconds = -Number.MAX_VALUE;
 			_lastInjectedSubtitleTime = -1;
 			_encryptedDataBuffer.length = 0;
 
@@ -407,24 +411,19 @@ package com.kaltura.hls.m2ts
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
 			
-		public var flvLowWaterAudio:uint = 0;
-		public var flvLowWaterVideo:uint = 0;
-		public var flvRecoveringIFrame:Boolean = false;
-		public const filterThresholdMs:uint = 64;
-
 		private function clearFLVWaterMarkFilter():void
 		{
-			flvLowWaterAudio = 0;
-			flvLowWaterVideo = 0;
+			flvLowWaterAudio = int.MIN_VALUE;
+			flvLowWaterVideo = int.MIN_VALUE;
 			flvRecoveringIFrame = false;
 		}
 
-		private function handleFLVMessage(timestamp:uint, message:ByteArray, duration:uint):void
+		private function handleFLVMessage(timestamp:int, message:ByteArray, duration:int):void
 		{
 			var timestampSeconds:Number = timestamp / 1000.0;
 			var endTimestampSeconds:Number = (timestamp + duration) / 1000.0;
 
-			if(_segmentBeginSeconds < 0)
+			if(timestampSeconds < _segmentBeginSeconds)
 			{
 				_segmentBeginSeconds = timestampSeconds;
 
@@ -493,7 +492,7 @@ package com.kaltura.hls.m2ts
 				{
 					CONFIG::LOGGING
 					{
-						logger.debug("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
+						logger.debug("SKIPPING TOO LOW FLV VID TS @ " + timestamp + " flvLowWaterVideo=" + flvLowWaterVideo);
 					}
 
 					if(SEND_LOGS)
@@ -543,9 +542,9 @@ package com.kaltura.hls.m2ts
 				_timeOrigin = timestamp;
 			
 			// Encode the timestamp.
-			message[6] = (timestamp      ) & 0xff;
-			message[5] = (timestamp >>  8) & 0xff;
 			message[4] = (timestamp >> 16) & 0xff;
+			message[5] = (timestamp >>  8) & 0xff;
+			message[6] = (timestamp      ) & 0xff;
 			message[7] = (timestamp >> 24) & 0xff;
 
 			// If timer was reset due to seek, reset last subtitle time
