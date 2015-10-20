@@ -1831,14 +1831,28 @@ package org.osmf.net.httpstreaming
 		{
 			var i:int;
 
-/*			if(_enhancedSeekTarget <= 0.0 && indegetLastSequenceManifest() && getLastSequenceManifest().streamEnds == false)
-			{
-				logger.debug("Setting enhanced seek target to last segment end of " + _lastSegmentEnd);
-				_enhancedSeekTarget = _lastSegmentEnd;
-				_seekTarget = _enhancedSeekTarget;
-			}*/
+			var realTimestamp:int;
+			var timestampCastHelper:Number = tag.timestamp;
 
-			var realTimestamp:int = tag.timestamp as int;
+			while(timestampCastHelper > int.MAX_VALUE)
+				timestampCastHelper -= uint.MAX_VALUE;
+
+			while(timestampCastHelper < -int.MAX_VALUE)
+				timestampCastHelper += uint.MAX_VALUE;
+
+			realTimestamp = timestampCastHelper;
+
+			// Make sure we don't go past the buffer for the live edge.
+			if(indexHandler && _seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
+			{
+				CONFIG::LOGGING
+				{
+					logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+				}
+				_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
+				_enhancedSeekTarget = _seekTarget;
+			}
+
 
 			// Apply bump if present.
 			if(indexHandler && indexHandler.bumpedTime 

@@ -190,7 +190,7 @@ package com.kaltura.hls
 				if(!startTimeWitnesses.hasOwnProperty(segments[i].uri))
 					continue;
 
-				segments[i].startTime = Math.max(0, startTimeWitnesses[segments[i].uri]);
+				segments[i].startTime = startTimeWitnesses[segments[i].uri];
 
 				if(endTimeWitnesses.hasOwnProperty(segments[i].uri))
 					segments[i].duration = endTimeWitnesses[segments[i].uri] - segments[i].startTime;
@@ -207,7 +207,7 @@ package com.kaltura.hls
 					if(!setSegments.hasOwnProperty(i-1) || setSegments.hasOwnProperty(i))
 						continue;
 
-					segments[i].startTime = Math.max(0, segments[i-1].startTime + segments[i-1].duration);
+					segments[i].startTime = segments[i-1].startTime + segments[i-1].duration;
 					setSegments[i] = 1;
 				}
 
@@ -218,7 +218,7 @@ package com.kaltura.hls
 					if(!setSegments.hasOwnProperty(i+1) || setSegments.hasOwnProperty(i))
 						continue;
 
-					segments[i].startTime = Math.max(0, segments[i+1].startTime - segments[i].duration);
+					segments[i].startTime = segments[i+1].startTime - segments[i].duration;
 					setSegments[i] = 1;
 				}
 			}
@@ -873,12 +873,19 @@ package com.kaltura.hls
 
 		public function get liveEdge():Number
 		{
-			trace("Getting live edge using targetQuality=" + targetQuality);
+			trace("Getting live edge using targetQuality=" + lastQuality);
 			// Return time at least MAX_SEG_BUFFER from end of stream.
-			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(targetQuality);
-			if(!seg || getManifestForQuality(targetQuality).streamEnds)
+			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
+			if(!seg || getManifestForQuality(lastQuality).streamEnds)
 				return Number.MAX_VALUE;
+
+			// If we've no knowledge, note it.
+			seg = updateSegmentTimes(seg);
+			if(checkAnySegmentKnowledge(seg) == false)
+				trace("   o Lacking knowledge...");
+
 			var lastSeg:HLSManifestSegment = seg[Math.max(0, seg.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
+			trace("   o result of " + lastSeg.startTime);
 			return lastSeg.startTime;
 		}
 		
