@@ -277,6 +277,7 @@ package com.kaltura.hls.m2ts
             {
                 logger.debug("FLUSHING");
             }
+
             for (var idx:* in _streams)
             {
                 CONFIG::LOGGING
@@ -289,6 +290,11 @@ package com.kaltura.hls.m2ts
             pesProcessor.processAllNalus();
 
             pesProcessor.clear(true);
+
+            CONFIG::LOGGING
+            {
+                logger.debug("FLUSHING COMPLETE");
+            }
         }
 
         public function clear(clearAACConfig:Boolean = true):void

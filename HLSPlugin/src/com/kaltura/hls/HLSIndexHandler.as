@@ -2,6 +2,7 @@ package com.kaltura.hls
 {
 	import com.kaltura.hls.m2ts.IExtraIndexHandlerState;
 	import com.kaltura.hls.m2ts.M2TSFileHandler;
+	import com.kaltura.hls.m2ts.PESProcessor;
 	import com.kaltura.hls.manifest.HLSManifestEncryptionKey;
 	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.hls.manifest.HLSManifestSegment;
@@ -162,9 +163,22 @@ package com.kaltura.hls
 		}
 
 
-		// Using our witnesses, fill in as much knowledge as we can about 
-		// segment start/end times.
-		public function updateSegmentTimes(segments:Vector.<HLSManifestSegment>):Vector.<HLSManifestSegment>
+		/**
+		 * Convert timestamps to MPEG 90khz timebase and unwrap them.
+		 */
+        public static function handleMpegTimestampWrapInSeconds(newTime:Number, oldTime:Number):Number
+        {
+        	return PESProcessor.handleMpegTimestampWrap(newTime * 90000, oldTime * 90000) / 90000;
+        }
+
+		/**
+		 * Using our witnesses, fill in as much knowledge as we can about segment start/end times.
+		 *
+		 * referenceTime, when available, is used to normalize the time values to avoid issues with
+		 * streams that overflow the MPEG TS timestamps. Very long windows (>27 hours) may not work
+		 * properly.
+		 */
+		public function updateSegmentTimes(segments:Vector.<HLSManifestSegment>, referenceTime:Number = 0):Vector.<HLSManifestSegment>
 		{
 			// Keep track of whatever segments we've assigned to.
 			var setSegments:Object = {};
@@ -176,7 +190,7 @@ package com.kaltura.hls
 				if(!startTimeWitnesses.hasOwnProperty(segments[i].uri))
 					continue;
 
-				segments[i].startTime = Math.max(0, startTimeWitnesses[segments[i].uri]);
+				segments[i].startTime = startTimeWitnesses[segments[i].uri];
 
 				if(endTimeWitnesses.hasOwnProperty(segments[i].uri))
 					segments[i].duration = endTimeWitnesses[segments[i].uri] - segments[i].startTime;
@@ -193,7 +207,7 @@ package com.kaltura.hls
 					if(!setSegments.hasOwnProperty(i-1) || setSegments.hasOwnProperty(i))
 						continue;
 
-					segments[i].startTime = Math.max(0, segments[i-1].startTime + segments[i-1].duration);
+					segments[i].startTime = segments[i-1].startTime + segments[i-1].duration;
 					setSegments[i] = 1;
 				}
 
@@ -204,9 +218,15 @@ package com.kaltura.hls
 					if(!setSegments.hasOwnProperty(i+1) || setSegments.hasOwnProperty(i))
 						continue;
 
-					segments[i].startTime = Math.max(0, segments[i+1].startTime - segments[i].duration);
+					segments[i].startTime = segments[i+1].startTime - segments[i].duration;
 					setSegments[i] = 1;
 				}
+			}
+
+			// Apply time unwrap fixup if needed.
+			for(i=0; i<segments.length; i++)
+			{
+				segments[i].startTime = handleMpegTimestampWrapInSeconds(segments[i].startTime, referenceTime);
 			}
 
 			// Dump results:
@@ -617,7 +637,7 @@ package com.kaltura.hls
 
 			// Remap time!
 			updateSegmentTimes(currentManifest.segments);
-			updateSegmentTimes(newManifest.segments);
+			updateSegmentTimes(newManifest.segments, currentManifest.segments[0].startTime);
 
 			const fudgeTime:Number = 0.2; //1.0 / 24; // Approximate acceptable jump.
 			var currentSeg:HLSManifestSegment = getSegmentBySequence(currentManifest.segments, currentSequence);
@@ -853,12 +873,19 @@ package com.kaltura.hls
 
 		public function get liveEdge():Number
 		{
-			trace("Getting live edge using targetQuality=" + targetQuality);
+			trace("Getting live edge using targetQuality=" + lastQuality);
 			// Return time at least MAX_SEG_BUFFER from end of stream.
-			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(targetQuality);
-			if(!seg || getManifestForQuality(targetQuality).streamEnds)
+			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
+			if(!seg || getManifestForQuality(lastQuality).streamEnds)
 				return Number.MAX_VALUE;
+
+			// If we've no knowledge, note it.
+			seg = updateSegmentTimes(seg);
+			if(checkAnySegmentKnowledge(seg) == false)
+				trace("   o Lacking knowledge...");
+
 			var lastSeg:HLSManifestSegment = seg[Math.max(0, seg.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
+			trace("   o result of " + lastSeg.startTime);
 			return lastSeg.startTime;
 		}
 		
