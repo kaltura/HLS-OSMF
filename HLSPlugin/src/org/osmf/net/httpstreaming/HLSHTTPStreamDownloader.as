@@ -182,6 +182,9 @@ package org.osmf.net.httpstreaming
 				startTimeoutMonitor(_timeoutInterval);
 				_urlStream.load(_request);
 			}
+
+			// Dispatch an event so any listeners can find out.
+			_dispatcher.dispatchEvent(new HTTPStreamingEvent("dispatcherStart", false, false, 0, null, "", request.url.toString(), 0, "", this));
 		}
 		
 		/**
