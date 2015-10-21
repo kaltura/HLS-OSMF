@@ -53,6 +53,8 @@ package com.kaltura.hls
 		public var _lastSequence:int = 0;
 		public var _lastSequenceManifest:HLSManifestParser = null;
 
+		public var _pendingStartTime:Number = NaN;
+
 		public function updateLastSequence(newManifest:HLSManifestParser, newSeq:int):void
 		{
 			trace("UPDATING LAST SEQUENCE " + newSeq + " manifest=" + newManifest.fullUrl);
@@ -906,7 +908,10 @@ package com.kaltura.hls
 			// Force a reload if needed.
 			var manifestResponse:HTTPStreamRequest = issueManifestReloadIfNeeded(quality);
 			if(manifestResponse != null)
+			{
+				_pendingStartTime = time;
 				return manifestResponse;
+			}
 
 			// Fire any pending best effort.
 			if(_pendingBestEffortRequest)
@@ -914,6 +919,7 @@ package com.kaltura.hls
 				trace("getFileForTime - Firing pending best effort request: " + _pendingBestEffortRequest);
 				var tmpR:HTTPStreamRequest = _pendingBestEffortRequest;
 				_pendingBestEffortRequest = null;
+				_pendingStartTime = time;
 				return tmpR;
 			}
 
@@ -925,6 +931,8 @@ package com.kaltura.hls
 			{
 				if(!isBestEffortActive())
 				{
+					_pendingStartTime = time;
+
 					// We may also need to establish a timebase.
 					trace("getFileForTime - Seeking without timebase; initiating request.");
 					if(getLastSequenceManifest())
@@ -963,6 +971,9 @@ package com.kaltura.hls
 					return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 				}
 			}
+
+			// If we get here pending start time isn't needed any longer.
+			_pendingStartTime = NaN;
 
 			// Debug to JS.
 			manifest.postToJS();
@@ -1107,6 +1118,13 @@ package com.kaltura.hls
 			trace("--- getNextFile(" + quality + ")");
 
 			targetQuality = quality;
+
+			// Switch to getFileForTime if a pending time is present.
+			if(!isNaN(_pendingStartTime))
+			{
+				trace("getNextFile - pending start time, going to getFileForTime");
+				return getFileForTime(_pendingStartTime, quality);
+			}
 
 			// Fire any pending best effort requests.
 			if(_pendingBestEffortRequest)
