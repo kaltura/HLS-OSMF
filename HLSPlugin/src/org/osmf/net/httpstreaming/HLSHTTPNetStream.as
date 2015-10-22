@@ -206,8 +206,9 @@ package org.osmf.net.httpstreaming
 			
 			// Initialize ourselves.
 			_mainTimer.start();
-			_initialTime = 0;
-			_seekTime = -1;
+			_initialTime = NaN;
+			_lastValidTimeTime = 0;
+			_seekTime = 0;
 			_isPlaying = true;
 			_isPaused = false;
 			
@@ -251,6 +252,8 @@ package org.osmf.net.httpstreaming
 		 */
 		override public function play2(param:NetStreamPlayOptions):void
 		{
+			_lastValidTimeTime = 0;
+
 			// See if any of our alternative audio sources (if we have any) are marked as DEFAULT if this is our initial play
 			if (!hasStarted)
 			{
@@ -291,11 +294,11 @@ package org.osmf.net.httpstreaming
 			// we can't seek before the playback starts or if it has stopped.
 			if (_state != HTTPStreamingState.INIT)
 			{
-				_seekTarget = offset;
+				_seekTarget = convertWindowTimeToAbsoluteTime(offset);
 
 				CONFIG::LOGGING
 				{
-					logger.info("Setting seek (B) to " + offset);
+					logger.info("Setting seek (B) to " + _seekTarget + " based on passed value " + offset);
 				}				
 				
 				// Make sure we don't go past the buffer for the live edge.
@@ -390,7 +393,7 @@ package org.osmf.net.httpstreaming
 		
 		public function get absoluteTime():Number
 		{
-			return super.time + _seekTime;
+			return super.time + _initialTime;
 		}
 
 		/**
@@ -398,14 +401,36 @@ package org.osmf.net.httpstreaming
 		 */
 		override public function get time():Number
 		{
-			if(_seekTime >= 0 && _initialTime >= 0)
+			// First determine our absolute time.
+			var potentialNewTime:Number = super.time + _initialTime;
+
+			// Then if we are in a DVR stream, adjust to be in window-relative time.
+			var hlsIndex:HLSIndexHandler = indexHandler as HLSIndexHandler;
+			if(hlsIndex && hlsIndex.liveEdge != Number.MAX_VALUE)
 			{
-				_lastValidTimeTime = (super.time + _seekTime) - _initialTime; 
-				//  we remember what we say when time is valid, and just spit that back out any time we don't have valid data. This is probably the right answer.
-				//  the only thing we could do better is also run a timer to ask ourselves what it is whenever it might be valid and save that, just in case the
-				//  user doesn't ask... but it turns out most consumers poll this all the time in order to update playback position displays
+				trace("get time - window adjustment - liveEdge = " + hlsIndex.liveEdge + " windowDuration = " + hlsIndex.windowDuration);
+				potentialNewTime -= hlsIndex.liveEdge - hlsIndex.windowDuration;
 			}
+
+			trace("get time - return " + _lastValidTimeTime + " _seekTime=" + _seekTime + ", _initialTime=" + _initialTime + ", time=" + super.time);
+
+			// Only update if we get a real number.
+			if(!isNaN(potentialNewTime) && hlsIndex && hlsIndex.isLiveEdgeValid)
+				_lastValidTimeTime = potentialNewTime;
+
 			return _lastValidTimeTime;
+		}
+
+		public function convertWindowTimeToAbsoluteTime(pubTime:Number):Number
+		{
+			// Deal with DVR window seeking.
+			var hlsIndex:HLSIndexHandler = indexHandler as HLSIndexHandler;
+			if(indexHandler && hlsIndex.liveEdge != Number.MAX_VALUE)
+			{
+				pubTime += (indexHandler as HLSIndexHandler).liveEdge - (indexHandler as HLSIndexHandler).windowDuration;
+			}
+			
+			return pubTime;
 		}
 		
 		/**
@@ -466,6 +491,10 @@ package org.osmf.net.httpstreaming
 					logger.debug("State = " + _state);
 					previouslyLoggedState = _state;
 				}
+
+				// Hack for better playhead reporting.
+				if(_state == "init")
+					_lastValidTimeTime = 0;
 			}
 		}
 		
@@ -857,6 +886,7 @@ package org.osmf.net.httpstreaming
 			{
 				case HTTPStreamingState.INIT:
 					// do nothing
+					_lastValidTimeTime = 0;
 					break;
 				
 				case HTTPStreamingState.WAIT:
@@ -993,7 +1023,9 @@ package org.osmf.net.httpstreaming
 						{
 							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 						}
-						
+
+						_initialTime = NaN;
+
 						_wasBufferEmptied = true;
 						
 						if (playbackDetailsRecorder != null)
@@ -1330,7 +1362,6 @@ package org.osmf.net.httpstreaming
 		private function onDVRStreamInfo(event:DVRStreamInfoEvent):void
 		{
 			_dvrInfo = event.info as DVRInfo;
-			_initialTime = _dvrInfo.startTime;
 		}
 		
 		/**
@@ -1786,6 +1817,8 @@ package org.osmf.net.httpstreaming
 						logger.error("I think I should reset playback.");
 					}
 					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+
+					_initialTime = NaN;
 				}
 			}
 
@@ -1843,7 +1876,6 @@ package org.osmf.net.httpstreaming
 				_enhancedSeekTarget = _seekTarget;
 			}
 
-
 			// Apply bump if present.
 			if(indexHandler && indexHandler.bumpedTime 
 				&& (_enhancedSeekTarget > indexHandler.bumpedSeek
@@ -1893,6 +1925,12 @@ package org.osmf.net.httpstreaming
 				{
 					if (currentTime > (_initialTime + _playForDuration))
 					{
+
+						if(isNaN(_initialTime))
+						{
+							_initialTime = currentTime;
+						}
+
 						setState(HTTPStreamingState.STOP);
 						_flvParserDone = true;
 						if (_seekTime < 0)
@@ -1909,10 +1947,6 @@ package org.osmf.net.httpstreaming
 			
 			if (_enhancedSeekTarget < 0)
 			{
-				if (_initialTime < 0)
-				{
-					_initialTime = _dvrInfo != null ? _dvrInfo.startTime : 0;
-				}
 				if (_seekTime < 0)
 				{
 					//_seekTime = currentTime;
@@ -1968,9 +2002,10 @@ package org.osmf.net.httpstreaming
 					{
 						//_seekTime = currentTime;
 					}
-					if(_initialTime < 0)
+
+					if(isNaN(_initialTime))
 					{
-						_initialTime = 0;
+						_initialTime = currentTime;
 					}
 					
 					if (_enhancedSeekTags != null && _enhancedSeekTags.length > 0)
@@ -2043,6 +2078,12 @@ package org.osmf.net.httpstreaming
 				return true;
 			} // enhanced seek
 			
+			if (isNaN(_initialTime))
+			{
+				trace("Setting new _initialTime of " + currentTime);
+				_initialTime = currentTime;
+			}
+
 			// Before appending the tag, trigger the consumption of all
 			// the script data tags, with this tag's timestamp
 			doConsumeAllScriptDataTags(tag.timestamp);
@@ -2157,6 +2198,8 @@ package org.osmf.net.httpstreaming
 					appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
 				}
 				
+				_initialTime = NaN;
+
 				// Before we feed any TCMessages to the Flash Player, we must feed
 				// an FLV header first.
 				var header:FLVHeader = new FLVHeader();
@@ -2403,9 +2446,9 @@ package org.osmf.net.httpstreaming
 		private var _notifyPlayStartPending:Boolean = false;
 		private var _notifyPlayUnpublishPending:Boolean = false;
 		
-		private var _initialTime:Number = -1;	// this is the timestamp derived at start-of-play (offset or not)... what FMS would call "0"
-		private var _seekTime:Number = -1;		// this is the timestamp derived at end-of-seek (enhanced or not)... what we need to add to super.time (assuming play started at zero)
-		private var _lastValidTimeTime:Number = 0; // this is the last known timestamp
+		private var _initialTime:Number = -1;	// this is the timestamp derived at start-of-play (offset or not)... what FMS would call "0" - it is used to adjust super.time to be an absolute time
+		private var _seekTime:Number = -1;		// this is the timestamp derived at end-of-seek (enhanced or not)... what we need to add to super.time (assuming play started at zero) - this guy is not used for anything much anymore
+		private var _lastValidTimeTime:Number = 0; // this is the last known timestamp returned; used to avoid showing garbage times.
 		
 		private var _initializeFLVParser:Boolean = false;
 		private var _flvParser:FLVParser = null;	// this is the new common FLVTag Parser
