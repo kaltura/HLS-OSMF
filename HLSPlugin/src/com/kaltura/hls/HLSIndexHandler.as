@@ -852,7 +852,31 @@ package com.kaltura.hls
 			reload(targetQuality);
 			return lastQuality;
 		}
-		
+
+		public function get windowDuration():Number
+		{
+			var curManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+			var segments:Vector.<HLSManifestSegment> = curManifest.segments;
+			if (segments.length == 0) 
+			{
+				trace("Failed to get windowDuration, no segments!");
+				return 0.0;
+			}
+
+			updateSegmentTimes(segments);
+
+			var firstSegment:HLSManifestSegment = segments[0];
+			var lastSegment:HLSManifestSegment  = segments[segments.length - 1];
+
+			return (lastSegment.startTime + lastSegment.duration) - firstSegment.startTime;
+		}
+
+		public function get isLiveEdgeValid():Boolean
+		{
+			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
+			return checkAnySegmentKnowledge(seg);
+		}
+
 		public function get liveEdge():Number
 		{
 			trace("Getting live edge using targetQuality=" + targetQuality);
@@ -957,8 +981,8 @@ package com.kaltura.hls
 			
 			if(seq == -1 && segments.length >= 2)
 			{
-				trace("getFileForTime - Got out of bound timestamp. Trying to recover...");
-				
+				trace("getFileForTime - Got out of bound timestamp " + time + ". Trying to recover...");
+
 				var lastSeg:HLSManifestSegment = segments[Math.max(0, segments.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
 				
 				if(time < segments[0].startTime)
