@@ -206,7 +206,7 @@ package org.osmf.net.httpstreaming
 			
 			// Initialize ourselves.
 			_mainTimer.start();
-			_initialTime = 0;
+			_initialTime = -1;
 			_seekTime = -1;
 			_isPlaying = true;
 			_isPaused = false;
@@ -283,31 +283,41 @@ package org.osmf.net.httpstreaming
 		 */
 		override public function seek(offset:Number):void
 		{
-			/*if(offset < 0)
+			if(offset < 0)
 			{
 				offset = 0;	// FMS rule. Seek to <0 is same as seeking to zero.
-			}*/			
+			}			
+
+			// Make sure we don't go past the buffer for the live edge.
+			if(indexHandler && offset > (indexHandler as HLSIndexHandler).liveEdge)
+			{
+				CONFIG::LOGGING
+				{
+					logger.info("Capping seek to the known-safe live edge (" + offset + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+				}
+				offset = (indexHandler as HLSIndexHandler).liveEdge;
+			}
 
 			// we can't seek before the playback starts or if it has stopped.
 			if (_state != HTTPStreamingState.INIT)
 			{
-				_seekTarget = offset;
-
-				CONFIG::LOGGING
-				{
-					logger.info("Setting seek (B) to " + offset);
-				}				
-				
-				// Make sure we don't go past the buffer for the live edge.
-				if(indexHandler && _seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
+				if(_initialTime < 0)
 				{
 					CONFIG::LOGGING
 					{
-						logger.info("Capping seek to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+						logger.info("Setting seek (A) to " + offset);
 					}
-					_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
+					_seekTarget = offset + 0;	// this covers the "don't know initial time" case, rare
 				}
-
+				else
+				{
+					CONFIG::LOGGING
+					{
+						logger.info("Setting seek (B) to " + offset);
+					}
+					_seekTarget = offset + _initialTime;
+				}
+				
 				setState(HTTPStreamingState.SEEK);
 				
 				dispatchEvent(
@@ -1821,28 +1831,12 @@ package org.osmf.net.httpstreaming
 		{
 			var i:int;
 
-			var realTimestamp:int;
-			var timestampCastHelper:Number = tag.timestamp;
-
-			while(timestampCastHelper > int.MAX_VALUE)
-				timestampCastHelper -= uint.MAX_VALUE;
-
-			while(timestampCastHelper < -int.MAX_VALUE)
-				timestampCastHelper += uint.MAX_VALUE;
-
-			realTimestamp = timestampCastHelper;
-
-			// Make sure we don't go past the buffer for the live edge.
-			if(indexHandler && _seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
+/*			if(_enhancedSeekTarget <= 0.0 && indegetLastSequenceManifest() && getLastSequenceManifest().streamEnds == false)
 			{
-				CONFIG::LOGGING
-				{
-					logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
-				}
-				_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
-				_enhancedSeekTarget = _seekTarget;
-			}
-
+				logger.debug("Setting enhanced seek target to last segment end of " + _lastSegmentEnd);
+				_enhancedSeekTarget = _lastSegmentEnd;
+				_seekTarget = _enhancedSeekTarget;
+			}*/
 
 			// Apply bump if present.
 			if(indexHandler && indexHandler.bumpedTime 
@@ -1870,11 +1864,11 @@ package org.osmf.net.httpstreaming
 			if(indexHandler)
 				indexHandler.bumpedTime = false;
 
-			var currentTime:Number = (realTimestamp / 1000.0) + _fileTimeAdjustment;
+			var currentTime:Number = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
 			
 			CONFIG::LOGGING
 			{
-				logger.debug("Saw tag @ " + realTimestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget);
+				logger.debug("Saw tag @ " + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget);
 			}
 
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
@@ -1911,11 +1905,11 @@ package org.osmf.net.httpstreaming
 			{
 				if (_initialTime < 0)
 				{
-					_initialTime = _dvrInfo != null ? _dvrInfo.startTime : 0;
+					_initialTime = _dvrInfo != null ? _dvrInfo.startTime : currentTime;
 				}
 				if (_seekTime < 0)
 				{
-					//_seekTime = currentTime;
+					_seekTime = currentTime;
 				}
 			}		
 			else // doing enhanced seek
@@ -1966,11 +1960,11 @@ package org.osmf.net.httpstreaming
 					_enhancedSeekTarget = -1;
 					if (_seekTime < 0)
 					{
-						//_seekTime = currentTime;
+						_seekTime = currentTime;
 					}
 					if(_initialTime < 0)
 					{
-						_initialTime = 0;
+						_initialTime = currentTime;
 					}
 					
 					if (_enhancedSeekTags != null && _enhancedSeekTags.length > 0)
