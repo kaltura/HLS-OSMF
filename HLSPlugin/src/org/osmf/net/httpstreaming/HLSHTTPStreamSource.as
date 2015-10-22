@@ -275,25 +275,6 @@ package org.osmf.net.httpstreaming
 			_didBeginSeek = false;
 			_didCompleteSeek = false;
 
-			if (_seekTarget < 0 )
-			{
-				if (_dvrInfo != null)
-				{
-					_seekTarget = Math.floor(_dvrInfo.startTime + _dvrInfo.curLength - OSMFSettings.hdsDVRLiveOffset);
-				}
-				else
-				{
-					if (_isLive)
-					{
-						_seekTarget = Math.floor(_offset);
-					}
-					else
-					{
-						_seekTarget = 0;
-					}
-				}
-			}
-
 			CONFIG::LOGGING
 			{			
 				logger.debug("Seeking to " + _seekTarget + " in stream [ " + loggedStreamName + " ]. ");
