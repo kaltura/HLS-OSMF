@@ -327,6 +327,7 @@ package com.kaltura.hls.m2ts
 
             packet.pts = pts;
             packet.dts = dts;
+
             //logger.debug("   PTS=" + pts/90000 + " DTS=" + dts/90000);
 
             cursor += pesHeaderDataLength;
