@@ -34,6 +34,7 @@ package
 		private var _expandedBufferTime:int = -1; // acctual buffer length while the video is playing
 		private var _maxBufferTime:int = -1; // maximum buffer length while the video is playing
 		private var _sendLogs:Boolean = false;
+		private var _targetBitrate:Number = -1; //target bitrate in kbits; only the closest bitrate will be exposed. -1 disables this behavior.
         
         public function KalturaHLSPlugin()
         {
@@ -86,6 +87,14 @@ package
 		public function set sendLogs(value:Boolean):void{
 			_sendLogs = value;
 		}
+		
+		public function get targetBitrate():Number{
+			return _targetBitrate;
+		}
+		
+		public function set targetBitrate(value:Number):void{
+			_targetBitrate = value;
+		}
 
         public function create (pluginName : String =null) : IPlugin
         {
@@ -133,6 +142,9 @@ package
 					HLSManifestParser.SEND_LOGS = true;
 					HLSHTTPStreamSource.SEND_LOGS = true;
 					HLSHTTPStreamDownloader.SEND_LOGS = true;
+				}
+				if (targetBitrate != -1){
+					HLSManifestParser.OVERRIDE_TARGET_BITRATE = targetBitrate; //set target bitrate in order to fix one prefared bitrate and disable autoDynamicStreamSwitch
 				}
 				dispatchEvent( new KPluginEvent (KPluginEvent.KPLUGIN_INIT_COMPLETE) );
 			}
