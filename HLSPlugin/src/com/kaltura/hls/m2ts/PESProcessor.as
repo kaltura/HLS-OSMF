@@ -360,6 +360,7 @@ package com.kaltura.hls.m2ts
                     {
                         logger.warn("WARNING: parsePESPacket - invalid decode timestamp? DTS="  + dts);
                     }
+                    dts += 0; // nop to avoid warnings when logging off.
                     //return true;
                 }
                 

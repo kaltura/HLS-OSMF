@@ -1916,13 +1916,15 @@ package org.osmf.net.httpstreaming
 		{
 			var i:int;
 
-			if(_enhancedSeekTarget <= 0.0 && indegetLastSequenceManifest() && getLastSequenceManifest().streamEnds == false)
+			var hlsIndexHandler:HLSIndexHandler = indexHandler as HLSIndexHandler;
+
+			if(_enhancedSeekTarget <= 0.0 && hlsIndexHandler && hlsIndexHandler.getLastSequenceManifest() && hlsIndexHandler.getLastSequenceManifest().streamEnds == false)
 			{
 				CONFIG::LOGGING
 				{
 					logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
 				}
-				_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
+				_seekTarget = hlsIndexHandler.liveEdge;
 				_enhancedSeekTarget = _seekTarget;
 			}
 

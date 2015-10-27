@@ -228,9 +228,6 @@ package com.kaltura.hls.m2ts
             naluProcessor.resetAVCCExtraction();
         }
 
-        // State used to estimate video framerate.
-        public var videoLastDTS:Number = 0.0;
-
         /**
          * Convert and emit AVC NALU data.
          */
