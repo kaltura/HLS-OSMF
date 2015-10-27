@@ -1878,9 +1878,8 @@ package org.osmf.net.httpstreaming
 					}
 
 					// TODO: Correct? we had this commented out in explicit buffer branch.
-					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-
-					_initialTime = NaN;
+					//appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+					//_initialTime = NaN;
 				}
 			}
 
@@ -2260,7 +2259,7 @@ package org.osmf.net.httpstreaming
 			}
 		}
 		
-		public var lastWrittenTime:Number = -1;
+		public var lastWrittenTime:Number = NaN;
 
 		private function keepBufferFed():void
 		{
@@ -2284,20 +2283,22 @@ package org.osmf.net.httpstreaming
 				tag.write(buffer);
 				curTagOffset++;
 
-				if(lastWrittenTime == -1)
-					lastWrittenTime = tag.cachedTimestamp / 1000;
+				var tagTimeSeconds:Number = (tag.timestamp as int) / 1000;
+
+				if(isNaN(lastWrittenTime))
+					lastWrittenTime = tagTimeSeconds;
 
 				// If it's more than 0.5 second jump ahead of current playhead, insert a RESET_SEEK so we won't stall forever.
-				if((tag.cachedTimestamp / 1000) - lastWrittenTime > bufferFeedMin + bufferFeedAmount * 2)
+				if(tagTimeSeconds - lastWrittenTime > bufferFeedMin + bufferFeedAmount * 2)
 				{
 					CONFIG::LOGGING
 					{
-						logger.debug("Inserting RESET_SEEK due to " + (tag.cachedTimestamp / 1000) + " being too far ahead of " + (super.time + super.bufferLength));
+						logger.debug("Inserting RESET_SEEK due to " + tagTimeSeconds + " being too far ahead of " + (super.time + super.bufferLength));
 					}
 					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 				}
 
-				lastWrittenTime = tag.cachedTimestamp / 1000;
+				lastWrittenTime = tagTimeSeconds;
 
 				// Do writing.
 				CONFIG::LOGGING
@@ -2410,10 +2411,12 @@ package org.osmf.net.httpstreaming
 		{
 			//trace("Got tag " + tag);
 
+			var realTimestamp:int = tag.timestamp as int;
+
 			// First, is it audio/video/other?
 			if(tag is FLVTagAudio)
 			{
-				if(tag.timestamp < getHighestAudioTime())
+				if(realTimestamp < getHighestAudioTime())
 				{
 					CONFIG::LOGGING
 					{
@@ -2426,7 +2429,7 @@ package org.osmf.net.httpstreaming
 			{
 				var vTag:FLVTagVideo = tag as FLVTagVideo;
 
-				var timeDelta:Number = getHighestVideoTime() - tag.timestamp;
+				var timeDelta:Number = getHighestVideoTime() - realTimestamp;
 				var isBackInTime:Boolean = timeDelta > 150;
 				var isIFrame:Boolean = vTag.isIFrame;
 
@@ -2444,7 +2447,7 @@ package org.osmf.net.httpstreaming
 
 				// Skip totally implausible tags.
 				if(!scanningForIFrame && 
-					pendingTags.length > 0 && vTag.timestamp < pendingTags[0].timestamp)
+					pendingTags.length > 0 && realTimestamp < (pendingTags[0].timestamp as int))
 				{
 					scanningForIFrame = true;
 
@@ -2516,7 +2519,7 @@ package org.osmf.net.httpstreaming
 							continue;
 
 						// Stop scanning once we find tag before our tag.
-						if(pendingTags[i].timestamp <= vTag.timestamp)
+						if((pendingTags[i].timestamp as int) <= (vTag.timestamp as int))
 							break;
 
 						// Remove this tag, update i.
@@ -2532,7 +2535,10 @@ package org.osmf.net.httpstreaming
 					// We know next thing we write will be somewhere crazy as we 
 					// ate the whole buffer.
 					if(pendingTags.length == 0)
+					{
 						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+						_initialTime = NaN;
+					}
 
 					// Drop through to let tag be added.
 				}
@@ -2540,7 +2546,7 @@ package org.osmf.net.httpstreaming
 
 			// Add to the queue, marking if we need to resort.
 			if(pendingTags.length > 0 
-				&& tag.timestamp < pendingTags[pendingTags.length-1].timestamp)
+				&& (tag.timestamp as int) < (pendingTags[pendingTags.length-1].timestamp as int))
 				needPendingSort = true;
 
 			pendingTags.push(tag);
@@ -2564,7 +2570,10 @@ package org.osmf.net.httpstreaming
 
 		static protected function pendingSortCallback(a:FLVTag, b:FLVTag):int
 		{
-			if(a.cachedTimestamp == b.cachedTimestamp)
+			const aTime:int = a.timestamp as int;
+			const bTime:int = b.timestamp as int;
+
+			if(aTime == bTime)
 			{
 				var vTagA:FLVTagVideo = a as FLVTagVideo;
 				var vTagB:FLVTagVideo = b as FLVTagVideo;
@@ -2579,7 +2588,7 @@ package org.osmf.net.httpstreaming
 				}
 			}
 
-			return a.cachedTimestamp - b.cachedTimestamp;
+			return aTime - bTime;
 		}
 
 		private function ensurePendingSorted():void
