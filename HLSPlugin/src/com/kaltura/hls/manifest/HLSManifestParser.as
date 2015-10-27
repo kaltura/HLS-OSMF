@@ -35,6 +35,13 @@ package com.kaltura.hls.manifest
 		public static const SUBTITLES:String = "SUBTITLES";
 		
 		/**
+		 * Set a target bitrate in kbits; only the closest bitrate will be exposed.
+		 *
+		 * -1 disables this behavior.
+		 */
+		public static var OVERRIDE_TARGET_BITRATE:Number = -1;
+
+		/**
 		 * When true, we issue JS callbacks to an HTML5 debug visualizer.
 		 */
 		public static var SEND_LOGS:Boolean = false;
