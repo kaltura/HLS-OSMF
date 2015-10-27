@@ -120,6 +120,35 @@ package com.kaltura.hls
 				}
 			}
 			
+			// Check for bitrate reporting override.
+			if(HLSManifestParser.OVERRIDE_TARGET_BITRATE != -1 && items.length >= 1)
+			{
+				trace("Filtering down to bitrate level closest to " + HLSManifestParser.OVERRIDE_TARGET_BITRATE + "kbits/sec bitrate.");
+
+				// Find index closest to target.
+				var closestIdx:int = 0;
+				var closestDist:Number = Number.MAX_VALUE;
+				for(i=0; i<items.length; i++)
+				{
+					var potentialDist:Number = items[i].bitrate - HLSManifestParser.OVERRIDE_TARGET_BITRATE;
+					
+					// Reject it if not closest.
+					if(potentialDist > closestDist)
+						continue;
+
+					// Got a match.
+					closestIdx = i;
+					closestDist = potentialDist;
+				}
+
+				// Great, index selected.
+				trace("   o selected bitrate index " + closestIdx);
+				item = items[closestIdx];
+				items.length = 0;
+				items.push(item);
+			}
+
+
 			// Deal with single rate M3Us by stuffing a single stream in.
 			if(items.length == 0)
 			{
