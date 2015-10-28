@@ -1906,6 +1906,26 @@ package org.osmf.net.httpstreaming
 		}
 		
 		/**
+		 * FLVTag from OSMF stores timestamps as unsigned ints.
+		 *
+		 * However, the FLV spec indicates they are S24 with an 8 bit extension.
+		 *
+		 * So we must convert from uint to int explicitly to get proper behavior.
+		 */
+		public static function wrapTagTimestampToFLVTimestamp(timestamp:uint):int
+		{
+			var timestampCastHelper:Number = timestamp;
+
+			while(timestampCastHelper > int.MAX_VALUE)
+				timestampCastHelper -= uint.MAX_VALUE;
+
+			while(timestampCastHelper < -int.MAX_VALUE)
+				timestampCastHelper += uint.MAX_VALUE;
+
+			return timestampCastHelper;
+		}
+
+		/**
 		 * @private
 		 * 
 		 * Method called by FLV parser object every time it detects another
@@ -1927,7 +1947,7 @@ package org.osmf.net.httpstreaming
 				_enhancedSeekTarget = _seekTarget;
 			}
 
-			var realTimestamp:int = tag.timestamp as int;
+			var realTimestamp:int = wrapTagTimestampToFLVTimestamp(tag.timestamp);
 
 			// Apply bump if present.
 			if(indexHandler && indexHandler.bumpedTime 
@@ -1959,7 +1979,7 @@ package org.osmf.net.httpstreaming
 			
 			CONFIG::LOGGING
 			{
-				logger.debug("Saw tag @ " + realTimestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget);
+				logger.debug("Saw tag @ " + realTimestamp + " timestamp=" + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget + " dataSize=" + tag.dataSize);
 			}
 
 			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
@@ -2411,7 +2431,7 @@ package org.osmf.net.httpstreaming
 		{
 			//trace("Got tag " + tag);
 
-			var realTimestamp:int = tag.timestamp as int;
+			var realTimestamp:int = wrapTagTimestampToFLVTimestamp(tag.timestamp);
 
 			// First, is it audio/video/other?
 			if(tag is FLVTagAudio)
