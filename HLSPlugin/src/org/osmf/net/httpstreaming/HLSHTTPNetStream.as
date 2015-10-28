@@ -2383,7 +2383,7 @@ package org.osmf.net.httpstreaming
 				if(!vTag)
 					continue;
 
-				return vTag.timestamp;
+				return vTag.timestamp as int;
 			}
 
 			return 0;
@@ -2401,7 +2401,7 @@ package org.osmf.net.httpstreaming
 				if(!aTag)
 					continue;
 
-				return aTag.timestamp;
+				return aTag.timestamp as int;
 			}
 
 			return 0;
