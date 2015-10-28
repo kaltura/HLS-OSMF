@@ -356,16 +356,6 @@ package org.osmf.net.httpstreaming
 				offset = 0;	// FMS rule. Seek to <0 is same as seeking to zero.
 			}			
 
-			// Make sure we don't go past the buffer for the live edge.
-			if(indexHandler && offset > (indexHandler as HLSIndexHandler).liveEdge)
-			{
-				CONFIG::LOGGING
-				{
-					logger.info("Capping seek to the known-safe live edge (" + offset + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
-				}
-				offset = (indexHandler as HLSIndexHandler).liveEdge;
-			}
-
 			// we can't seek before the playback starts or if it has stopped.
 			if (_state != HTTPStreamingState.INIT)
 			{
@@ -1053,19 +1043,20 @@ package org.osmf.net.httpstreaming
 					// we may call seek before our stream provider is
 					// able to fulfill our request - so we'll stay in seek
 					// mode until the provider is ready.
+					var hlsIndexHandler:HLSIndexHandler = indexHandler as HLSIndexHandler;
 					if (_source.isReady)
 					{
 						timeBeforeSeek = time;
 						seeking = true;
 
 						// Make sure we don't go past the buffer for the live edge.
-						if(indexHandler && _seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
+						if(_seekTarget > hlsIndexHandler.liveEdge)
 						{
 							CONFIG::LOGGING
 							{
 								logger.warn("Capping seek (HTTPStreamingState.SEEK) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
 							}
-							_seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
+							_seekTarget = hlsIndexHandler.liveEdge;
 						}
 
 						
@@ -1937,14 +1928,20 @@ package org.osmf.net.httpstreaming
 
 			var hlsIndexHandler:HLSIndexHandler = indexHandler as HLSIndexHandler;
 
-			if(_enhancedSeekTarget <= 0.0 && hlsIndexHandler && hlsIndexHandler.getLastSequenceManifest() && hlsIndexHandler.getLastSequenceManifest().streamEnds == false)
+			// Make sure we don't go past the live edge even if it changes while seeking.
+			if(hlsIndexHandler.isLiveEdgeValid)
 			{
-				CONFIG::LOGGING
+				var liveEdgeValue:Number = hlsIndexHandler.liveEdge;
+				trace("Seeing live edge of " + liveEdgeValue);
+				if(_seekTarget > liveEdgeValue || _enhancedSeekTarget > liveEdgeValue)
 				{
-					logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+					CONFIG::LOGGING
+					{
+						logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " > " + liveEdgeValue + ").");
+					}
+					_seekTarget = liveEdgeValue;
+					_enhancedSeekTarget = liveEdgeValue;					
 				}
-				_seekTarget = hlsIndexHandler.liveEdge;
-				_enhancedSeekTarget = _seekTarget;
 			}
 
 			var realTimestamp:int = wrapTagTimestampToFLVTimestamp(tag.timestamp);
@@ -2021,7 +2018,7 @@ package org.osmf.net.httpstreaming
 			{
 				if (_seekTime < 0)
 				{
-					_seekTime = currentTime;
+					//_seekTime = currentTime;
 				}
 			}		
 			else // doing enhanced seek
@@ -2403,7 +2400,7 @@ package org.osmf.net.httpstreaming
 				if(!vTag)
 					continue;
 
-				return vTag.timestamp as int;
+				return wrapTagTimestampToFLVTimestamp(vTag.timestamp);
 			}
 
 			return 0;
@@ -2421,10 +2418,10 @@ package org.osmf.net.httpstreaming
 				if(!aTag)
 					continue;
 
-				return aTag.timestamp as int;
+				return wrapTagTimestampToFLVTimestamp(aTag.timestamp);
 			}
 
-			return 0;
+			return NaN;
 		}
 
 		private function onBufferTag(tag:FLVTag):Boolean
@@ -2436,11 +2433,12 @@ package org.osmf.net.httpstreaming
 			// First, is it audio/video/other?
 			if(tag is FLVTagAudio)
 			{
-				if(realTimestamp < getHighestAudioTime())
+				var highestAudioTime:Number = getHighestAudioTime();
+				if(!isNaN(highestAudioTime) && realTimestamp < highestAudioTime)
 				{
 					CONFIG::LOGGING
 					{
-						logger.warn("Skipping audio due to too low time.");
+						logger.warn("Skipping audio due to too low time (" + realTimestamp + " < " + getHighestAudioTime() + ".");
 					}
 					return true;
 				}
@@ -2467,7 +2465,7 @@ package org.osmf.net.httpstreaming
 
 				// Skip totally implausible tags.
 				if(!scanningForIFrame && 
-					pendingTags.length > 0 && realTimestamp < (pendingTags[0].timestamp as int))
+					pendingTags.length > 0 && realTimestamp < wrapTagTimestampToFLVTimestamp(pendingTags[0].timestamp))
 				{
 					scanningForIFrame = true;
 
@@ -2539,7 +2537,7 @@ package org.osmf.net.httpstreaming
 							continue;
 
 						// Stop scanning once we find tag before our tag.
-						if((pendingTags[i].timestamp as int) <= (vTag.timestamp as int))
+						if(wrapTagTimestampToFLVTimestamp(pendingTags[i].timestamp as int) <= wrapTagTimestampToFLVTimestamp(vTag.timestamp as int))
 							break;
 
 						// Remove this tag, update i.
@@ -2566,7 +2564,7 @@ package org.osmf.net.httpstreaming
 
 			// Add to the queue, marking if we need to resort.
 			if(pendingTags.length > 0 
-				&& (tag.timestamp as int) < (pendingTags[pendingTags.length-1].timestamp as int))
+				&& wrapTagTimestampToFLVTimestamp(tag.timestamp) < wrapTagTimestampToFLVTimestamp(pendingTags[pendingTags.length-1].timestamp))
 				needPendingSort = true;
 
 			pendingTags.push(tag);
@@ -2590,8 +2588,8 @@ package org.osmf.net.httpstreaming
 
 		static protected function pendingSortCallback(a:FLVTag, b:FLVTag):int
 		{
-			const aTime:int = a.timestamp as int;
-			const bTime:int = b.timestamp as int;
+			const aTime:int = wrapTagTimestampToFLVTimestamp(a.timestamp);
+			const bTime:int = wrapTagTimestampToFLVTimestamp(b.timestamp);
 
 			if(aTime == bTime)
 			{
