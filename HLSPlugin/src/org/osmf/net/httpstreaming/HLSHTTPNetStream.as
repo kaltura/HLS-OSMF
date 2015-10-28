@@ -2300,7 +2300,7 @@ package org.osmf.net.httpstreaming
 				tag.write(buffer);
 				curTagOffset++;
 
-				var tagTimeSeconds:Number = (tag.timestamp as int) / 1000;
+				var tagTimeSeconds:Number = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000;
 
 				if(isNaN(lastWrittenTime))
 					lastWrittenTime = tagTimeSeconds;
