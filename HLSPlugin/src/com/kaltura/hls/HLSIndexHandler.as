@@ -28,6 +28,7 @@ package com.kaltura.hls
 	import org.osmf.net.DynamicStreamingItem;
 	import org.osmf.net.httpstreaming.HLSHTTPNetStream;
 	import org.osmf.net.httpstreaming.HLSHTTPStreamDownloader;
+	import org.osmf.net.httpstreaming.HTTPStreamDownloader;
 	import org.osmf.net.httpstreaming.HTTPStreamRequest;
 	import org.osmf.net.httpstreaming.HTTPStreamRequestKind;
 	import org.osmf.net.httpstreaming.HTTPStreamingFileHandlerBase;
@@ -106,6 +107,7 @@ package com.kaltura.hls
 		private var _bestEffortEnabled:Boolean = false;														// is BEF enabled at all?
 		private var _bestEffortState:String =  BEST_EFFORT_STATE_OFF;										// the current state of best effort
 		private var _bestEffortSeekTime:Number = 0;															// the time we're seeking to
+		private var _bestEffortDownloader:HTTPStreamDownloader = null;
 		private var _bestEffortDownloaderMonitor:EventDispatcher = null; 									// Special dispatcher to handler the results of best-effort downloads.
 		private var _bestEffortFailedFetches:uint = 0; 														// The number of fetches that have failed so far.
 		private var _bestEffortDownloadReply:String = null;													// After initiating a download, this is the DOWNLOAD_CONTINUE or DOWNLOAD_SKIP reply that we sent
@@ -122,6 +124,9 @@ package com.kaltura.hls
 		
 		private function isBestEffortActive():Boolean
 		{
+			if(_bestEffortDownloader && _bestEffortDownloader.isOpen == false)
+				return false;
+
 			var dt:int = getTimer() - _pendingBestEffortStartTime;
 			if(dt > 30*1000) // Timeout on best effort requests of 30 seconds.
 				return false;
@@ -899,7 +904,8 @@ package com.kaltura.hls
 
 		public function get liveEdge():Number
 		{
-			trace("Getting live edge using targetQuality=" + targetQuality);
+			//trace("Getting live edge using targetQuality=" + targetQuality);
+
 			// Return time at least MAX_SEG_BUFFER from end of stream.
 			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
 			if(!seg || getManifestForQuality(lastQuality).streamEnds)
@@ -1643,7 +1649,7 @@ package com.kaltura.hls
 			_bestEffortDownloaderMonitor = new EventDispatcher();
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
-			
+			_bestEffortDownloaderMonitor.addEventListener("dispatcherStart", onBestEffortDownloadStart);			
 			
 			_bestEffortFileHandler.segmentId = nextSeg.id;
 			_bestEffortFileHandler.key = theKey;
@@ -1662,6 +1668,12 @@ package com.kaltura.hls
 			return streamRequest;
 		}
 		
+		private function onBestEffortDownloadStart(event:HTTPStreamingEvent):void
+		{
+			trace("onBestEffortDownloadStart - noting downloader: " + event.downloader);
+			_bestEffortDownloader = event.downloader;
+		}
+
 		/**
 		 * @private
 		 *
