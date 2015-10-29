@@ -1049,17 +1049,6 @@ package org.osmf.net.httpstreaming
 						timeBeforeSeek = time;
 						seeking = true;
 
-						// Make sure we don't go past the buffer for the live edge.
-						if(_seekTarget > hlsIndexHandler.liveEdge)
-						{
-							CONFIG::LOGGING
-							{
-								logger.warn("Capping seek (HTTPStreamingState.SEEK) to the known-safe live edge (" + _seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
-							}
-							_seekTarget = hlsIndexHandler.liveEdge;
-						}
-
-						
 						// cleaning up the previous seek info
 						_flvParser = null;
 						if (_enhancedSeekTags != null)
@@ -1940,7 +1929,8 @@ package org.osmf.net.httpstreaming
 						logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " > " + liveEdgeValue + ").");
 					}
 					_seekTarget = liveEdgeValue;
-					_enhancedSeekTarget = liveEdgeValue;					
+					_enhancedSeekTarget = liveEdgeValue;
+					setState(HTTPStreamingState.SEEK);
 				}
 			}
 
