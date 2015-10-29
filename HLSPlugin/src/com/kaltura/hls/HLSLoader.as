@@ -130,7 +130,7 @@ package com.kaltura.hls
 				var closestDist:Number = Number.MAX_VALUE;
 				for(i=0; i<items.length; i++)
 				{
-					var potentialDist:Number = items[i].bitrate - HLSManifestParser.OVERRIDE_TARGET_BITRATE;
+					var potentialDist:Number = Math.abs(items[i].bitrate - HLSManifestParser.OVERRIDE_TARGET_BITRATE);
 					
 					// Reject it if not closest.
 					if(potentialDist > closestDist)
