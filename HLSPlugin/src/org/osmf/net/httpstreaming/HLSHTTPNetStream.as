@@ -2399,6 +2399,34 @@ package org.osmf.net.httpstreaming
 			return NaN;
 		}
 
+		public static function isTagAVCC(tag:FLVTagVideo):Boolean
+		{
+			// Must be keyframe.
+			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
+				return false;
+
+			// And config record.
+			if(tag.data[12] == 0)
+				return true;
+
+			return false;
+		}
+
+
+		public static function isTagIFrame(tag:FLVTagVideo):Boolean
+		{
+			// Must be keyframe.
+			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
+				return false;
+
+			// But not config record.
+			if(tag.data[12] == 0)
+				return false;
+
+			// It's an I-frame!
+			return true;
+		}
+
 		private function onBufferTag(tag:FLVTag):Boolean
 		{
 			//trace("Got tag " + tag);
@@ -2424,9 +2452,9 @@ package org.osmf.net.httpstreaming
 
 				var timeDelta:Number = getHighestVideoTime() - realTimestamp;
 				var isBackInTime:Boolean = timeDelta > 150;
-				var isIFrame:Boolean = vTag.isIFrame;
+				var isIFrame:Boolean = isTagIFrame(vTag);
 
-				//trace("was i-frame " + isIFrame + " was AVCC " + vTag.isAVCC);
+				//trace("was i-frame " + isIFrame + " was AVCC " + isTagAVCC(vTag));
 
 				if(!scanningForIFrame && isBackInTime)
 				{
@@ -2444,7 +2472,7 @@ package org.osmf.net.httpstreaming
 				{
 					scanningForIFrame = true;
 
-					if(vTag.isAVCC == false)
+					if(isTagAVCC(vTag) == false)
 					{
 						CONFIG::LOGGING
 						{
@@ -2466,7 +2494,7 @@ package org.osmf.net.httpstreaming
 				// Skip until we find our I-frame.
 				if(scanningForIFrame && !isIFrame)
 				{
-					if(vTag.isAVCC == false)
+					if(isTagAVCC(vTag) == false)
 					{
 						CONFIG::LOGGING
 						{
@@ -2508,7 +2536,7 @@ package org.osmf.net.httpstreaming
 						if(!potentialFilterTag)
 							continue;
 
-						if(potentialFilterTag.isAVCC)
+						if(isTagAVCC(potentialFilterTag))
 							continue;
 
 						// Stop scanning once we find tag before our tag.
@@ -2575,9 +2603,9 @@ package org.osmf.net.httpstreaming
 				if(vTagA && vTagB)
 				{
 					// Both video tags at same time - make sure SPS/PPS comes first.
-					if(vTagA.isAVCC && !vTagB.isAVCC)
+					if(isTagAVCC(vTagA) && !isTagAVCC(vTagB))
 						return -1;
-					else if(!vTagA.isAVCC && vTagB.isAVCC)
+					else if(!isTagAVCC(vTagA) && isTagAVCC(vTagB))
 						return 1;
 				}
 			}
