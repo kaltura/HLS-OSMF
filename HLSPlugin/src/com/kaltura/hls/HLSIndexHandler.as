@@ -878,6 +878,21 @@ package com.kaltura.hls
 			return lastQuality;
 		}
 
+		public function get streamStartAbsoluteTime():Number
+		{
+			var curManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+			var segments:Vector.<HLSManifestSegment> = curManifest.segments;
+			if (segments.length == 0) 
+			{
+				trace("Failed to get streamStartAbsoluteTime, no segments!");
+				return 0.0;
+			}
+
+			updateSegmentTimes(segments);
+
+			return segments[0].startTime;			
+		}
+
 		public function get windowDuration():Number
 		{
 			var curManifest:HLSManifestParser = getManifestForQuality(lastQuality);

@@ -126,7 +126,8 @@ package org.osmf.net.httpstreaming
 		private var bufferParser:FLVParser = new FLVParser(false); // Used to parse incoming FLV stream to buffer. TODO: Refactor to be unnecessary.
 		private var needPendingSort:Boolean = false; // Set when we detect a new tag that's not after the last one, to save on resorts.
 		private var endAfterPending:Boolean = false;
-		
+		public var lastWrittenTime:Number = NaN; // The timestamp of the FLV tag we last wrote into the NetStream in seconds.
+
 		// Operations on buffer
 		/**
 			State/Logic
@@ -223,7 +224,7 @@ package org.osmf.net.httpstreaming
 				addEventListener(DRMStatusEvent.DRM_STATUS, onDRMStatus);
 			}
 				
-			this.bufferTime = HLSManifestParser.INITIAL_BUFFER_THRESHOLD;
+			this.bufferTime = bufferFeedMin;
 			this.bufferTimeMax = 0;
 			
 			setState(HTTPStreamingState.INIT);
@@ -351,11 +352,6 @@ package org.osmf.net.httpstreaming
 		 */
 		override public function seek(offset:Number):void
 		{
-			if(offset < 0)
-			{
-				offset = 0;	// FMS rule. Seek to <0 is same as seeking to zero.
-			}			
-
 			// we can't seek before the playback starts or if it has stopped.
 			if (_state != HTTPStreamingState.INIT)
 			{
@@ -365,16 +361,6 @@ package org.osmf.net.httpstreaming
 				{
 					logger.info("Setting seek (B) to " + _seekTarget + " based on passed value " + offset);
 				}				
-				
-				// Make sure we don't go past the buffer for the live edge.
-				if(indexHandler && _seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
-				{
-					CONFIG::LOGGING
-					{
-						logger.info("Setting seek (B) to " + offset);
-					}
-					_seekTarget = offset + _initialTime;
-				}
 				
 				setState(HTTPStreamingState.SEEK);
 				
@@ -441,7 +427,7 @@ package org.osmf.net.httpstreaming
 					targetBuffer = lastMan.bestGuessWindowDuration - 1;
 			}
 
-			super.bufferTime = targetBuffer;
+			super.bufferTime = bufferFeedMin;
 			_desiredBufferTime_Min = targetBuffer;
 			_desiredBufferTime_Max = HLSManifestParser.MAX_BUFFER_AMOUNT + bufferBias;
 		}
@@ -490,11 +476,14 @@ package org.osmf.net.httpstreaming
 		{
 			// Deal with DVR window seeking.
 			var hlsIndex:HLSIndexHandler = indexHandler as HLSIndexHandler;
-			if(indexHandler && hlsIndex.liveEdge != Number.MAX_VALUE)
+			if(hlsIndex)
 			{
-				pubTime += (indexHandler as HLSIndexHandler).liveEdge - (indexHandler as HLSIndexHandler).windowDuration;
+				if(hlsIndex.liveEdge != Number.MAX_VALUE)
+					pubTime += (indexHandler as HLSIndexHandler).liveEdge - (indexHandler as HLSIndexHandler).windowDuration;
+				else
+					pubTime -= hlsIndex.streamStartAbsoluteTime;
 			}
-			
+
 			return pubTime;
 		}
 		
@@ -1857,9 +1846,8 @@ package org.osmf.net.httpstreaming
 						logger.error("I think I should reset playback.");
 					}
 
-					// TODO: Correct? we had this commented out in explicit buffer branch.
-					//appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-					//_initialTime = NaN;
+					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+					_initialTime = NaN;
 				}
 			}
 
@@ -2263,11 +2251,10 @@ package org.osmf.net.httpstreaming
 				appendBytes(headerBytes);
 
 				flushPendingTags();
+				keepBufferFed();
 			}
 		}
-		
-		public var lastWrittenTime:Number = NaN;
-
+	
 		private function keepBufferFed():void
 		{
 			// Check the actual amount of content present.
@@ -2292,15 +2279,13 @@ package org.osmf.net.httpstreaming
 
 				var tagTimeSeconds:Number = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000;
 
-				if(isNaN(lastWrittenTime))
-					lastWrittenTime = tagTimeSeconds;
-
 				// If it's more than 0.5 second jump ahead of current playhead, insert a RESET_SEEK so we won't stall forever.
-				if(tagTimeSeconds - lastWrittenTime > bufferFeedMin + bufferFeedAmount * 2)
+				var tagDelta:Number = Math.abs(tagTimeSeconds - lastWrittenTime)
+				if(tagDelta > bufferFeedMin + bufferFeedAmount * 2 || isNaN(tagDelta))
 				{
 					CONFIG::LOGGING
 					{
-						logger.debug("Inserting RESET_SEEK due to " + tagTimeSeconds + " being too far ahead of " + (super.time + super.bufferLength));
+						logger.debug("Inserting RESET_SEEK due to " + tagDelta + " being bigger than  " + bufferFeedMin + bufferFeedAmount * 2);
 					}
 					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 				}
@@ -2371,8 +2356,8 @@ package org.osmf.net.httpstreaming
 			ensurePendingSorted();
 
 			// Get active range of pending tags. Since we keep them sorted this is easy.
-			var minTime:Number = pendingTags[0].timestamp / 1000.0;
-			var maxTime:Number = pendingTags[pendingTags.length - 1].timestamp / 1000.0;
+			var minTime:Number = wrapTagTimestampToFLVTimestamp(pendingTags[0].timestamp) / 1000.0;
+			var maxTime:Number = wrapTagTimestampToFLVTimestamp(pendingTags[pendingTags.length - 1].timestamp) / 1000.0;
 			var len:Number = (maxTime - minTime) + super.bufferLength;
 			//trace("CALCULATED LENGTH TO BE " + len + " (" + (maxTime/1000) + " , " + (minTime/1000) + ", " + super.bufferLength + ")");
 			return len;
@@ -2574,6 +2559,7 @@ package org.osmf.net.httpstreaming
 			endAfterPending = false;
 			needPendingSort = false;
 			scanningForIFrame = false;
+			lastWrittenTime = NaN;
 		}
 
 		static protected function pendingSortCallback(a:FLVTag, b:FLVTag):int
