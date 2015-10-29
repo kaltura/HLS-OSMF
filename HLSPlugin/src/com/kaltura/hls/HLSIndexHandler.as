@@ -1505,17 +1505,34 @@ package com.kaltura.hls
 		
 		private function getManifestForQuality( quality:int):HLSManifestParser
 		{
-			if (!manifest) return new HLSManifestParser();
-			if (manifest.streams.length < 1 || manifest.streams[0].manifest == null) return manifest;
-			else if ( quality >= manifest.streams.length ) return manifest.streams[0].manifest;
+			// Give HLSHTTPNetStream a reference to ourselves so it can call postRatesReady()
+			HLSHTTPNetStream.indexHandler = this;
+
+			var manifestToReturn:HLSManifestParser = null;
+			if (!manifest) 
+			{
+				manifestToReturn = new HLSManifestParser();
+			}
+			else if (manifest.streams.length < 1 || manifest.streams[0].manifest == null)
+			{
+				manifestToReturn = manifest;
+			}
+			else if ( quality >= manifest.streams.length ) 
+			{
+				quality = 0;
+				manifestToReturn = manifest.streams[0].manifest;
+			}
 			
 			// We give the HLSHTTPNetStream the stream for the quality we are currently using to help it recover after a URL error
-			HLSHTTPNetStream.currentStream = manifest.streams[quality];
+			if(manifest.streams.length > quality)
+			{
+				HLSHTTPNetStream.currentStream = manifest.streams[quality];
+	
+				if(!manifestToReturn)
+					manifestToReturn = manifest.streams[quality].manifest;
+			}
 			
-			// Also give HLSHTTPNetStream a reference to ourselves so it can call postRatesReady()
-			HLSHTTPNetStream.indexHandler = this;
-			
-			return manifest.streams[quality].manifest;
+			return manifestToReturn;
 		}
 		
 		private function createHTTPStreamRequest( segment:HLSManifestSegment ):HTTPStreamRequest
