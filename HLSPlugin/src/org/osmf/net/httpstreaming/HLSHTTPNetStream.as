@@ -456,17 +456,16 @@ package org.osmf.net.httpstreaming
 			var potentialNewTime:Number = super.time + _initialTime;
 
 			// Then if we are in a DVR stream, adjust to be in window-relative time.
-			var hlsIndex:HLSIndexHandler = indexHandler as HLSIndexHandler;
-			if(hlsIndex && hlsIndex.liveEdge != Number.MAX_VALUE)
+			if(indexHandler && indexHandler.liveEdge != Number.MAX_VALUE)
 			{
-				trace("get time - window adjustment - liveEdge = " + hlsIndex.liveEdge + " windowDuration = " + hlsIndex.windowDuration);
-				potentialNewTime -= hlsIndex.liveEdge - hlsIndex.windowDuration;
+				trace("get time - window adjustment - liveEdge = " + indexHandler.liveEdge + " windowDuration = " + indexHandler.windowDuration);
+				potentialNewTime -= indexHandler.liveEdge - indexHandler.windowDuration;
 			}
 
 			trace("get time - return " + _lastValidTimeTime + " _seekTime=" + _seekTime + ", _initialTime=" + _initialTime + ", time=" + super.time);
 
 			// Only update if we get a real number.
-			if(!isNaN(potentialNewTime) && hlsIndex && hlsIndex.isLiveEdgeValid)
+			if(!isNaN(potentialNewTime))
 				_lastValidTimeTime = potentialNewTime;
 
 			return _lastValidTimeTime;
@@ -475,13 +474,12 @@ package org.osmf.net.httpstreaming
 		public function convertWindowTimeToAbsoluteTime(pubTime:Number):Number
 		{
 			// Deal with DVR window seeking.
-			var hlsIndex:HLSIndexHandler = indexHandler as HLSIndexHandler;
-			if(hlsIndex)
+			if(indexHandler)
 			{
-				if(hlsIndex.liveEdge != Number.MAX_VALUE)
-					pubTime += (indexHandler as HLSIndexHandler).liveEdge - (indexHandler as HLSIndexHandler).windowDuration;
+				if(indexHandler.liveEdge != Number.MAX_VALUE)
+					pubTime += indexHandler.liveEdge - indexHandler.windowDuration;
 				else
-					pubTime -= hlsIndex.streamStartAbsoluteTime;
+					pubTime -= indexHandler.streamStartAbsoluteTime;
 			}
 
 			return pubTime;
@@ -594,13 +592,13 @@ package org.osmf.net.httpstreaming
 			}
 
 			// Make sure we don't go past the buffer for the live edge.
-			if(indexHandler && seekTarget > (indexHandler as HLSIndexHandler).liveEdge)
+			if(indexHandler && seekTarget > indexHandler.liveEdge)
 			{
 				CONFIG::LOGGING
 				{
-					logger.debug("Capping seek (source change) to the known-safe live edge (" + seekTarget + " < " + (indexHandler as HLSIndexHandler).liveEdge + ").");
+					logger.debug("Capping seek (source change) to the known-safe live edge (" + seekTarget + " < " + indexHandler.liveEdge + ").");
 				}
-				seekTarget = (indexHandler as HLSIndexHandler).liveEdge;
+				seekTarget = indexHandler.liveEdge;
 			}
 
 			_seekTarget = seekTarget;
@@ -1032,7 +1030,6 @@ package org.osmf.net.httpstreaming
 					// we may call seek before our stream provider is
 					// able to fulfill our request - so we'll stay in seek
 					// mode until the provider is ready.
-					var hlsIndexHandler:HLSIndexHandler = indexHandler as HLSIndexHandler;
 					if (_source.isReady)
 					{
 						timeBeforeSeek = time;
@@ -1903,12 +1900,11 @@ package org.osmf.net.httpstreaming
 		{
 			var i:int;
 
-			var hlsIndexHandler:HLSIndexHandler = indexHandler as HLSIndexHandler;
 
 			// Make sure we don't go past the live edge even if it changes while seeking.
-			if(hlsIndexHandler.isLiveEdgeValid)
+			if(indexHandler && indexHandler.isLiveEdgeValid)
 			{
-				var liveEdgeValue:Number = hlsIndexHandler.liveEdge;
+				var liveEdgeValue:Number = indexHandler.liveEdge;
 				trace("Seeing live edge of " + liveEdgeValue);
 				if(_seekTarget > liveEdgeValue || _enhancedSeekTarget > liveEdgeValue)
 				{
