@@ -258,14 +258,14 @@ package org.osmf.net.httpstreaming
 		public function seek(offset:Number):void
 		{
 			// Make sure we don't go past the buffer for the live edge.
-			if(_indexHandler && offset > (_indexHandler as HLSIndexHandler).liveEdge)
+			/*if(_indexHandler && offset > (_indexHandler as HLSIndexHandler).liveEdge)
 			{
 				CONFIG::LOGGING 
 				{
 					logger.info("Capping seek (source) to the known-safe live edge (" + offset + " < " + (_indexHandler as HLSIndexHandler).liveEdge + ").");
 				}
 				offset = (_indexHandler as HLSIndexHandler).liveEdge;
-			}
+			}*/
 
 			_endOfStream = false;
 			_hasErrors = false;
@@ -274,25 +274,6 @@ package org.osmf.net.httpstreaming
 			_seekTarget = offset;
 			_didBeginSeek = false;
 			_didCompleteSeek = false;
-
-			if (_seekTarget < 0 )
-			{
-				if (_dvrInfo != null)
-				{
-					_seekTarget = Math.floor(_dvrInfo.startTime + _dvrInfo.curLength - OSMFSettings.hdsDVRLiveOffset);
-				}
-				else
-				{
-					if (_isLive)
-					{
-						_seekTarget = Math.floor(_offset);
-					}
-					else
-					{
-						_seekTarget = 0;
-					}
-				}
-			}
 
 			CONFIG::LOGGING
 			{			
@@ -1075,7 +1056,7 @@ package org.osmf.net.httpstreaming
 		
 		CONFIG::LOGGING
 		{
-			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HTTPStreamSource");
+			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HLSHTTPStreamSource");
 			private var previouslyLoggedState:String = null;
 			
 			private var loggedStreamName:String = null;
