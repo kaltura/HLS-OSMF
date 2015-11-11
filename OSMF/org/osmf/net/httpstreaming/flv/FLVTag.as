@@ -170,7 +170,7 @@ package org.osmf.net.httpstreaming.flv
 			var data:ByteArray = new ByteArray();
 			data.writeBytes(bytes, TAG_HEADER_BYTE_COUNT, dataSize);
 			return data;
-		}
+		}		
 		
 		public function set data(value:ByteArray):void
 		{
