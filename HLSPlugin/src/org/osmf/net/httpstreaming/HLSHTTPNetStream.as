@@ -458,11 +458,11 @@ package org.osmf.net.httpstreaming
 			// Then if we are in a DVR stream, adjust to be in window-relative time.
 			if(indexHandler && indexHandler.liveEdge != Number.MAX_VALUE)
 			{
-				//trace("get time - window adjustment - liveEdge = " + indexHandler.liveEdge + " windowDuration = " + indexHandler.windowDuration);
+				trace("get time - window adjustment - liveEdge = " + indexHandler.liveEdge + " windowDuration = " + indexHandler.windowDuration);
 				potentialNewTime -= indexHandler.liveEdge - indexHandler.windowDuration;
 			}
 
-			//trace("get time - return " + _lastValidTimeTime + " _seekTime=" + _seekTime + ", _initialTime=" + _initialTime + ", time=" + super.time);
+			trace("get time - return " + _lastValidTimeTime + " _seekTime=" + _seekTime + ", _initialTime=" + _initialTime + ", time=" + super.time);
 
 			// Only update if we get a real number.
 			if(!isNaN(potentialNewTime))
@@ -2661,7 +2661,7 @@ package org.osmf.net.httpstreaming
 			}
 			else
 			{
-				_mixer = new HLSHTTPStreamMixer(this);
+				_mixer = new HTTPStreamMixer(this);
 				_mixer.video = new HLSHTTPStreamSource(_factory, _resource, _mixer);
 				
 				_source = _mixer;
@@ -2846,7 +2846,7 @@ package org.osmf.net.httpstreaming
 		private var _resource:URLResource = null;
 		private var _factory:HTTPStreamingFactory = null;
 		
-		private var _mixer:HLSHTTPStreamMixer = null;
+		private var _mixer:HTTPStreamMixer = null;
 		private var _videoHandler:IHTTPStreamHandler = null;
 		private var _source:IHTTPStreamSource = null;
 		
