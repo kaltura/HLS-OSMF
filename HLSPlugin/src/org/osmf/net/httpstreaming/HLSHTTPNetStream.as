@@ -268,6 +268,8 @@ package org.osmf.net.httpstreaming
 			var header:FLVHeader = new FLVHeader();
 			var headerBytes:ByteArray = new ByteArray();
 			header.write(headerBytes);
+			if(writeToMasterBuffer)
+				_masterBuffer.writeBytes(headerBytes);
 			appendBytes(headerBytes);
 			
 			// Initialize ourselves.
@@ -2244,6 +2246,8 @@ package org.osmf.net.httpstreaming
 				var header:FLVHeader = new FLVHeader();
 				var headerBytes:ByteArray = new ByteArray();
 				header.write(headerBytes);
+				if(writeToMasterBuffer)
+					_masterBuffer.writeBytes(headerBytes);
 				appendBytes(headerBytes);
 
 				flushPendingTags();
@@ -2291,7 +2295,7 @@ package org.osmf.net.httpstreaming
 				// Do writing.
 				CONFIG::LOGGING
 				{
-					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType);
+					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType + " avcc=" + isTagAVCC(tag as FLVTagVideo) + " iFrame=" + isTagIFrame(tag as FLVTagVideo));
 				}
 
 				if(writeToMasterBuffer)
@@ -2397,30 +2401,42 @@ package org.osmf.net.httpstreaming
 
 		public static function isTagAVCC(tag:FLVTagVideo):Boolean
 		{
+			if(!tag)
+				return false;
+
 			// Must be keyframe.
 			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
 				return false;
 
+<<<<<<< HEAD
 			// And config record.
 			if(tag.avcPacketType == 0)
 				return true;
 
 			return false;
+=======
+			// If config record, then it's an AVCC!
+			return tag.avcPacketType == 0;
+>>>>>>> 5d34185cacedb32d372fe6dc410ff4e127295d27
 		}
 
 
 		public static function isTagIFrame(tag:FLVTagVideo):Boolean
 		{
-			// Must be keyframe.
-			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
+			if(!tag)
 				return false;
 
+<<<<<<< HEAD
 			// But not config record.
 			if(tag.avcPacketType == 0)
+=======
+			// Must be keyframe.
+			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
+>>>>>>> 5d34185cacedb32d372fe6dc410ff4e127295d27
 				return false;
 
-			// It's an I-frame!
-			return true;
+			// It's an I-frame if not a config record!
+			return tag.avcPacketType == 1;
 		}
 
 		private function onBufferTag(tag:FLVTag):Boolean
