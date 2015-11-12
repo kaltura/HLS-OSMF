@@ -176,7 +176,11 @@ package com.kaltura.hls.m2ts
 					lastID3Point = pid;
 				}
 				bytes.position = oldPosition;
-				trace("ID3 index:"+ID3Index);
+				
+				CONFIG::LOGGING
+				{
+					logger.debug("ID3 index:"+ID3Index);
+				}
 				
                 // Skip the esInfo data.
                 esInfoLength = ((bytes[cursor] & 0x0f) << 8) + bytes[cursor + 1];
