@@ -2402,7 +2402,7 @@ package org.osmf.net.httpstreaming
 				return false;
 
 			// And config record.
-			if(tag.data[12] == 0)
+			if(tag.avcPacketType == 0)
 				return true;
 
 			return false;
@@ -2416,7 +2416,7 @@ package org.osmf.net.httpstreaming
 				return false;
 
 			// But not config record.
-			if(tag.data[12] == 0)
+			if(tag.avcPacketType == 0)
 				return false;
 
 			// It's an I-frame!
