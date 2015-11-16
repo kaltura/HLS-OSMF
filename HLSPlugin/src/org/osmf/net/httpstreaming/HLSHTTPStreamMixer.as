@@ -418,77 +418,74 @@ package org.osmf.net.httpstreaming
 			{
 				// process media input and get the next media tag
 				if (_mediaTag == null)
-				{
 					_mediaTagDataLoaded = false;
-				}
+
 				while (!_mediaTagDataLoaded && _mediaInput.bytesAvailable)
 				{
 					// if we don't have enough data to read the tag header then return
 					// any mixed tags and wait for addional data to be added to media buffer
-					if ((_mediaTag == null) && (_mediaInput.bytesAvailable < FLVTag.TAG_HEADER_BYTE_COUNT) )
+					if(_mediaTag == null)
 					{
-						return mixedBytes;
-					}
+						if (_mediaInput.bytesAvailable < FLVTag.TAG_HEADER_BYTE_COUNT)
+							return mixedBytes;
 
-					// if we have enough data to read header, read the header and detect tag type
-					if (_mediaTag == null)
-					{
+						// if we have enough data to read header, read the header and detect tag type
 						_mediaTag = createTag( _mediaInput.readByte());
 						_mediaTag.readRemainingHeader(_mediaInput);
 					}
 
-					if (!_mediaTagDataLoaded)
+					if (_mediaTagDataLoaded)
+						break;
+
+					// if we don't have enough data to read the tag data then return
+					// any mixed tags and wait for additional data to be added to media buffer
+					if (_mediaInput.bytesAvailable < (_mediaTag.dataSize + FLVTag.PREV_TAG_BYTE_COUNT))
+						return mixedBytes;
+					
+					// any tags whose timestamp are smaller than the latest media mixing time
+					// and the tags which are marked for filtering
+					if (shouldFilterTag(_mediaTag, _mediaFilterTags))
 					{
-						// if we don't have enough data to read the tag data then return
-						// any mixed tags and wait for addional data to be added to media buffer
-						if (_mediaInput.bytesAvailable < (_mediaTag.dataSize + FLVTag.PREV_TAG_BYTE_COUNT))
+						CONFIG::LOGGING
 						{
-							return mixedBytes;
+							if (_mediaTag is FLVTagVideo)
+							{
+								droppedVideoFrames++;
+								totalDroppedVideoFrames++;
+							}
 						}
 						
-						// any tags whose timestamp are smaller than the latest media mixing time
-						// and the tags which are marked for filtering
-						if (shouldFilterTag(_mediaTag, _mediaFilterTags))
-						{
-							CONFIG::LOGGING
-							{
-								if (_mediaTag is FLVTagVideo)
-								{
-									droppedVideoFrames++;
-									totalDroppedVideoFrames++;
-								}
-							}
-							
-							_mediaInput.position += _mediaTag.dataSize + FLVTag.PREV_TAG_BYTE_COUNT;
-							_mediaTag = null;
-						}
-						else					
-						{
-							_mediaTag.readData(_mediaInput);
-							_mediaTag.readPrevTag(_mediaInput);
-							_mediaTagDataLoaded = true;
-							updateTimes(_mediaTag);
-						}
+						_mediaInput.position += _mediaTag.dataSize + FLVTag.PREV_TAG_BYTE_COUNT;
+						_mediaTag = null;
+					}
+					else
+					{
+						// Read the whole tag.
+						_mediaTag.readData(_mediaInput);
+						_mediaTag.readPrevTag(_mediaInput);
+						_mediaTagDataLoaded = true;
+						updateTimes(_mediaTag);
 					}
 				}
+
+				// Don't go further unless we've gotten a media tag.
+				if(!_mediaTag || !_mediaTagDataLoaded)
+					return mixedBytes;
 				
 				// process alternate input and get the next alternate tag
 				if (_alternateTag == null)
-				{
 					_alternateTagDataLoaded = false;
-				}
+
 				while (!_alternateIgnored && !_alternateTagDataLoaded && _alternateInput.bytesAvailable)
 				{
-					// if we don't have enough data to read the tag header then return
-					// any mixed tags and wait for addional data to be added to alternate buffer
-					if ((_alternateTag == null) && (_alternateInput.bytesAvailable < FLVTag.TAG_HEADER_BYTE_COUNT) )
+					if(_alternateTag == null)
 					{
-						return mixedBytes;
-					}
-					
-					// if we have enough data to read header, read the header and detect tag type
-					if (_alternateTag == null)
-					{
+						// if we don't have enough data to read the tag header then return
+						// any mixed tags and wait for addional data to be added to alternate buffer
+						if (_alternateInput.bytesAvailable < FLVTag.TAG_HEADER_BYTE_COUNT)
+							return mixedBytes;
+						
+						// if we have enough data to read header, read the header and detect tag type
 						_alternateTag = createTag( _alternateInput.readByte());
 						_alternateTag.readRemainingHeader(_alternateInput);
 					}
@@ -498,9 +495,7 @@ package org.osmf.net.httpstreaming
 						// if we don't have enough data to read the tag data then return
 						// any mixed tags and wait for addional data to be added to alternate buffer
 						if (_alternateInput.bytesAvailable < (_alternateTag.dataSize + FLVTag.PREV_TAG_BYTE_COUNT))
-						{
 							return mixedBytes;
-						}
 						
 						// skip any media tags which may be present in the alternate buffer or any
 						// tags whose timestamp are smaller than the latest alternate mixing time
@@ -518,7 +513,7 @@ package org.osmf.net.httpstreaming
 							_alternateInput.position += _alternateTag.dataSize + FLVTag.PREV_TAG_BYTE_COUNT;
 							_alternateTag = null;
 						}
-						else					
+						else
 						{
 							_alternateTag.readData(_alternateInput);
 							_alternateTag.readPrevTag(_alternateInput);
@@ -526,73 +521,81 @@ package org.osmf.net.httpstreaming
 							updateTimes(_alternateTag);
 						}
 					}
-				} 
-				
-				if (_mediaTagDataLoaded || _alternateTagDataLoaded)
-				{
-					CONFIG::LOGGING
-					{
-						if (checkVideoFrame && _mediaTag is FLVTagVideo)
-						{
-							checkVideoFrame = false;
-							
-							var type:int = FLVTagVideo(_mediaTag).frameType;
-							var time:Number = _mediaTag.timestamp;
-							if (type != FLVTagVideo.FRAME_TYPE_KEYFRAME)
-							{
-								logger.warn("Frame at " + time + " is not a key frame. This could lead to video not being displayed.");
-							}
-						}
-					}
-					if (_alternateIgnored)
-					{
-						_currentTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_mediaTag.timestamp);
-						_mediaTag.write(mixedBytes);
-						_mediaTag = null;
-						keepProcessing = true;
-					} 
-					else 
-					{
-						if (_mediaTime != int.MIN_VALUE || _alternateTime != int.MIN_VALUE)
-						{
-							if (
-								(_alternateTag != null) 
-								&& _alternateTagDataLoaded
-								&& (HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_alternateTag.timestamp) >= _currentTime) 
-								&& (HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_alternateTag.timestamp) <= _mediaTime))
-							{
-								_currentTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_alternateTag.timestamp);
-								_alternateTag.write(mixedBytes);
-								_alternateTag = null;
-							}
-							else if (
-								(_mediaTag != null)
-								&& _mediaTagDataLoaded
-								&& (HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_mediaTag.timestamp) >= _currentTime) 
-								&& (HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_mediaTag.timestamp) <= _alternateTime ))
-							{
-								_currentTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_mediaTag.timestamp);
-								_mediaTag.write(mixedBytes);
-								_mediaTag = null;	
-							}
-							
-							keepProcessing = (_mediaInput.bytesAvailable && _alternateInput.bytesAvailable);
-						}
-						else
-						{
-							if (_alternateTime != int.MIN_VALUE && _alternateNeedsSynchronization)
-							{
-								_alternateNeedsSynchronization = false;
-							}
-							//trace("M " + _mediaTime + " " + _alternateTime);
-							keepProcessing = false;
-						}
-					}
 				}
-				else
+				
+				// If we don't have any tags fully loaded yet, give up for now.
+				if (!_mediaTagDataLoaded && !_alternateTagDataLoaded)
 				{
 					keepProcessing = false;
+					break;
 				}
+
+				// Extra logging for first video tags.
+				CONFIG::LOGGING
+				{
+					if (checkVideoFrame && _mediaTag is FLVTagVideo)
+					{
+						checkVideoFrame = false;
+						
+						var type:int = FLVTagVideo(_mediaTag).frameType;
+						var time:Number = _mediaTag.timestamp;
+						if (type != FLVTagVideo.FRAME_TYPE_KEYFRAME)
+						{
+							logger.warn("Frame at " + time + " is not a key frame. This could lead to video not being displayed.");
+						}
+					}
+				}
+
+				if (_alternateIgnored)
+				{
+					// Easy case, if ignoring alternate then pass through primary stream and skip rest of this loop.
+					_currentTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_mediaTag.timestamp);
+					_mediaTag.write(mixedBytes);
+					_mediaTag = null;
+					keepProcessing = true;
+					continue;
+				} 
+
+				// Do we have a time lock?
+				if(_mediaTime == int.MIN_VALUE && _alternateTime == int.MIN_VALUE)
+				{
+					// We get here if both streams have no time noted yet.
+
+					// If we need alt sync and have it, clear the flag.
+					if (_alternateTime != int.MIN_VALUE && _alternateNeedsSynchronization)
+						_alternateNeedsSynchronization = false;
+					//trace("M " + _mediaTime + " " + _alternateTime);
+
+					// Give up until we know more.
+					keepProcessing = false;
+					break;
+				}
+
+				// We need to mix tags.
+				if ((_alternateTag != null) 
+					&& _alternateTagDataLoaded
+					&& (HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_alternateTag.timestamp) >= _currentTime) 
+					&& (HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_alternateTag.timestamp) <= _mediaTime))
+				{
+					// If we have a valid alt tag, and it's between current time and media time, emit it.
+					_currentTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_alternateTag.timestamp);
+					_alternateTag.write(mixedBytes);
+					_alternateTag = null;
+				}
+				
+				if ((_mediaTag != null)
+					&& _mediaTagDataLoaded
+					&& (HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_mediaTag.timestamp) >= _currentTime) 
+					&& (HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_mediaTag.timestamp) <= _alternateTime ))
+				{
+					// If we have a valid main tag, and it's between current time and alt time, emit it.
+					_currentTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_mediaTag.timestamp);
+					_mediaTag.write(mixedBytes);
+					_mediaTag = null;
+				}
+
+				// Only keep going if there's data to consume in both streams.
+				keepProcessing = (_mediaInput.bytesAvailable && _alternateInput.bytesAvailable);
 			}
 			
 			return mixedBytes;
@@ -727,23 +730,22 @@ package org.osmf.net.httpstreaming
 		private function shouldFilterTag(tag:FLVTag, filterTags:uint):Boolean
 		{
 			if (tag == null)
-			{
 				return true;
-			}
 			
 			var wrappedTimestamp:int = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(tag.timestamp);
 
 			// if the timestamp is lower than the current time
-			if (wrappedTimestamp < _currentTime)
+			/*if (wrappedTimestamp < _currentTime)
 			{
 				trace("REJECTING TAG " + wrappedTimestamp + " < " + _currentTime);
 				return true;
-			}
+			}*/
 			
 			switch (tag.tagType)
 			{
 				case FLVTag.TAG_TYPE_AUDIO:
 				case FLVTag.TAG_TYPE_ENCRYPTED_AUDIO:
+					// Modified logic - skip audio until we have one video tag to avoid long leading audio times.
 					return  (FILTER_AUDIO & filterTags) || (wrappedTimestamp < _alternateTime);
 					break;
 				
@@ -769,16 +771,16 @@ package org.osmf.net.httpstreaming
 		 */
 		private function updateTimes(tag:FLVTag):void
 		{
-			if (tag != null)
+			if (tag == null)
+				return;
+
+			if (tag is FLVTagAudio)
 			{
-				if (tag is FLVTagAudio)
-				{
-					_alternateTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(tag.timestamp);
-				}
-				else
-				{
-					_mediaTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(tag.timestamp);
-				}
+				_alternateTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(tag.timestamp);
+			}
+			else //if(tag is FLVTagVideo)
+			{
+				_mediaTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(tag.timestamp);
 			}
 		}
 		
