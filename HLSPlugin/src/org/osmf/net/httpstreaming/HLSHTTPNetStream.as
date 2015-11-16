@@ -2408,16 +2408,8 @@ package org.osmf.net.httpstreaming
 			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
 				return false;
 
-<<<<<<< HEAD
-			// And config record.
-			if(tag.avcPacketType == 0)
-				return true;
-
-			return false;
-=======
 			// If config record, then it's an AVCC!
 			return tag.avcPacketType == 0;
->>>>>>> 5d34185cacedb32d372fe6dc410ff4e127295d27
 		}
 
 
@@ -2426,13 +2418,8 @@ package org.osmf.net.httpstreaming
 			if(!tag)
 				return false;
 
-<<<<<<< HEAD
-			// But not config record.
-			if(tag.avcPacketType == 0)
-=======
 			// Must be keyframe.
 			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
->>>>>>> 5d34185cacedb32d372fe6dc410ff4e127295d27
 				return false;
 
 			// It's an I-frame if not a config record!
