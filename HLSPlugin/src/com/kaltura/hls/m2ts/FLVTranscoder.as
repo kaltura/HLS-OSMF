@@ -469,7 +469,7 @@ package com.kaltura.hls.m2ts
             // TODO: determine MP3 PES Packet duration exactly.
             var duration:int = 16;
 
-            sendFLVTag(convertFLVTimestamp(pes.pts), FLVTags.TYPE_AUDIO, FLVTags.AUDIO_CODEC_MP3, -1, pes.buffer, 0, pes.buffer.length, duration);
+            sendFLVTag(convertFLVTimestamp(pes.pts), FLVTags.TYPE_AUDIO, FLVTags.AUDIO_CODEC_MP3, -1, pes.buffer, pes.headerLength, pes.buffer.length - pes.headerLength, duration);
         }
 
         private function generateScriptData(values:Array):ByteArray
