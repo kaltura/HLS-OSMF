@@ -41,19 +41,6 @@ package com.kaltura.hls.m2ts
         protected var pendingBuffers:Vector.<Object> = new Vector.<Object>();
         protected var pendingLastConvertedIndex:int = 0;
 
-        public var lastPTS:Number = 0, lastDTS:Number = 0;
-
-        /**
-         * Given a MPEG timestamp we've seen previously, determine if the new timestamp
-         * has wrapped and correct it to follow the old timestamp.
-         */
-        public static function handleMpegTimestampWrap(newTime:Number, oldTime:Number):Number
-        {
-            while (!isNaN(oldTime) && (Math.abs(newTime - oldTime) > 4294967296))
-                newTime += (oldTime < newTime) ? -8589934592 : 8589934592;
-
-            return newTime;
-        }
 
         public function logStreams():void
         {
@@ -72,9 +59,6 @@ package com.kaltura.hls.m2ts
             streams = {};
             lastVideoNALU = null;
             transcoder.clear(clearAACConfig);
-
-            // Reset PTS/DTS reference.
-            lastPTS = lastDTS = 0;
         }
 
         private function parseProgramAssociationTable(bytes:ByteArray, cursor:uint):Boolean
@@ -391,16 +375,15 @@ package com.kaltura.hls.m2ts
                 }
             }
 
-            // Condition PTS and DTS.
-            pts = handleMpegTimestampWrap(pts, lastPTS);
-            lastPTS = pts;
+            // Handle partially overflowed PTS/DTS values.
+            //if (pts < (1<<31) && dts > 3*(1<<31))
+            //    dts -= 1<<33;
 
-            dts = handleMpegTimestampWrap(dts, lastDTS);
-            lastDTS = dts;
+            //if (dts < (1<<31) && pts > 3*(1<<31))
+            //    pts -= 1<<33;
 
             packet.pts = pts;
             packet.dts = dts;
-
             //logger.debug("   PTS=" + pts/90000 + " DTS=" + dts/90000);
 
             cursor += pesHeaderDataLength;
@@ -431,10 +414,9 @@ package com.kaltura.hls.m2ts
                 {
                     CONFIG::LOGGING
                     {
-                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp? DTS="  + dts);
+                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp, skipping");
                     }
-                    dts += 0; // nop to avoid warnings when logging off.
-                    //return true;
+                    return true;
                 }
                 
                 pes = new PESPacketStream();
