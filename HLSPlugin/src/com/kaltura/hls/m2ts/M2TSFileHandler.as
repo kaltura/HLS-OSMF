@@ -12,6 +12,8 @@ package com.kaltura.hls.m2ts
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
+	
+	import mx.utils.Base64Encoder;
 
 	import flash.external.ExternalInterface;
 	
@@ -69,6 +71,7 @@ package com.kaltura.hls.m2ts
 
 			_parser = new TSPacketParser();
 			_parser.callback = handleFLVMessage;
+			_parser.id3Callback = handleID3;
 			
 			_timeOrigin = 0;
 			_timeOriginNeeded = true;
@@ -405,6 +408,16 @@ package com.kaltura.hls.m2ts
 		public override function flushFileSegment(input:IDataInput):ByteArray
 		{
 			return basicProcessFileSegment(input || new ByteArray(), true);
+		}
+		
+		private function handleID3(message:ByteArray):void
+		{
+			if (message ){
+				message.position = 0;
+				var b64:Base64Encoder = new Base64Encoder();
+				b64.encodeBytes(message);
+				_parser.createAndSendID3Message(_segmentBeginSeconds,b64.toString());
+			}
 		}
 			
 		public var flvLowWaterAudio:uint = 0;

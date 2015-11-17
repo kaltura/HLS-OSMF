@@ -28,6 +28,7 @@ package com.kaltura.hls.m2ts
         public const MIN_FILE_HEADER_BYTE_COUNT:int = 9;
 
         public var callback:Function;
+		public var id3Callback:Function;
 
         private var _aacConfig:ByteArray;
         private var _aacRemainder:ByteArray;
@@ -504,6 +505,12 @@ package com.kaltura.hls.m2ts
             //var subtitleObject:Array = ["onTextData", { text:captionBuffer, language:lang, trackid:textid }];
             //sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
         }
+		
+		public function createAndSendID3Message(timeStamp:Number, ID3Buffer:String):void
+		{
+			var ID3Object:Array = ["onID3Data",{data:ID3Buffer}];
+			sendScriptDataFLVTag(timeStamp * 1000, ID3Object);
+		}
 
         protected var pendingDebugEvents:Array = [];
 
