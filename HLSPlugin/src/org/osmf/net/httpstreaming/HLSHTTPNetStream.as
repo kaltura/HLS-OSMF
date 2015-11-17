@@ -268,8 +268,6 @@ package org.osmf.net.httpstreaming
 			var header:FLVHeader = new FLVHeader();
 			var headerBytes:ByteArray = new ByteArray();
 			header.write(headerBytes);
-			if(writeToMasterBuffer)
-				_masterBuffer.writeBytes(headerBytes);
 			appendBytes(headerBytes);
 			
 			// Initialize ourselves.
@@ -2246,8 +2244,6 @@ package org.osmf.net.httpstreaming
 				var header:FLVHeader = new FLVHeader();
 				var headerBytes:ByteArray = new ByteArray();
 				header.write(headerBytes);
-				if(writeToMasterBuffer)
-					_masterBuffer.writeBytes(headerBytes);
 				appendBytes(headerBytes);
 
 				flushPendingTags();
@@ -2295,7 +2291,7 @@ package org.osmf.net.httpstreaming
 				// Do writing.
 				CONFIG::LOGGING
 				{
-					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType + " avcc=" + isTagAVCC(tag as FLVTagVideo) + " iFrame=" + isTagIFrame(tag as FLVTagVideo));
+					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType);
 				}
 
 				if(writeToMasterBuffer)
@@ -2401,29 +2397,30 @@ package org.osmf.net.httpstreaming
 
 		public static function isTagAVCC(tag:FLVTagVideo):Boolean
 		{
-			if(!tag)
-				return false;
-
 			// Must be keyframe.
 			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
 				return false;
 
-			// If config record, then it's an AVCC!
-			return tag.avcPacketType == 0;
+			// And config record.
+			if(tag.data[12] == 0)
+				return true;
+
+			return false;
 		}
 
 
 		public static function isTagIFrame(tag:FLVTagVideo):Boolean
 		{
-			if(!tag)
-				return false;
-
 			// Must be keyframe.
 			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
 				return false;
 
-			// It's an I-frame if not a config record!
-			return tag.avcPacketType == 1;
+			// But not config record.
+			if(tag.data[12] == 0)
+				return false;
+
+			// It's an I-frame!
+			return true;
 		}
 
 		private function onBufferTag(tag:FLVTag):Boolean
