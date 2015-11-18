@@ -184,7 +184,7 @@ package org.osmf.net.httpstreaming.flv
 				input.readBytes(savedBytes, savedBytes.length);
 			}
 			
-			trace("savedBytes.length = " + savedBytes.length);
+			//trace("savedBytes.length = " + savedBytes.length);
 
 		} // parse
 
