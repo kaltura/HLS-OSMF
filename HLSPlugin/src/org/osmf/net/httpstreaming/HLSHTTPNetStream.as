@@ -269,7 +269,12 @@ package org.osmf.net.httpstreaming
 			var headerBytes:ByteArray = new ByteArray();
 			header.write(headerBytes);
 			if(writeToMasterBuffer)
+			{
+				trace("RESETTING MASTER BUFFER DUE TO PLAY");
+				_masterBuffer.length = 0;
+				_masterBuffer.position = 0;
 				_masterBuffer.writeBytes(headerBytes);
+			}
 			appendBytes(headerBytes);
 			
 			// Initialize ourselves.
@@ -1067,6 +1072,11 @@ package org.osmf.net.httpstreaming
 						
 						CONFIG::FLASH_10_1
 						{
+							CONFIG::LOGGING
+							{
+								logger.debug("Emitting RESET_SEEK due to initializing seek.");
+							}
+
 							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 							flushPendingTags();
 						}
@@ -1097,7 +1107,7 @@ package org.osmf.net.httpstreaming
 						}
 						
 						// We do not allow the user to seek to before the DVR window
-						if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0)
+						if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0 && !isNaN(_seekTarget))
 						{
 							CONFIG::LOGGING
 							{
@@ -1423,7 +1433,7 @@ package org.osmf.net.httpstreaming
 						}
 					}
 					
-					if (_enhancedSeekTarget >= 0 || _playForDuration >= 0)
+					if (!isNaN(_enhancedSeekTarget) || _playForDuration >= 0)
 					{
 						_flvParserIsSegmentStart = true;	
 					}
@@ -1842,7 +1852,7 @@ package org.osmf.net.httpstreaming
 				{
 					CONFIG::LOGGING
 					{
-						logger.error("I think I should reset playback.");
+						logger.error("I think I should reset playback. Emitting RESET_SEEK.");
 					}
 
 					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
@@ -1912,10 +1922,10 @@ package org.osmf.net.httpstreaming
 				{
 					CONFIG::LOGGING
 					{
-						logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " > " + liveEdgeValue + ").");
+						logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " > " + liveEdgeValue + ", " + _enhancedSeekTarget + " > " + liveEdgeValue + ").");
 					}
-					_seekTarget = liveEdgeValue;
-					_enhancedSeekTarget = liveEdgeValue;
+					_seekTarget = liveEdgeValue - 0.5;
+					_enhancedSeekTarget = liveEdgeValue - 0.5;
 					setState(HTTPStreamingState.SEEK);
 				}
 			}
@@ -1941,8 +1951,8 @@ package org.osmf.net.httpstreaming
 				{
 					logger.debug("Left over enhanced seek-to-end, aborting (_seekTarget=" + _seekTarget + ").");
 				}
-				_enhancedSeekTarget = 0.0;
-				_seekTarget = 0.0;
+				_enhancedSeekTarget = NaN;
+				_seekTarget = NaN;
 			}
 
 			if(indexHandler)
@@ -1990,14 +2000,7 @@ package org.osmf.net.httpstreaming
 				}
 			}			
 			
-			if (_enhancedSeekTarget < 0)
-			{
-				if (_seekTime < 0)
-				{
-					//_seekTime = currentTime;
-				}
-			}		
-			else // doing enhanced seek
+			if (!isNaN(_enhancedSeekTarget))
 			{
 				if (currentTime < _enhancedSeekTarget)
 				{
@@ -2013,7 +2016,7 @@ package org.osmf.net.httpstreaming
 					if (tag is FLVTagVideo)
 					{                                  
 						if (_flvParserIsSegmentStart)	
-						{                                                        
+						{					
 							var _muteTag:FLVTagVideo = new FLVTagVideo();
 							_muteTag.timestamp = tag.timestamp; // may get overwritten, ok
 							_muteTag.codecID = FLVTagVideo(tag).codecID; // same as in use
@@ -2039,10 +2042,8 @@ package org.osmf.net.httpstreaming
 				{
 					// We've reached the tag whose timestamp is greater
 					// than _enhancedSeekTarget.
-					// We are safe to consume the script data tags now.
-					doConsumeAllScriptDataTags(tag.timestamp);
 					
-					_enhancedSeekTarget = -1;
+					_enhancedSeekTarget = NaN;
 					if (_seekTime < 0)
 					{
 						_seekTime = currentTime;
@@ -2073,7 +2074,8 @@ package org.osmf.net.httpstreaming
 									var adjustment:int = tag.timestamp - vTagVideo.timestamp; // how far we are adjusting
 									var compTime:int = vTagVideo.avcCompositionTimeOffset;
 									compTime -= adjustment; // do the adjustment
-									vTagVideo.avcCompositionTimeOffset = compTime;	// save adjustment
+									compTime = Math.max(-100, compTime); // Cap maximum offset to avoid certain situations breaking the decoder.
+									vTagVideo.avcCompositionTimeOffset = 0; //compTime;	// save adjustment
 								}
 								
 								codecID = vTagVideo.codecID;
@@ -2085,7 +2087,10 @@ package org.osmf.net.httpstreaming
 							bytes = new ByteArray();
 							vTag.write(bytes);
 							_flvParserProcessed += bytes.length;
-							attemptAppendBytes(bytes);
+
+							if(writeToMasterBuffer)
+								_masterBuffer.writeBytes(bytes);
+							appendBytes(bytes);
 						}
 						
 						if (haveSeenVideoTag)
@@ -2098,10 +2103,20 @@ package org.osmf.net.httpstreaming
 							bytes = new ByteArray();
 							_unmuteTag.write(bytes);
 							_flvParserProcessed += bytes.length;
-							attemptAppendBytes(bytes);
+
+							if(writeToMasterBuffer)
+								_masterBuffer.writeBytes(bytes);
+							appendBytes(bytes);
 						}
 						
 						_enhancedSeekTags = null;
+
+						// Update the last written time so we don't RESET_SEEK inappropriately.
+						lastWrittenTime = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000.0;
+
+						// We are safe to consume the script data tags now.
+						doConsumeAllScriptDataTags(tag.timestamp);
+						needPendingSort = true;
 					}
 					
 					// and append this one
@@ -2234,7 +2249,7 @@ package org.osmf.net.httpstreaming
 			{	
 				CONFIG::LOGGING
 				{
-					logger.debug("We need to to an appendBytesAction in order to reset NetStream internal state");
+					logger.debug("We need to appendBytesAction RESET_BEGIN in order to reset NetStream internal state");
 				}
 				
 				appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
@@ -2247,14 +2262,113 @@ package org.osmf.net.httpstreaming
 				var headerBytes:ByteArray = new ByteArray();
 				header.write(headerBytes);
 				if(writeToMasterBuffer)
+				{
+					trace("RESETTING MASTER BUFFER");
+					_masterBuffer.length = 0;
+					_masterBuffer.position = 0;
 					_masterBuffer.writeBytes(headerBytes);
+				}
 				appendBytes(headerBytes);
 
 				flushPendingTags();
 				keepBufferFed();
 			}
 		}
+
+		/**
+		 * Pick next tag, taking into account we may have N tags at next timestamp
+		 * with different info of different priority which may not be in correct
+		 * priority order. 
+		 */
+		private function extractNextTagToWriteToBuffer(curTagOffset:int = 0):FLVTag
+		{
+			// Scan tags for current time and pick highest priority option. These
+			// variable definitions are in the desired priority.
+			var avccTag:FLVTagVideo = null;
+			var iframeTag:FLVTagVideo = null;
+			var videoTag:FLVTagVideo = null;
+			var audioTag:FLVTagAudio = null;
+			var genericTag:FLVTag = null;
+
+			// We don't have to unwrap these times since we only care about equality.
+			var leadTime:Number = pendingTags[curTagOffset].timestamp;
+			for(var i:int=curTagOffset; i<pendingTags.length; i++)
+			{
+				// If we stop seeing equal times, stop.
+				if(pendingTags[i].timestamp != leadTime)
+					break;
+
+				// Scan forward through the tags with identical timestamp at start of the
+				// queue, and note the first we encounter of each type.
+
+				// Classify it by priority.
+				var pendingTag:FLVTag = pendingTags[i];
+				if(pendingTag is FLVTagVideo)
+				{
+					if(isTagAVCC(pendingTag as FLVTagVideo))
+					{
+						if(!avccTag)
+							avccTag = pendingTag as FLVTagVideo;
+					}
+					else if (isTagIFrame(pendingTag as FLVTagVideo))
+					{
+						if(!iframeTag)
+							iframeTag = pendingTag as FLVTagVideo;
+					}
+					else if(!videoTag)
+					{
+						videoTag = pendingTag as FLVTagVideo;
+					}
+				}
+				else if(pendingTag is FLVTagAudio)
+				{
+					if(!audioTag)
+						audioTag = pendingTag as FLVTagAudio;
+				}
+				else
+				{
+					if(!genericTag)
+						genericTag = pendingTag;
+				}
+			}
+
+			// Determine pick based on priority.
+			var pickedTag:FLVTag = null;
+			if(avccTag)
+				pickedTag = avccTag;
+			else if(iframeTag)
+				pickedTag = iframeTag;
+			else if(videoTag)
+				pickedTag = videoTag;
+			else if(audioTag)
+				pickedTag = audioTag;
+			else
+				pickedTag = genericTag;
+
+			// No tags found - easy out!
+			if(pickedTag == null)
+				return null;
+
+			// Reorder buffer if needed to allow efficient traversal. In most cases,
+			// this will do nothing. But if we picked other than the first tag, it
+			// will swap that tag with the first tag so it's skipped next time.
+			for(var j:int=curTagOffset; j<pendingTags.length; j++)
+			{
+				if(pendingTags[j] != pickedTag)
+					continue;
+
+				pendingTags[j] = pendingTags[curTagOffset];
+				pendingTags[curTagOffset] = pickedTag;
+				break;
+			}
+
+			return pickedTag;
+		}
 	
+		/**
+		 * Write the next few tags to keep the required amount of data in the
+		 * Flash decoder buffer. This pulls from pendingTags.
+		 */
 		private function keepBufferFed():void
 		{
 			// Check the actual amount of content present.
@@ -2270,12 +2384,30 @@ package org.osmf.net.httpstreaming
 			while(super.bufferLength <= (bufferFeedMin + bufferFeedAmount)
 			      && (pendingTags.length - curTagOffset) > 0)
 			{
-				// Append some tags.
-				var buffer:ByteArray = new ByteArray();
-				var tag:FLVTag = pendingTags[curTagOffset];
-				buffer.length = FLVTag.TAG_HEADER_BYTE_COUNT + tag.dataSize;
-				tag.write(buffer);
+				// Append some tags, using utility function to ensure we get tags
+				// always in right priority order when they occur at same time.
+				var tag:FLVTag = extractNextTagToWriteToBuffer(curTagOffset);
 				curTagOffset++;
+
+				var expectedSize:int = FLVTag.TAG_HEADER_BYTE_COUNT + tag.dataSize + FLVTag.PREV_TAG_BYTE_COUNT;
+				var buffer:ByteArray = new ByteArray();
+				buffer.length = expectedSize;
+				tag.write(buffer);
+
+
+				// Don't trigger seek logic from script tags.
+				if(tag.tagType == FLVTag.TAG_TYPE_SCRIPTDATAOBJECT && false)
+				{
+					tag.timestamp = lastWrittenTime * 1000.0;
+					continue;
+				}
+
+				// Look for malformed tags.
+				if(expectedSize != buffer.length)
+				{
+					trace("SAW BAD PACKET, IGNORING?! Size mismatch: " + expectedSize + " != " + buffer.length);
+					continue;
+				}
 
 				var tagTimeSeconds:Number = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000;
 
@@ -2283,11 +2415,12 @@ package org.osmf.net.httpstreaming
 				var tagDelta:Number = Math.abs(tagTimeSeconds - lastWrittenTime)
 				if(tagDelta > bufferFeedMin + bufferFeedAmount * 2 || isNaN(tagDelta))
 				{
+					// Don't do this for script tags, as they sometimes show up in weird orders.
 					CONFIG::LOGGING
 					{
-						logger.debug("Inserting RESET_SEEK due to " + tagDelta + " being bigger than  " + bufferFeedMin + bufferFeedAmount * 2);
+						logger.debug("Inserting RESET_SEEK due to " + tagDelta + " being bigger than  " + (bufferFeedMin + bufferFeedAmount * 2));
 					}
-					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);						
 				}
 
 				lastWrittenTime = tagTimeSeconds;
@@ -2378,7 +2511,7 @@ package org.osmf.net.httpstreaming
 				return wrapTagTimestampToFLVTimestamp(vTag.timestamp);
 			}
 
-			return 0;
+			return NaN;
 		}
 
 		// Get last audio tag's time.
@@ -2454,6 +2587,18 @@ package org.osmf.net.httpstreaming
 				var isIFrame:Boolean = isTagIFrame(vTag);
 
 				//trace("was i-frame " + isIFrame + " was AVCC " + isTagAVCC(vTag));
+
+				if(isNaN(timeDelta))
+				{
+					CONFIG::LOGGING
+					{
+						logger.debug("Suppressing potential I-frame scan due to no existing video tags.");
+					}
+
+					timeDelta = 0;
+					isBackInTime = false;
+					scanningForIFrame = false;
+				}
 
 				if(!scanningForIFrame && isBackInTime)
 				{
@@ -2556,6 +2701,11 @@ package org.osmf.net.httpstreaming
 					// ate the whole buffer.
 					if(pendingTags.length == 0)
 					{
+						CONFIG::LOGGING
+						{
+							logger.debug("   o Emptied pending tags during I-frame scan, emitting RESET_SEEK!");
+						}
+
 						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 						_initialTime = NaN;
 					}
@@ -2566,8 +2716,11 @@ package org.osmf.net.httpstreaming
 
 			// Add to the queue, marking if we need to resort.
 			if(pendingTags.length > 0 
-				&& wrapTagTimestampToFLVTimestamp(tag.timestamp) < wrapTagTimestampToFLVTimestamp(pendingTags[pendingTags.length-1].timestamp))
+				&& (wrapTagTimestampToFLVTimestamp(tag.timestamp) 
+					- wrapTagTimestampToFLVTimestamp(pendingTags[pendingTags.length-1].timestamp)) <= 0)
+			{
 				needPendingSort = true;
+			}
 
 			pendingTags.push(tag);
 
@@ -2594,21 +2747,6 @@ package org.osmf.net.httpstreaming
 			const aTime:int = wrapTagTimestampToFLVTimestamp(a.timestamp);
 			const bTime:int = wrapTagTimestampToFLVTimestamp(b.timestamp);
 
-			if(aTime == bTime)
-			{
-				var vTagA:FLVTagVideo = a as FLVTagVideo;
-				var vTagB:FLVTagVideo = b as FLVTagVideo;
-
-				if(vTagA && vTagB)
-				{
-					// Both video tags at same time - make sure SPS/PPS comes first.
-					if(isTagAVCC(vTagA) && !isTagAVCC(vTagB))
-						return -1;
-					else if(!isTagAVCC(vTagA) && isTagAVCC(vTagB))
-						return 1;
-				}
-			}
-
 			return aTime - bTime;
 		}
 
@@ -2628,7 +2766,7 @@ package org.osmf.net.httpstreaming
 		 * Attempts to use the appendsBytes method. Do nothing if this is not compiled
 		 * for an Argo player or newer.
 		 */
-		private function attemptAppendBytes(bytes:ByteArray):void
+		private function attemptAppendBytes(bytes:ByteArray, allowFeed:Boolean = true):void
 		{
 			//trace("Parsing " + bytes.length);
 
@@ -2636,13 +2774,13 @@ package org.osmf.net.httpstreaming
 			bytes.position = 0;
 			bufferParser.parse(bytes, true, onBufferTag);
 
-			// Sort tags.
-			ensurePendingSorted();
-
 			//trace("    In buffer: " + pendingTags.length + " tags");
 
 			// Feed Flash buffer if needed.
-			keepBufferFed();
+			if(allowFeed)
+			{
+				keepBufferFed();
+			}
 		}
 
 		/**
@@ -2691,7 +2829,7 @@ package org.osmf.net.httpstreaming
 				if(lastMan && lastMan.streamEnds == false && requestedTime < indexHandler.lastKnownPlaylistStartTime)
 				{
 					requestedTime = Number.MAX_VALUE;
-				}				
+				}
 			}
 
 			CONFIG::LOGGING
@@ -2858,8 +2996,8 @@ package org.osmf.net.httpstreaming
 		private var _audioStreamNeedsChanging:Boolean = false;
 		private var _desiredAudioStreamName:String = null;
 		
-		private var _seekTarget:Number = -1;
-		private var _enhancedSeekTarget:Number = -1;
+		private var _seekTarget:Number = NaN;
+		private var _enhancedSeekTarget:Number = NaN;
 		private var _enhancedSeekTags:Vector.<FLVTag>;
 		
 		private var _notifyPlayStartPending:Boolean = false;
