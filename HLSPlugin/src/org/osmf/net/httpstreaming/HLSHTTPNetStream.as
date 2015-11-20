@@ -446,7 +446,6 @@ package org.osmf.net.httpstreaming
 		{
 			// We will drive this by our own methods (updateBufferTime).
 			return;
-
 		}
 		
 		public function get absoluteTime():Number
@@ -1917,7 +1916,7 @@ package org.osmf.net.httpstreaming
 			if(indexHandler && indexHandler.isLiveEdgeValid)
 			{
 				var liveEdgeValue:Number = indexHandler.liveEdge;
-				trace("Seeing live edge of " + liveEdgeValue);
+				//trace("Seeing live edge of " + liveEdgeValue);
 				if(_seekTarget > liveEdgeValue || _enhancedSeekTarget > liveEdgeValue)
 				{
 					CONFIG::LOGGING
@@ -1998,7 +1997,7 @@ package org.osmf.net.httpstreaming
 						return false;
 					}
 				}
-			}			
+			}
 			
 			if (!isNaN(_enhancedSeekTarget))
 			{
@@ -2016,14 +2015,17 @@ package org.osmf.net.httpstreaming
 					if (tag is FLVTagVideo)
 					{                                  
 						if (_flvParserIsSegmentStart)	
-						{					
+						{	
+							// Generate client side seek tag.				
 							var _muteTag:FLVTagVideo = new FLVTagVideo();
 							_muteTag.timestamp = tag.timestamp; // may get overwritten, ok
 							_muteTag.codecID = FLVTagVideo(tag).codecID; // same as in use
 							_muteTag.frameType = FLVTagVideo.FRAME_TYPE_INFO;
 							_muteTag.infoPacketValue = FLVTagVideo.INFO_PACKET_SEEK_START;
+							
 							// and start saving, with this as the first...
 							_enhancedSeekTags.push(_muteTag);
+
 							_flvParserIsSegmentStart = false;
 							
 						}	
@@ -2041,21 +2043,28 @@ package org.osmf.net.httpstreaming
 				else
 				{
 					// We've reached the tag whose timestamp is greater
-					// than _enhancedSeekTarget.
-					
+					// than _enhancedSeekTarget, so we can stop seeking.
 					_enhancedSeekTarget = NaN;
+
+					// Update _seekTime even though it's not used.
 					if (_seekTime < 0)
-					{
 						_seekTime = currentTime;
-					}
 
 					if(isNaN(_initialTime))
-					{
 						_initialTime = currentTime;
-					}
-					
+
+					// Process any client side seek tags.
 					if (_enhancedSeekTags != null && _enhancedSeekTags.length > 0)
 					{
+						// We do this dance to get the NetStream into a clean state. If we don't
+						// do this, then we can get failed resume in some scenarios - ie, audio
+						// but no picture.
+						super.close();
+						super.play(null);
+						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+						
+						_initialTime = NaN;
+
 						var codecID:int;
 						var haveSeenVideoTag:Boolean = false;
 						
@@ -2071,11 +2080,10 @@ package org.osmf.net.httpstreaming
 								if (vTagVideo.codecID == FLVTagVideo.CODEC_ID_AVC && vTagVideo.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU)
 								{
 									// for H.264 we need to move the timestamp forward but the composition time offset backwards to compensate
-									var adjustment:int = tag.timestamp - vTagVideo.timestamp; // how far we are adjusting
+									var adjustment:int = tag.timestamp - vTagVideo.timestamp; // how far we are adjusting - no need to unwrap since it's a delta
 									var compTime:int = vTagVideo.avcCompositionTimeOffset;
 									compTime -= adjustment; // do the adjustment
-									compTime = Math.max(-100, compTime); // Cap maximum offset to avoid certain situations breaking the decoder.
-									vTagVideo.avcCompositionTimeOffset = 0; //compTime;	// save adjustment
+									vTagVideo.avcCompositionTimeOffset = compTime;	// save adjustment
 								}
 								
 								codecID = vTagVideo.codecID;
@@ -2093,8 +2101,10 @@ package org.osmf.net.httpstreaming
 							appendBytes(bytes);
 						}
 						
+						// Emit end of client seek tag if we started client seek.
 						if (haveSeenVideoTag)
 						{
+							trace("Writing end-of-seek tag");
 							var _unmuteTag:FLVTagVideo = new FLVTagVideo();
 							_unmuteTag.timestamp = tag.timestamp;  // may get overwritten, ok
 							_unmuteTag.codecID = codecID;
@@ -2116,13 +2126,20 @@ package org.osmf.net.httpstreaming
 
 						// We are safe to consume the script data tags now.
 						doConsumeAllScriptDataTags(tag.timestamp);
-						needPendingSort = true;
+
 					}
 					
 					// and append this one
 					bytes = new ByteArray();
 					tag.write(bytes);
 					_flvParserProcessed += bytes.length;
+
+					if (isNaN(_initialTime))
+					{
+						trace("Setting new _initialTime of " + currentTime);
+						_initialTime = currentTime;
+					}
+
 					//logger.debug("[1] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
 					attemptAppendBytes(bytes);
 					
@@ -2294,12 +2311,12 @@ package org.osmf.net.httpstreaming
 			var leadTime:Number = pendingTags[curTagOffset].timestamp;
 			for(var i:int=curTagOffset; i<pendingTags.length; i++)
 			{
+				// Scan forward through the tags with identical timestamp at start of the
+				// queue, and note the first we encounter of each type.
+
 				// If we stop seeing equal times, stop.
 				if(pendingTags[i].timestamp != leadTime)
 					break;
-
-				// Scan forward through the tags with identical timestamp at start of the
-				// queue, and note the first we encounter of each type.
 
 				// Classify it by priority.
 				var pendingTag:FLVTag = pendingTags[i];
@@ -2373,7 +2390,12 @@ package org.osmf.net.httpstreaming
 		{
 			// Check the actual amount of content present.
 			if(super.bufferLength >= bufferFeedMin)
+			{
 				return;
+			}
+
+			// Sort as needed.
+			ensurePendingSorted();
 
 			// We want to keep the actual required buffer short so we don't stall with
 			// tags still pending.
@@ -2393,14 +2415,6 @@ package org.osmf.net.httpstreaming
 				var buffer:ByteArray = new ByteArray();
 				buffer.length = expectedSize;
 				tag.write(buffer);
-
-
-				// Don't trigger seek logic from script tags.
-				if(tag.tagType == FLVTag.TAG_TYPE_SCRIPTDATAOBJECT && false)
-				{
-					tag.timestamp = lastWrittenTime * 1000.0;
-					continue;
-				}
 
 				// Look for malformed tags.
 				if(expectedSize != buffer.length)
@@ -2573,7 +2587,7 @@ package org.osmf.net.httpstreaming
 				{
 					CONFIG::LOGGING
 					{
-						logger.warn("Skipping audio due to too low time (" + realTimestamp + " < " + getHighestAudioTime() + ".");
+						logger.warn("Skipping audio due to too low time (" + realTimestamp + " < " + highestAudioTime + ")");
 					}
 					return true;
 				}
@@ -2671,7 +2685,7 @@ package org.osmf.net.httpstreaming
 					// this frame as normal.
 					for(var i:int=pendingTags.length-1; i>=0 && pendingTags.length > 0; i--)
 					{
-						// Extra sanity.
+						// Extra sanity since we are mutating the list.
 						if(i > pendingTags.length - 1)
 							i = pendingTags.length - 1;
 							
