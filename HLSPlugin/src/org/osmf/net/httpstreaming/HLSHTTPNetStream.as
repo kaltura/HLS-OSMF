@@ -123,6 +123,7 @@ package org.osmf.net.httpstreaming
 		private var bufferFeedMin:Number = 1.0; // How many seconds to actually keep fed into the native buffer.
 		private var bufferFeedAmount:Number = 0.1; // How many seconds of data to feed when we feed.
 		private var scanningForIFrame:Boolean = false; // When true, we are scanning video tags until we hit a keyframe/I-frame.
+		private var scanningForIFrame_avcc:FLVTagVideo; // Holds the AVCC for the I-frame we are finding; used to splice stream.
 		private var bufferParser:FLVParser = new FLVParser(false); // Used to parse incoming FLV stream to buffer. TODO: Refactor to be unnecessary.
 		private var needPendingSort:Boolean = false; // Set when we detect a new tag that's not after the last one, to save on resorts.
 		private var endAfterPending:Boolean = false;
@@ -2081,7 +2082,7 @@ package org.osmf.net.httpstreaming
 								if (vTagVideo.codecID == FLVTagVideo.CODEC_ID_AVC && vTagVideo.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU)
 								{
 									// for H.264 we need to move the timestamp forward but the composition time offset backwards to compensate
-									var adjustment:int = tag.timestamp - vTagVideo.timestamp; // how far we are adjusting - no need to unwrap since it's a delta
+									var adjustment:int = wrapTagTimestampToFLVTimestamp(tag.timestamp) - wrapTagTimestampToFLVTimestamp(vTagVideo.timestamp); // how far we are adjusting - no need to unwrap since it's a delta
 									var compTime:int = vTagVideo.avcCompositionTimeOffset;
 									compTime -= adjustment; // do the adjustment
 									vTagVideo.avcCompositionTimeOffset = compTime;	// save adjustment
@@ -2126,7 +2127,7 @@ package org.osmf.net.httpstreaming
 						lastWrittenTime = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000.0;
 
 						// We are safe to consume the script data tags now.
-						doConsumeAllScriptDataTags(tag.timestamp);
+						doConsumeAllScriptDataTags(wrapTagTimestampToFLVTimestamp(tag.timestamp));
 
 					}
 					
@@ -2135,13 +2136,13 @@ package org.osmf.net.httpstreaming
 					tag.write(bytes);
 					_flvParserProcessed += bytes.length;
 
+					// Need to keep _initialTime up to date and we return below.
 					if (isNaN(_initialTime))
 					{
 						trace("Setting new _initialTime of " + currentTime);
 						_initialTime = currentTime;
 					}
 
-					//logger.debug("[1] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
 					attemptAppendBytes(bytes);
 					
 					if (_playForDuration >= 0)
@@ -2168,6 +2169,7 @@ package org.osmf.net.httpstreaming
 			// finally, pass this one on to appendBytes...
 			var bytes:ByteArray = new ByteArray();
 			tag.write(bytes);
+
 			//logger.debug("[2] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
 			attemptAppendBytes(bytes);
 			_flvParserProcessed += bytes.length;
@@ -2409,6 +2411,12 @@ package org.osmf.net.httpstreaming
 			while((super.bufferLength <= (bufferFeedMin + bufferFeedAmount) || _wasBufferEmptied)
 			      && (pendingTags.length - curTagOffset) > 0)
 			{
+				if(curTagOffset > 100 && _wasBufferEmptied)
+				{
+					trace("Avoiding loading entire pending tag list when dealing with an empty buffer event scenario.");
+					break;
+				}
+
 				// Append some tags, using utility function to ensure we get tags
 				// always in right priority order when they occur at same time.
 				var tag:FLVTag = extractNextTagToWriteToBuffer(curTagOffset);
@@ -2609,7 +2617,7 @@ package org.osmf.net.httpstreaming
 				{
 					CONFIG::LOGGING
 					{
-						logger.debug("Suppressing potential I-frame scan due to no existing video tags.");
+						logger.debug("Suppressing potential I-frame scan due to no pre-existing video tags.");
 					}
 
 					timeDelta = 0;
@@ -2627,7 +2635,8 @@ package org.osmf.net.httpstreaming
 					scanningForIFrame = true;
 				}
 
-				// Skip totally implausible tags.
+				// Skip totally implausible tags - we need to splice which means the splice must happen after
+				// tags we have fed into the flash decoder.
 				if(!scanningForIFrame && 
 					pendingTags.length > 0 && realTimestamp < wrapTagTimestampToFLVTimestamp(pendingTags[0].timestamp))
 				{
@@ -2635,6 +2644,9 @@ package org.osmf.net.httpstreaming
 
 					if(isTagAVCC(vTag) == false)
 					{
+						// Note for later use when we splice.
+						scanningForIFrame_avcc = vTag;
+
 						CONFIG::LOGGING
 						{
 							logger.debug("   - I-FRAME SCAN and reject due to impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");
@@ -2655,53 +2667,46 @@ package org.osmf.net.httpstreaming
 				// Skip until we find our I-frame.
 				if(scanningForIFrame && !isIFrame)
 				{
-					if(isTagAVCC(vTag) == false)
+					// Note latest AVCC for splicing.
+					if(isTagAVCC(vTag))
+						scanningForIFrame_avcc = vTag;
+
+					CONFIG::LOGGING
 					{
-						CONFIG::LOGGING
-						{
-							logger.debug("   - SKIPPING non-I-FRAME");
-						}
-						
-						return true;
+						logger.debug("   - SKIPPING non-I-FRAME");
 					}
-					else
-					{
-						// Always pass AVCC info.
-						CONFIG::LOGGING
-						{
-							logger.debug("    - preserving AVCC during I-frame scan");
-						}
-					}
+					
+					return true;
 				}
 
 				if(scanningForIFrame && isIFrame)
 				{
 					CONFIG::LOGGING
 					{
-						logger.debug("   + GOT I-FRAME");
+						logger.debug("   + GOT I-FRAME @ " + realTimestamp);
 					}
 					
 					scanningForIFrame = false;
 
-					// Drop video frames until we get to before
-					// the timestamp of this I-frame. Then add
-					// this frame as normal.
+					// Make sure our tags are in order before splicing.
+					ensurePendingSorted();
+
+					// We want to splice our new video segment starting from the first i-frame
+					// onto the old buffered content. So we go into the pending tags list and 
+					// drop all the video tags that come after the I-frame we are inserting.
 					for(var i:int=pendingTags.length-1; i>=0 && pendingTags.length > 0; i--)
 					{
 						// Extra sanity since we are mutating the list.
 						if(i > pendingTags.length - 1)
 							i = pendingTags.length - 1;
 							
-						// Consider every video tag.
+						// Consider every video tag. Audio is handled elsewhere.
 						var potentialFilterTag:FLVTagVideo = pendingTags[i] as FLVTagVideo;
 						if(!potentialFilterTag)
 							continue;
 
-						if(isTagAVCC(potentialFilterTag))
-							continue;
-
-						// Stop scanning once we find tag before our tag.
-						if(wrapTagTimestampToFLVTimestamp(pendingTags[i].timestamp as int) <= wrapTagTimestampToFLVTimestamp(vTag.timestamp as int))
+						// Stop dropping frames once we find a video tag before the video tag we want to splice.
+						if(wrapTagTimestampToFLVTimestamp(potentialFilterTag.timestamp) < realTimestamp)
 							break;
 
 						// Remove this tag, update i.
@@ -2714,8 +2719,7 @@ package org.osmf.net.httpstreaming
 						i++;
 					}
 
-					// We know next thing we write will be somewhere crazy as we 
-					// ate the whole buffer.
+					// Did we write the whole buffer? Then clue the decoder that we're probably jumping time.
 					if(pendingTags.length == 0)
 					{
 						CONFIG::LOGGING
@@ -2724,7 +2728,25 @@ package org.osmf.net.httpstreaming
 						}
 
 						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-						_initialTime = NaN;
+						_initialTime = realTimestamp / 1000;
+					}
+
+					// Insert the AVCC at the I-frame's timestamp.
+					if(scanningForIFrame_avcc)
+					{
+						// We don't have to re-check sorting because this timestamp
+						// is identical to the tag next to be added - so it will always
+						// trip the sort check below.
+						scanningForIFrame_avcc.timestamp = tag.timestamp;
+						pendingTags.push(scanningForIFrame_avcc);
+						scanningForIFrame_avcc = null;
+					}
+					else
+					{
+						CONFIG::LOGGING
+						{
+							logger.debug("   o Had no AVCC when splicing I-frame.");
+						}						
 					}
 
 					// Drop through to let tag be added.
@@ -2732,7 +2754,8 @@ package org.osmf.net.httpstreaming
 			}
 
 			// Add to the queue, marking if we need to resort.
-			if(pendingTags.length > 0 
+			if(!needPendingSort 
+				&& pendingTags.length > 0 
 				&& (wrapTagTimestampToFLVTimestamp(tag.timestamp) 
 					- wrapTagTimestampToFLVTimestamp(pendingTags[pendingTags.length-1].timestamp)) <= 0)
 			{
@@ -2761,6 +2784,8 @@ package org.osmf.net.httpstreaming
 
 		static protected function pendingSortCallback(a:FLVTag, b:FLVTag):int
 		{
+			// We don't have to unwrap here because it's a subtractive comparison -
+			// so wrapping works OK.
 			const aTime:int = wrapTagTimestampToFLVTimestamp(a.timestamp);
 			const bTime:int = wrapTagTimestampToFLVTimestamp(b.timestamp);
 
