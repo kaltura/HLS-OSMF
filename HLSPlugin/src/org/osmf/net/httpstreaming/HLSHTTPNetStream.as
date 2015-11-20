@@ -2050,6 +2050,7 @@ package org.osmf.net.httpstreaming
 					if (_seekTime < 0)
 						_seekTime = currentTime;
 
+					// Update initial time with time of tag.
 					if(isNaN(_initialTime))
 						_initialTime = currentTime;
 
@@ -2388,8 +2389,10 @@ package org.osmf.net.httpstreaming
 		 */
 		private function keepBufferFed():void
 		{
+			updateBufferTime();
+
 			// Check the actual amount of content present.
-			if(super.bufferLength >= bufferFeedMin)
+			if(super.bufferLength >= bufferFeedMin && !_wasBufferEmptied)
 			{
 				return;
 			}
@@ -2403,7 +2406,7 @@ package org.osmf.net.httpstreaming
 
 			// Append tag bytes until we've hit our time buffer goal.
 			var curTagOffset:int = 0;
-			while(super.bufferLength <= (bufferFeedMin + bufferFeedAmount)
+			while((super.bufferLength <= (bufferFeedMin + bufferFeedAmount) || _wasBufferEmptied)
 			      && (pendingTags.length - curTagOffset) > 0)
 			{
 				// Append some tags, using utility function to ensure we get tags
