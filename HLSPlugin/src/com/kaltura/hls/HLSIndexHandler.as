@@ -923,7 +923,7 @@ package com.kaltura.hls
 
 			// Return time at least MAX_SEG_BUFFER from end of stream.
 			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
-			if(!seg || getManifestForQuality(lastQuality).streamEnds)
+			if(!seg || getManifestForQuality(lastQuality).streamEnds || seg.length < HLSManifestParser.MAX_SEG_BUFFER+1)
 				return Number.MAX_VALUE;
 			var lastSeg:HLSManifestSegment = seg[Math.max(0, seg.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
 			return lastSeg.startTime;
