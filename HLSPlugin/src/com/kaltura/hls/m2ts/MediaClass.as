@@ -8,6 +8,7 @@ package com.kaltura.hls.m2ts
 		static public const OTHER:int = 0;
 		static public const VIDEO:int = 1;
 		static public const AUDIO:int = 2;
+		static public const ID3:int = 5;
 		
 		static public function calculate(type:int):int
 		{
