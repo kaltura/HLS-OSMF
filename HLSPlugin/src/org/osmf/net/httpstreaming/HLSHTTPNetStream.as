@@ -1894,10 +1894,10 @@ package org.osmf.net.httpstreaming
 			var timestampCastHelper:Number = timestamp;
 
 			while(timestampCastHelper > int.MAX_VALUE)
-				timestampCastHelper -= uint.MAX_VALUE;
+				timestampCastHelper -= Number(uint.MAX_VALUE);
 
 			while(timestampCastHelper < -int.MAX_VALUE)
-				timestampCastHelper += uint.MAX_VALUE;
+				timestampCastHelper += Number(uint.MAX_VALUE);
 
 			return timestampCastHelper;
 		}
@@ -1911,7 +1911,6 @@ package org.osmf.net.httpstreaming
 		private function onTag(tag:FLVTag):Boolean
 		{
 			var i:int;
-
 
 			// Make sure we don't go past the live edge even if it changes while seeking.
 			if(indexHandler && indexHandler.isLiveEdgeValid)
@@ -2082,7 +2081,7 @@ package org.osmf.net.httpstreaming
 								if (vTagVideo.codecID == FLVTagVideo.CODEC_ID_AVC && vTagVideo.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU)
 								{
 									// for H.264 we need to move the timestamp forward but the composition time offset backwards to compensate
-									var adjustment:int = wrapTagTimestampToFLVTimestamp(tag.timestamp) - wrapTagTimestampToFLVTimestamp(vTagVideo.timestamp); // how far we are adjusting - no need to unwrap since it's a delta
+									var adjustment:int = wrapTagTimestampToFLVTimestamp(tag.timestamp) - wrapTagTimestampToFLVTimestamp(vTagVideo.timestamp); // how far we are adjusting
 									var compTime:int = vTagVideo.avcCompositionTimeOffset;
 									compTime -= adjustment; // do the adjustment
 									vTagVideo.avcCompositionTimeOffset = compTime;	// save adjustment
@@ -2391,16 +2390,20 @@ package org.osmf.net.httpstreaming
 		 */
 		private function keepBufferFed():void
 		{
-			updateBufferTime();
-
 			// Check the actual amount of content present.
 			if(super.bufferLength >= bufferFeedMin && !_wasBufferEmptied)
 			{
+				CONFIG::LOGGING
+				{
+					logger.debug("Saw super.bufferLength " + super.bufferLength + " < " + bufferFeedMin);
+				}
 				return;
 			}
 
 			// Sort as needed.
 			ensurePendingSorted();
+
+			updateBufferTime();
 
 			// We want to keep the actual required buffer short so we don't stall with
 			// tags still pending.
@@ -2408,12 +2411,16 @@ package org.osmf.net.httpstreaming
 
 			// Append tag bytes until we've hit our time buffer goal.
 			var curTagOffset:int = 0;
-			while((super.bufferLength <= (bufferFeedMin + bufferFeedAmount) || _wasBufferEmptied)
+			while((super.bufferLength <= (bufferFeedMin + bufferFeedAmount) 
+				   || _wasBufferEmptied)
 			      && (pendingTags.length - curTagOffset) > 0)
 			{
 				if(curTagOffset > 100 && _wasBufferEmptied)
 				{
-					trace("Avoiding loading entire pending tag list when dealing with an empty buffer event scenario.");
+					CONFIG::LOGGING
+					{
+						logger.debug("Avoiding loading entire pending tag list when dealing with an empty buffer event scenario.");
+					}
 					break;
 				}
 
@@ -2430,22 +2437,26 @@ package org.osmf.net.httpstreaming
 				// Look for malformed tags.
 				if(expectedSize != buffer.length)
 				{
-					trace("SAW BAD PACKET, IGNORING?! Size mismatch: " + expectedSize + " != " + buffer.length);
+					CONFIG::LOGGING
+					{
+						logger.debug("SAW BAD PACKET, IGNORING?! Size mismatch: " + expectedSize + " != " + buffer.length);
+					}
 					continue;
 				}
 
 				var tagTimeSeconds:Number = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000;
 
 				// If it's more than 0.5 second jump ahead of current playhead, insert a RESET_SEEK so we won't stall forever.
-				var tagDelta:Number = Math.abs(tagTimeSeconds - lastWrittenTime)
-				if(tagDelta > bufferFeedMin + bufferFeedAmount * 2 || isNaN(tagDelta))
+				var tagDelta:Number = Math.abs(tagTimeSeconds - lastWrittenTime);
+
+				if(tagDelta > (bufferFeedMin + bufferFeedAmount * 2) || isNaN(tagDelta))
 				{
 					// Don't do this for script tags, as they sometimes show up in weird orders.
 					CONFIG::LOGGING
 					{
 						logger.debug("Inserting RESET_SEEK due to " + tagDelta + " being bigger than  " + (bufferFeedMin + bufferFeedAmount * 2));
 					}
-					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);						
+					appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 				}
 
 				lastWrittenTime = tagTimeSeconds;
@@ -2453,7 +2464,7 @@ package org.osmf.net.httpstreaming
 				// Do writing.
 				CONFIG::LOGGING
 				{
-					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType + " avcc=" + isTagAVCC(tag as FLVTagVideo) + " iFrame=" + isTagIFrame(tag as FLVTagVideo));
+					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType + (isTagAVCC(tag as FLVTagVideo) ? " avcc" : "") + (isTagIFrame(tag as FLVTagVideo) ? " iframe" : ""));
 				}
 
 				if(writeToMasterBuffer)
@@ -2562,12 +2573,15 @@ package org.osmf.net.httpstreaming
 			if(!tag)
 				return false;
 
+			if(tag.codecID != FLVTagVideo.CODEC_ID_AVC)
+				return false;
+
 			// Must be keyframe.
 			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
 				return false;
 
 			// If config record, then it's an AVCC!
-			return tag.avcPacketType == 0;
+			return tag.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_SEQUENCE_HEADER;
 		}
 
 
@@ -2576,19 +2590,22 @@ package org.osmf.net.httpstreaming
 			if(!tag)
 				return false;
 
+			if(tag.codecID != FLVTagVideo.CODEC_ID_AVC)
+				return false;
+
 			// Must be keyframe.
 			if(tag.frameType != FLVTagVideo.FRAME_TYPE_KEYFRAME)
 				return false;
 
 			// It's an I-frame if not a config record!
-			return tag.avcPacketType == 1;
+			return tag.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU;
 		}
 
 		private function onBufferTag(tag:FLVTag):Boolean
 		{
-			//trace("Got tag " + tag);
-
 			var realTimestamp:int = wrapTagTimestampToFLVTimestamp(tag.timestamp);
+
+			//trace("Got tag " + tag + " @ " + realTimestamp);
 
 			// First, is it audio/video/other?
 			if(tag is FLVTagAudio)
@@ -2642,26 +2659,16 @@ package org.osmf.net.httpstreaming
 				{
 					scanningForIFrame = true;
 
-					if(isTagAVCC(vTag) == false)
-					{
-						// Note for later use when we splice.
+					// Note for later use when we splice.
+					if(isTagAVCC(vTag))
 						scanningForIFrame_avcc = vTag;
 
-						CONFIG::LOGGING
-						{
-							logger.debug("   - I-FRAME SCAN and reject due to impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");
-						}
-						
-						return true;
-					}
-					else
+					CONFIG::LOGGING
 					{
-						CONFIG::LOGGING
-						{
-							logger.debug("   - I-FRAME SCAN and but kept AVCC in face of impossible time (" + vTag.timestamp + " < " + pendingTags[0].timestamp + ")");						
-						}
-						
+						logger.debug("   - I-FRAME SCAN and reject due to impossible time (" + realTimestamp + " < " + wrapTagTimestampToFLVTimestamp(pendingTags[0].timestamp) + ")");
 					}
+					
+					return true;
 				}
 
 				// Skip until we find our I-frame.
@@ -2746,7 +2753,7 @@ package org.osmf.net.httpstreaming
 						CONFIG::LOGGING
 						{
 							logger.debug("   o Had no AVCC when splicing I-frame.");
-						}						
+						}
 					}
 
 					// Drop through to let tag be added.
