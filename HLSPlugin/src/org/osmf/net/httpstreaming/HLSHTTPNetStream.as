@@ -1910,6 +1910,15 @@ package org.osmf.net.httpstreaming
 		 */
 		private function onTag(tag:FLVTag):Boolean
 		{
+			if(true)
+			{
+				var b:ByteArray = new ByteArray();
+				tag.write(b);
+				attemptAppendBytes(b);
+				_flvParserDone = true;
+				return false;
+			}
+
 			var i:int;
 
 			// Make sure we don't go past the live edge even if it changes while seeking.
