@@ -454,24 +454,53 @@ package org.osmf.net.httpstreaming
 			return super.time + _initialTime;
 		}
 
+		protected var _timeCache_LastUpdatedTimestamp:Number = NaN;
+		protected var _timeCache_ExpirationPeriod:Number = 5000;
+		protected var _timeCache_liveEdge:Number = 0.0;
+		protected var _timeCache_liveEdgeMinusWindowDuration:Number = NaN;
+
 		/**
 		 * @inheritDoc
 		 */
 		override public function get time():Number
 		{
+			var startTime:int = getTimer();
+
+			if(isNaN(_initialTime))
+				return _lastValidTimeTime;
+
+			// Do we need to expire the cache?
+			if(getTimer() - _timeCache_LastUpdatedTimestamp > _timeCache_ExpirationPeriod)
+				_timeCache_LastUpdatedTimestamp = NaN;
+
+			// If cache invalid, repopulate it.
+			if(isNaN(_timeCache_LastUpdatedTimestamp) && indexHandler)
+			{
+				CONFIG::LOGGING
+				{
+					logger.debug("Repopulating time cache.");
+				}
+				if(indexHandler.isLiveEdgeValid)
+				{
+					_timeCache_liveEdge = indexHandler.liveEdge;
+					_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
+				}
+				else
+				{
+					_timeCache_liveEdge = 0;
+					_timeCache_liveEdgeMinusWindowDuration = 0;
+				}
+
+				_timeCache_LastUpdatedTimestamp = getTimer();
+			}
+
 			// First determine our absolute time.
 			var potentialNewTime:Number = super.time + _initialTime;
 
-			// Then if we are in a DVR stream, adjust to be in window-relative time.
-			if(indexHandler && indexHandler.liveEdge != Number.MAX_VALUE)
-			{
-				//trace("get time - window adjustment - liveEdge = " + indexHandler.liveEdge + " windowDuration = " + indexHandler.windowDuration);
-				potentialNewTime -= indexHandler.liveEdge - indexHandler.windowDuration;
-			}
+			// Take into account any cached live edge offset.
+			if(_timeCache_liveEdge != Number.MAX_VALUE)
+				potentialNewTime -= _timeCache_liveEdgeMinusWindowDuration;
 
-			//trace("get time - return " + _lastValidTimeTime + " _seekTime=" + _seekTime + ", _initialTime=" + _initialTime + ", time=" + super.time);
-
-			// Only update if we get a real number.
 			if(!isNaN(potentialNewTime))
 				_lastValidTimeTime = potentialNewTime;
 
