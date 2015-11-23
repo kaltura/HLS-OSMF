@@ -1417,13 +1417,13 @@ package org.osmf.net.httpstreaming
 				logger.debug("Dropped frames=" + this.info.droppedFrames + ".");
 			}			
 			
-			if (_initialTime < 0 || _seekTime < 0 || _insertScriptDataTags ||  _playForDuration >= 0)
+			if (isNaN(_initialTime) || !isNaN(_enhancedSeekTarget) ||  _playForDuration >= 0)
 			{
 				if (_flvParser == null)
 				{
 					CONFIG::LOGGING
 					{
-						logger.debug("Initialize the FLV Parser ( seekTime = " + _seekTime + ", initialTime = " + _initialTime + ", playForDuration = " + _playForDuration + " ).");
+						logger.debug("Initialize the FLV Parser ( _enhancedSeekTarget = " + _enhancedSeekTarget + ", initialTime = " + _initialTime + ", playForDuration = " + _playForDuration + " ).");
 						if (_insertScriptDataTags != null)
 						{
 							CONFIG::LOGGING
