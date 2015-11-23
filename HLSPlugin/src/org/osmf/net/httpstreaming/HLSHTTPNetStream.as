@@ -1939,16 +1939,6 @@ package org.osmf.net.httpstreaming
 		 */
 		private function onTag(tag:FLVTag):Boolean
 		{
-			if(true)
-			{
-				var b:ByteArray = new ByteArray();
-				tag.write(b);
-				attemptAppendBytes(b);
-				_flvParserDone = true;
-				return false;
-			}
-
-			var i:int;
 
 			// Make sure we don't go past the live edge even if it changes while seeking.
 			if(indexHandler && indexHandler.isLiveEdgeValid)
@@ -1968,6 +1958,168 @@ package org.osmf.net.httpstreaming
 			}
 
 			var realTimestamp:int = wrapTagTimestampToFLVTimestamp(tag.timestamp);
+			var currentTime:Number = realTimestamp / 1000.0;
+
+			if (isNaN(_initialTime))
+				_initialTime = currentTime;
+
+			CONFIG::LOGGING
+			{
+				logger.debug("Saw tag @ " + realTimestamp + " timestamp=" + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget + " dataSize=" + tag.dataSize);
+			}
+
+			if (!isNaN(_enhancedSeekTarget))
+			{
+				if (currentTime < _enhancedSeekTarget)
+				{
+					CONFIG::LOGGING
+					{
+						logger.debug("Skipping FLV tag @ " + currentTime + " until " + _enhancedSeekTarget);
+					}
+
+					if (_enhancedSeekTags == null)
+					{
+						_enhancedSeekTags = new Vector.<FLVTag>();
+					}
+					
+					if (tag is FLVTagVideo)
+					{                                  
+						if (_flvParserIsSegmentStart)	
+						{	
+							// Generate client side seek tag.				
+							var _muteTag:FLVTagVideo = new FLVTagVideo();
+							_muteTag.timestamp = tag.timestamp; // may get overwritten, ok
+							_muteTag.codecID = FLVTagVideo(tag).codecID; // same as in use
+							_muteTag.frameType = FLVTagVideo.FRAME_TYPE_INFO;
+							_muteTag.infoPacketValue = FLVTagVideo.INFO_PACKET_SEEK_START;
+							
+							// and start saving, with this as the first...
+							_enhancedSeekTags.push(_muteTag);
+
+							_flvParserIsSegmentStart = false;
+							
+						}	
+						
+						_enhancedSeekTags.push(tag);
+					} 
+					//else is a data tag, which we are simply saving for later, or a 
+					//FLVTagAudio, which we discard unless is a configuration tag
+					else if ((tag is FLVTagScriptDataObject) || 
+						(tag is FLVTagAudio && FLVTagAudio(tag).isCodecConfiguration))						                                                                   
+					{
+						_enhancedSeekTags.push(tag);
+					}
+				}
+				else
+				{
+					// We've reached the tag whose timestamp is greater
+					// than _enhancedSeekTarget, so we can stop seeking.
+					_enhancedSeekTarget = NaN;
+
+					// Process any client side seek tags.
+					if (_enhancedSeekTags != null && _enhancedSeekTags.length > 0)
+					{
+						// We do this dance to get the NetStream into a clean state. If we don't
+						// do this, then we can get failed resume in some scenarios - ie, audio
+						// but no picture.
+						super.close();
+						super.play(null);
+						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+						
+						_initialTime = NaN;
+
+						var codecID:int;
+						var haveSeenVideoTag:Boolean = false;
+						
+						// twiddle and dump
+						for (i=0; i<_enhancedSeekTags.length; i++)
+						{
+							var vTag:FLVTag = _enhancedSeekTags[i];
+							
+							if (vTag.tagType == FLVTag.TAG_TYPE_VIDEO)
+							{
+								var vTagVideo:FLVTagVideo = vTag as FLVTagVideo;
+								
+								if (vTagVideo.codecID == FLVTagVideo.CODEC_ID_AVC && vTagVideo.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU)
+								{
+									// for H.264 we need to move the timestamp forward but the composition time offset backwards to compensate
+									var adjustment:int = wrapTagTimestampToFLVTimestamp(tag.timestamp) - wrapTagTimestampToFLVTimestamp(vTagVideo.timestamp); // how far we are adjusting
+									var compTime:int = vTagVideo.avcCompositionTimeOffset;
+									compTime -= adjustment; // do the adjustment
+									vTagVideo.avcCompositionTimeOffset = compTime;	// save adjustment
+								}
+								
+								codecID = vTagVideo.codecID;
+								haveSeenVideoTag = true;
+							}
+							
+							vTag.timestamp = tag.timestamp;
+							
+							bytes = new ByteArray();
+							vTag.write(bytes);
+							_flvParserProcessed += bytes.length;
+
+							if(writeToMasterBuffer)
+								_masterBuffer.writeBytes(bytes);
+							appendBytes(bytes);
+						}
+						
+						// Emit end of client seek tag if we started client seek.
+						if (haveSeenVideoTag)
+						{
+							trace("Writing end-of-seek tag");
+							var _unmuteTag:FLVTagVideo = new FLVTagVideo();
+							_unmuteTag.timestamp = tag.timestamp;  // may get overwritten, ok
+							_unmuteTag.codecID = codecID;
+							_unmuteTag.frameType = FLVTagVideo.FRAME_TYPE_INFO;
+							_unmuteTag.infoPacketValue = FLVTagVideo.INFO_PACKET_SEEK_END;
+							bytes = new ByteArray();
+							_unmuteTag.write(bytes);
+							_flvParserProcessed += bytes.length;
+
+							if(writeToMasterBuffer)
+								_masterBuffer.writeBytes(bytes);
+							appendBytes(bytes);
+						}
+						
+						_enhancedSeekTags = null;
+
+						// Update the last written time so we don't RESET_SEEK inappropriately.
+						lastWrittenTime = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000.0;
+
+					}
+					
+					// and append this one
+					bytes = new ByteArray();
+					tag.write(bytes);
+					_flvParserProcessed += bytes.length;
+
+					attemptAppendBytes(bytes);
+					
+					_flvParserDone = true;
+					return false;	// and end of parsing (caller must dump rest, unparsed)
+				}
+				
+				return true;
+			} // enhanced seek
+			
+			if(true)
+			{
+
+				var b:ByteArray = new ByteArray();
+				tag.write(b);
+				attemptAppendBytes(b);
+				_flvParserDone = true;
+				return false;
+			}
+
+
+			//------------------------------------------------
+			//------------------------------------------------
+			//------------------------------------------------
+
+			var i:int;
+
 
 			// Apply bump if present.
 			if(indexHandler && indexHandler.bumpedTime 
@@ -1995,8 +2147,6 @@ package org.osmf.net.httpstreaming
 			if(indexHandler)
 				indexHandler.bumpedTime = false;
 
-			var currentTime:Number = (realTimestamp / 1000.0) + _fileTimeAdjustment;
-			
 			CONFIG::LOGGING
 			{
 				logger.debug("Saw tag @ " + realTimestamp + " timestamp=" + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget + " dataSize=" + tag.dataSize);
@@ -2018,11 +2168,6 @@ package org.osmf.net.httpstreaming
 				{
 					if (currentTime > (_initialTime + _playForDuration))
 					{
-
-						if(isNaN(_initialTime))
-						{
-							_initialTime = currentTime;
-						}
 
 						setState(HTTPStreamingState.STOP);
 						_flvParserDone = true;
@@ -2222,7 +2367,7 @@ package org.osmf.net.httpstreaming
 					// but we need to be careful that this is the first tag of the segment, otherwise we don't know what duration means in relation to the tag timestamp
 					
 					_flvParserIsSegmentStart = false; // also used by enhanced seek, but not generally set/cleared for everyone. be careful.
-					currentTime = (tag.timestamp / 1000.0) + _fileTimeAdjustment;
+					currentTime = (tag.timestamp / 1000.0);
 					if (currentTime + _source.fragmentDuration >= (_initialTime + _playForDuration))
 					{
 						// it stops somewhere in this segment, so we need to keep seeing the tags
@@ -3090,7 +3235,7 @@ package org.osmf.net.httpstreaming
 		private var _notifyPlayStartPending:Boolean = false;
 		private var _notifyPlayUnpublishPending:Boolean = false;
 		
-		private var _initialTime:Number = -1;	// this is the timestamp derived at start-of-play (offset or not)... what FMS would call "0" - it is used to adjust super.time to be an absolute time
+		private var _initialTime:Number = NaN;	// this is the timestamp derived at start-of-play (offset or not)... what FMS would call "0" - it is used to adjust super.time to be an absolute time
 		private var _seekTime:Number = -1;		// this is the timestamp derived at end-of-seek (enhanced or not)... what we need to add to super.time (assuming play started at zero) - this guy is not used for anything much anymore
 		private var _lastValidTimeTime:Number = 0; // this is the last known timestamp returned; used to avoid showing garbage times.
 		
