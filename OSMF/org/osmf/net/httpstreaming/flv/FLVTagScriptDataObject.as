@@ -39,6 +39,7 @@ package org.osmf.net.httpstreaming.flv
 		{
 			var array:Array = new Array();
 			bytes.position = TAG_HEADER_BYTE_COUNT;
+			bytes.objectEncoding = ObjectEncoding.AMF0;
 			while (bytes.bytesAvailable)
 			{
 				array.push(bytes.readObject());
