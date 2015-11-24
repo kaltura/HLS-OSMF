@@ -1783,18 +1783,12 @@ package org.osmf.net.httpstreaming
 		private function insertScriptDataTag(tag:FLVTagScriptDataObject, first:Boolean = false):void
 		{
 			if (!_insertScriptDataTags)
-			{
 				_insertScriptDataTags = new Vector.<FLVTagScriptDataObject>();
-			}
 			
 			if (first)
-			{
 				_insertScriptDataTags.unshift(tag);	
-			}
 			else
-			{
 				_insertScriptDataTags.push(tag);
-			}
 		}
 		
 		/**
@@ -1803,8 +1797,11 @@ package org.osmf.net.httpstreaming
 		 * Consumes all script data tags from the queue. Returns the number of bytes
 		 * 
 		 */
-		private function consumeAllScriptDataTags(timestamp:Number):int
+		private function consumeAllScriptDataTags(timestamp:uint):int
 		{
+			if (_insertScriptDataTags == null)
+				return 0;
+
 			var processed:int = 0;
 			var index:int = 0;
 			var bytes:ByteArray = null;
@@ -1812,16 +1809,16 @@ package org.osmf.net.httpstreaming
 			
 			for (index = 0; index < _insertScriptDataTags.length; index++)
 			{
-				bytes = new ByteArray();
 				tag = _insertScriptDataTags[index];
 				
-				if (tag != null)
-				{
-					tag.timestamp = timestamp;
-					tag.write(bytes);
-					attemptAppendBytes(bytes);
-					processed += bytes.length;
-				}
+				if (tag == null)
+					continue;
+
+				bytes = new ByteArray();
+				tag.timestamp = timestamp;
+				tag.write(bytes);
+				appendBytes(bytes);
+				processed += bytes.length;
 			}
 			_insertScriptDataTags.length = 0;
 			_insertScriptDataTags = null;			
@@ -1897,18 +1894,17 @@ package org.osmf.net.httpstreaming
 		 * @private
 		 * 
 		 * Helper function that calls consumeAllScriptDataTags and also
-		 * performs some logging
+		 * performs some logging. Note it does no timestamp comparisons
+		 * so you want to pass the unmodified uint timestamp from the FLV
+		 * tag rather than a "correct" time.
 		 */
 		private function doConsumeAllScriptDataTags(timestamp:uint):void
 		{
-			if (_insertScriptDataTags != null)
+			CONFIG::LOGGING
 			{
-				CONFIG::LOGGING
-				{
-					logger.debug("Consume all queued script data tags ( use timestamp = " + timestamp + " ).");
-				}
-				_flvParserProcessed += consumeAllScriptDataTags(timestamp);
+				logger.debug("Consume all queued script data tags ( use timestamp = " + timestamp + " ).");
 			}
+			_flvParserProcessed += consumeAllScriptDataTags(timestamp);
 		}
 		
 		/**
@@ -1957,6 +1953,16 @@ package org.osmf.net.httpstreaming
 				}
 			}
 
+			if(_enhancedSeekTarget == Number.MAX_VALUE)
+			{
+				CONFIG::LOGGING
+				{
+					logger.debug("Left over enhanced seek-to-end, aborting (_seekTarget=" + _seekTarget + ").");
+				}
+				_enhancedSeekTarget = NaN;
+				_seekTarget = NaN;
+			}
+
 			var realTimestamp:int = wrapTagTimestampToFLVTimestamp(tag.timestamp);
 			var currentTime:Number = realTimestamp / 1000.0;
 
@@ -1968,200 +1974,6 @@ package org.osmf.net.httpstreaming
 				logger.debug("Saw tag @ " + realTimestamp + " timestamp=" + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget + " dataSize=" + tag.dataSize);
 			}
 
-			if (!isNaN(_enhancedSeekTarget))
-			{
-				if (currentTime < _enhancedSeekTarget)
-				{
-					CONFIG::LOGGING
-					{
-						logger.debug("Skipping FLV tag @ " + currentTime + " until " + _enhancedSeekTarget);
-					}
-
-					if (_enhancedSeekTags == null)
-					{
-						_enhancedSeekTags = new Vector.<FLVTag>();
-					}
-					
-					if (tag is FLVTagVideo)
-					{                                  
-						if (_flvParserIsSegmentStart)	
-						{	
-							// Generate client side seek tag.				
-							var _muteTag:FLVTagVideo = new FLVTagVideo();
-							_muteTag.timestamp = tag.timestamp; // may get overwritten, ok
-							_muteTag.codecID = FLVTagVideo(tag).codecID; // same as in use
-							_muteTag.frameType = FLVTagVideo.FRAME_TYPE_INFO;
-							_muteTag.infoPacketValue = FLVTagVideo.INFO_PACKET_SEEK_START;
-							
-							// and start saving, with this as the first...
-							_enhancedSeekTags.push(_muteTag);
-
-							_flvParserIsSegmentStart = false;
-							
-						}	
-						
-						_enhancedSeekTags.push(tag);
-					} 
-					//else is a data tag, which we are simply saving for later, or a 
-					//FLVTagAudio, which we discard unless is a configuration tag
-					else if ((tag is FLVTagScriptDataObject) || 
-						(tag is FLVTagAudio && FLVTagAudio(tag).isCodecConfiguration))						                                                                   
-					{
-						_enhancedSeekTags.push(tag);
-					}
-				}
-				else
-				{
-					// We've reached the tag whose timestamp is greater
-					// than _enhancedSeekTarget, so we can stop seeking.
-					_enhancedSeekTarget = NaN;
-
-					// Process any client side seek tags.
-					if (_enhancedSeekTags != null && _enhancedSeekTags.length > 0)
-					{
-						// We do this dance to get the NetStream into a clean state. If we don't
-						// do this, then we can get failed resume in some scenarios - ie, audio
-						// but no picture.
-						super.close();
-						super.play(null);
-						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-						
-						_initialTime = NaN;
-
-						var codecID:int;
-						var haveSeenVideoTag:Boolean = false;
-						
-						// twiddle and dump
-						for (i=0; i<_enhancedSeekTags.length; i++)
-						{
-							var vTag:FLVTag = _enhancedSeekTags[i];
-							
-							if (vTag.tagType == FLVTag.TAG_TYPE_VIDEO)
-							{
-								var vTagVideo:FLVTagVideo = vTag as FLVTagVideo;
-								
-								if (vTagVideo.codecID == FLVTagVideo.CODEC_ID_AVC && vTagVideo.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU)
-								{
-									// for H.264 we need to move the timestamp forward but the composition time offset backwards to compensate
-									var adjustment:int = wrapTagTimestampToFLVTimestamp(tag.timestamp) - wrapTagTimestampToFLVTimestamp(vTagVideo.timestamp); // how far we are adjusting
-									var compTime:int = vTagVideo.avcCompositionTimeOffset;
-									compTime -= adjustment; // do the adjustment
-									vTagVideo.avcCompositionTimeOffset = compTime;	// save adjustment
-								}
-								
-								codecID = vTagVideo.codecID;
-								haveSeenVideoTag = true;
-							}
-							
-							vTag.timestamp = tag.timestamp;
-							
-							bytes = new ByteArray();
-							vTag.write(bytes);
-							_flvParserProcessed += bytes.length;
-
-							if(writeToMasterBuffer)
-								_masterBuffer.writeBytes(bytes);
-							appendBytes(bytes);
-						}
-						
-						// Emit end of client seek tag if we started client seek.
-						if (haveSeenVideoTag)
-						{
-							trace("Writing end-of-seek tag");
-							var _unmuteTag:FLVTagVideo = new FLVTagVideo();
-							_unmuteTag.timestamp = tag.timestamp;  // may get overwritten, ok
-							_unmuteTag.codecID = codecID;
-							_unmuteTag.frameType = FLVTagVideo.FRAME_TYPE_INFO;
-							_unmuteTag.infoPacketValue = FLVTagVideo.INFO_PACKET_SEEK_END;
-							bytes = new ByteArray();
-							_unmuteTag.write(bytes);
-							_flvParserProcessed += bytes.length;
-
-							if(writeToMasterBuffer)
-								_masterBuffer.writeBytes(bytes);
-							appendBytes(bytes);
-						}
-						
-						_enhancedSeekTags = null;
-
-						// Update the last written time so we don't RESET_SEEK inappropriately.
-						lastWrittenTime = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000.0;
-
-					}
-					
-					// and append this one
-					bytes = new ByteArray();
-					tag.write(bytes);
-					_flvParserProcessed += bytes.length;
-
-					attemptAppendBytes(bytes);
-					
-					_flvParserDone = true;
-					return false;	// and end of parsing (caller must dump rest, unparsed)
-				}
-				
-				return true;
-			} // enhanced seek
-			
-			if(true)
-			{
-
-				var b:ByteArray = new ByteArray();
-				tag.write(b);
-				attemptAppendBytes(b);
-				_flvParserDone = true;
-				return false;
-			}
-
-
-			//------------------------------------------------
-			//------------------------------------------------
-			//------------------------------------------------
-
-			var i:int;
-
-
-			// Apply bump if present.
-			if(indexHandler && indexHandler.bumpedTime 
-				&& (_enhancedSeekTarget > indexHandler.bumpedSeek
-					|| _seekTarget > indexHandler.bumpedSeek))
-			{
-				CONFIG::LOGGING
-				{
-					logger.debug("INDEX HANDLER REQUESTED TIME BUMP to " + indexHandler.bumpedSeek);
-				}
-				_seekTarget = indexHandler.bumpedSeek;
-				_enhancedSeekTarget = indexHandler.bumpedSeek;
-			}
-
-			if(_enhancedSeekTarget == Number.MAX_VALUE)
-			{
-				CONFIG::LOGGING
-				{
-					logger.debug("Left over enhanced seek-to-end, aborting (_seekTarget=" + _seekTarget + ").");
-				}
-				_enhancedSeekTarget = NaN;
-				_seekTarget = NaN;
-			}
-
-			if(indexHandler)
-				indexHandler.bumpedTime = false;
-
-			CONFIG::LOGGING
-			{
-				logger.debug("Saw tag @ " + realTimestamp + " timestamp=" + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget + " dataSize=" + tag.dataSize);
-			}
-
-			// Fix for http://bugs.adobe.com/jira/browse/FM-1544
-			// We need to take into account that flv tags' timestamps are 32-bit unsigned ints
-			// This means they will roll over, but the bootstrap times won't, since they are 64-bit unsigned ints
-			/*while (currentTime < _initialTime)
-			{
-				// Add 2^32 (4,294,967,296) milliseconds to the currentTime
-				// currentTime is in seconds so we divide that by 1000
-				currentTime += 4294967.296;
-			}*/
-			
 			if (_playForDuration >= 0)
 			{
 				if (_initialTime >= 0)	// until we know this, we don't know where to stop, and if we're enhanced-seeking then we need that logic to be what sets this up
@@ -2181,7 +1993,7 @@ package org.osmf.net.httpstreaming
 					}
 				}
 			}
-			
+
 			if (!isNaN(_enhancedSeekTarget))
 			{
 				if (currentTime < _enhancedSeekTarget)
@@ -2190,6 +2002,7 @@ package org.osmf.net.httpstreaming
 					{
 						logger.debug("Skipping FLV tag @ " + currentTime + " until " + _enhancedSeekTarget);
 					}
+
 					if (_enhancedSeekTags == null)
 					{
 						_enhancedSeekTags = new Vector.<FLVTag>();
@@ -2229,14 +2042,6 @@ package org.osmf.net.httpstreaming
 					// than _enhancedSeekTarget, so we can stop seeking.
 					_enhancedSeekTarget = NaN;
 
-					// Update _seekTime even though it's not used.
-					if (_seekTime < 0)
-						_seekTime = currentTime;
-
-					// Update initial time with time of tag.
-					if(isNaN(_initialTime))
-						_initialTime = currentTime;
-
 					// Process any client side seek tags.
 					if (_enhancedSeekTags != null && _enhancedSeekTags.length > 0)
 					{
@@ -2253,7 +2058,7 @@ package org.osmf.net.httpstreaming
 						var haveSeenVideoTag:Boolean = false;
 						
 						// twiddle and dump
-						for (i=0; i<_enhancedSeekTags.length; i++)
+						for (var i:int=0; i<_enhancedSeekTags.length; i++)
 						{
 							var vTag:FLVTag = _enhancedSeekTags[i];
 							
@@ -2276,7 +2081,7 @@ package org.osmf.net.httpstreaming
 							
 							vTag.timestamp = tag.timestamp;
 							
-							bytes = new ByteArray();
+							var bytes:ByteArray = new ByteArray();
 							vTag.write(bytes);
 							_flvParserProcessed += bytes.length;
 
@@ -2308,9 +2113,6 @@ package org.osmf.net.httpstreaming
 						// Update the last written time so we don't RESET_SEEK inappropriately.
 						lastWrittenTime = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000.0;
 
-						// We are safe to consume the script data tags now.
-						doConsumeAllScriptDataTags(wrapTagTimestampToFLVTimestamp(tag.timestamp));
-
 					}
 					
 					// and append this one
@@ -2318,19 +2120,8 @@ package org.osmf.net.httpstreaming
 					tag.write(bytes);
 					_flvParserProcessed += bytes.length;
 
-					// Need to keep _initialTime up to date and we return below.
-					if (isNaN(_initialTime))
-					{
-						trace("Setting new _initialTime of " + currentTime);
-						_initialTime = currentTime;
-					}
-
 					attemptAppendBytes(bytes);
 					
-					if (_playForDuration >= 0)
-					{
-						return true;	// need to continue seeing the tags, and can't shortcut because we're being dropped off mid-segment
-					}
 					_flvParserDone = true;
 					return false;	// and end of parsing (caller must dump rest, unparsed)
 				}
@@ -2338,54 +2129,11 @@ package org.osmf.net.httpstreaming
 				return true;
 			} // enhanced seek
 			
-			if (isNaN(_initialTime))
-			{
-				trace("Setting new _initialTime of " + currentTime);
-				_initialTime = currentTime;
-			}
+			// Simplest case - write tag and terminate FLV processing.
+			var b:ByteArray = new ByteArray();
+			tag.write(b);
+			attemptAppendBytes(b);
 
-			// Before appending the tag, trigger the consumption of all
-			// the script data tags, with this tag's timestamp
-			doConsumeAllScriptDataTags(tag.timestamp);
-			
-			// finally, pass this one on to appendBytes...
-			var bytes:ByteArray = new ByteArray();
-			tag.write(bytes);
-
-			//logger.debug("[2] APPEND BYTES tag.timestamp=" + tag.timestamp + " length=" + bytes.length);
-			attemptAppendBytes(bytes);
-			_flvParserProcessed += bytes.length;
-			
-			// probably done seeing the tags, unless we are in playForDuration mode...
-			if (_playForDuration >= 0)
-			{
-				// using fragment duration to let the parser start when we're getting close to the end 
-				// of the play duration (FM-1440)
-				if (_source.fragmentDuration >= 0 && _flvParserIsSegmentStart)
-				{
-					// if the segmentDuration has been reported, it is possible that we might be able to shortcut
-					// but we need to be careful that this is the first tag of the segment, otherwise we don't know what duration means in relation to the tag timestamp
-					
-					_flvParserIsSegmentStart = false; // also used by enhanced seek, but not generally set/cleared for everyone. be careful.
-					currentTime = (tag.timestamp / 1000.0);
-					if (currentTime + _source.fragmentDuration >= (_initialTime + _playForDuration))
-					{
-						// it stops somewhere in this segment, so we need to keep seeing the tags
-						return true;
-					}
-					else
-					{
-						// stop is past the end of this segment, can shortcut and stop seeing tags
-						_flvParserDone = true;
-						return false;
-					}
-				}
-				else
-				{
-					return true;	// need to continue seeing the tags because either we don't have duration, or started mid-segment so don't know what duration means
-				}
-			}
-			// else not in playForDuration mode...
 			_flvParserDone = true;
 			return false;
 		}
@@ -2648,11 +2396,28 @@ package org.osmf.net.httpstreaming
 				CONFIG::LOGGING
 				{
 					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType + (isTagAVCC(tag as FLVTagVideo) ? " avcc" : "") + (isTagIFrame(tag as FLVTagVideo) ? " iframe" : ""));
+
+					if(tag is FLVTagScriptDataObject)
+					{
+						try
+						{
+							var obj:Array = (tag as FLVTagScriptDataObject).objects;
+							for(var j:int=0; j<obj.length; j++)
+								logger.debug("SCRIPT: " + JSON.stringify(obj[j]));
+						}
+						catch(e:*)
+						{
+							logger.debug("FAILED TO PARSE SCRIPT");
+						}
+					}
 				}
 
 				if(writeToMasterBuffer)
 					_masterBuffer.writeBytes(buffer);				
 				appendBytes(buffer);
+
+				// Fire any pending script tags immediately.
+				consumeAllScriptDataTags(tag.timestamp);
 			}
 
 			// Erase the consumed tags. Do it after to avoid costly array shifting.
