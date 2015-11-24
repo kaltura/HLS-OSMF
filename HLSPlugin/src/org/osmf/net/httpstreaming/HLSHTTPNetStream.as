@@ -363,7 +363,7 @@ package org.osmf.net.httpstreaming
 			// we can't seek before the playback starts or if it has stopped.
 			if (_state != HTTPStreamingState.INIT)
 			{
-				_seekTarget = convertWindowTimeToAbsoluteTime(offset);
+				_enhancedSeekTarget = _seekTarget = convertWindowTimeToAbsoluteTime(offset);
 
 				CONFIG::LOGGING
 				{
@@ -1099,6 +1099,8 @@ package org.osmf.net.httpstreaming
 						// Therefore, we always seek to 0. This is a workaround for FM-1519
 						super.seek(0);
 						
+						flushPendingTags();
+
 						CONFIG::FLASH_10_1
 						{
 							CONFIG::LOGGING
@@ -1107,7 +1109,7 @@ package org.osmf.net.httpstreaming
 							}
 
 							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-							flushPendingTags();
+							
 						}
 
 						_initialTime = NaN;
@@ -1966,9 +1968,6 @@ package org.osmf.net.httpstreaming
 			var realTimestamp:int = wrapTagTimestampToFLVTimestamp(tag.timestamp);
 			var currentTime:Number = realTimestamp / 1000.0;
 
-			if (isNaN(_initialTime))
-				_initialTime = currentTime;
-
 			CONFIG::LOGGING
 			{
 				logger.debug("Saw tag @ " + realTimestamp + " timestamp=" + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget + " dataSize=" + tag.dataSize);
@@ -1996,7 +1995,11 @@ package org.osmf.net.httpstreaming
 
 			if (!isNaN(_enhancedSeekTarget))
 			{
-				if (currentTime < _enhancedSeekTarget)
+				// Note if we have encountered an I-frame.
+				if(isTagIFrame(tag as FLVTagVideo))
+					_enhancedSeekSawIFrame = true;
+
+				if (currentTime < _enhancedSeekTarget || (_enhancedSeekTags != null && _enhancedSeekSawIFrame == false))
 				{
 					CONFIG::LOGGING
 					{
@@ -2006,6 +2009,7 @@ package org.osmf.net.httpstreaming
 					if (_enhancedSeekTags == null)
 					{
 						_enhancedSeekTags = new Vector.<FLVTag>();
+						_enhancedSeekSawIFrame = false;
 					}
 					
 					if (tag is FLVTagVideo)
@@ -2024,7 +2028,7 @@ package org.osmf.net.httpstreaming
 
 							_flvParserIsSegmentStart = false;
 							
-						}	
+						}
 						
 						_enhancedSeekTags.push(tag);
 					} 
@@ -2377,6 +2381,9 @@ package org.osmf.net.httpstreaming
 
 				var tagTimeSeconds:Number = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000;
 
+				if (isNaN(_initialTime))
+					_initialTime = tagTimeSeconds;
+
 				// If it's more than 0.5 second jump ahead of current playhead, insert a RESET_SEEK so we won't stall forever.
 				var tagDelta:Number = Math.abs(tagTimeSeconds - lastWrittenTime);
 
@@ -2683,7 +2690,7 @@ package org.osmf.net.httpstreaming
 						}
 
 						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-						_initialTime = realTimestamp / 1000;
+						_initialTime = NaN;
 					}
 
 					// Insert the AVCC at the I-frame's timestamp.
@@ -2995,7 +3002,8 @@ package org.osmf.net.httpstreaming
 		
 		private var _seekTarget:Number = NaN;
 		private var _enhancedSeekTarget:Number = NaN;
-		private var _enhancedSeekTags:Vector.<FLVTag>;
+		private var _enhancedSeekSawIFrame:Boolean = false;
+		private var _enhancedSeekTags:Vector.<FLVTag> = null;
 		
 		private var _notifyPlayStartPending:Boolean = false;
 		private var _notifyPlayUnpublishPending:Boolean = false;
