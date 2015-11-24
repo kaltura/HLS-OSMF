@@ -114,6 +114,8 @@ package org.osmf.net.httpstreaming
 		public static var writeToMasterBuffer:Boolean = false;
 		public static var _masterBuffer:ByteArray = new ByteArray();
 
+		public static var logEveryPacket:Boolean = false;
+
 		private var neverPlayed:Boolean = true;
 		private var neverBuffered:Boolean = true; // Set after first buffering event.
 		private var bufferBias:Number = 0.0; // Used to forcibly add more time to the buffer based on other logic.
@@ -1970,7 +1972,8 @@ package org.osmf.net.httpstreaming
 
 			CONFIG::LOGGING
 			{
-				logger.debug("Saw tag @ " + realTimestamp + " timestamp=" + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget + " dataSize=" + tag.dataSize);
+				if(logEveryPacket)
+					logger.debug("Saw tag @ " + realTimestamp + " timestamp=" + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget + " dataSize=" + tag.dataSize);
 			}
 
 			if (_playForDuration >= 0)
@@ -1996,8 +1999,7 @@ package org.osmf.net.httpstreaming
 			if (!isNaN(_enhancedSeekTarget))
 			{
 				// Note if we have encountered an I-frame.
-				if(isTagIFrame(tag as FLVTagVideo))
-					_enhancedSeekSawIFrame = true;
+				var sawIFrame:Boolean = isTagIFrame(tag as FLVTagVideo);
 
 				if (currentTime < _enhancedSeekTarget || (_enhancedSeekTags != null && _enhancedSeekSawIFrame == false))
 				{
@@ -2011,6 +2013,9 @@ package org.osmf.net.httpstreaming
 						_enhancedSeekTags = new Vector.<FLVTag>();
 						_enhancedSeekSawIFrame = false;
 					}
+
+					if(sawIFrame)
+						_enhancedSeekSawIFrame = true;
 					
 					if (tag is FLVTagVideo)
 					{                                  
@@ -2330,7 +2335,8 @@ package org.osmf.net.httpstreaming
 			{
 				CONFIG::LOGGING
 				{
-					logger.debug("Saw super.bufferLength " + super.bufferLength + " < " + bufferFeedMin);
+					if(logEveryPacket)
+						logger.debug("Saw super.bufferLength " + super.bufferLength + " < " + bufferFeedMin);
 				}
 				return;
 			}
@@ -2402,19 +2408,22 @@ package org.osmf.net.httpstreaming
 				// Do writing.
 				CONFIG::LOGGING
 				{
-					logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType + (isTagAVCC(tag as FLVTagVideo) ? " avcc" : "") + (isTagIFrame(tag as FLVTagVideo) ? " iframe" : ""));
-
-					if(tag is FLVTagScriptDataObject)
+					if(logEveryPacket)
 					{
-						try
+						logger.debug("Writing tag " + buffer.length + " bytes @ " + lastWrittenTime + "sec type=" + tag.tagType + (isTagAVCC(tag as FLVTagVideo) ? " avcc" : "") + (isTagIFrame(tag as FLVTagVideo) ? " iframe" : ""));
+
+						if(tag is FLVTagScriptDataObject)
 						{
-							var obj:Array = (tag as FLVTagScriptDataObject).objects;
-							for(var j:int=0; j<obj.length; j++)
-								logger.debug("SCRIPT: " + JSON.stringify(obj[j]));
-						}
-						catch(e:*)
-						{
-							logger.debug("FAILED TO PARSE SCRIPT");
+							try
+							{
+								var obj:Array = (tag as FLVTagScriptDataObject).objects;
+								for(var j:int=0; j<obj.length; j++)
+									logger.debug("SCRIPT: " + JSON.stringify(obj[j]));
+							}
+							catch(e:*)
+							{
+								logger.debug("FAILED TO PARSE SCRIPT");
+							}
 						}
 					}
 				}
