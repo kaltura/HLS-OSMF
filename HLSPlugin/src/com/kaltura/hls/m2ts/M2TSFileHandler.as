@@ -421,7 +421,7 @@ package com.kaltura.hls.m2ts
 
 			if ( key ) key.usePadding = true;
 
-			// Note the start as a debug event.
+			// Note the end as a debug event.
 			_parser.sendDebugEvent( {type:"segmentEnd", uri:segmentUri});
 			
 			var rv:ByteArray = basicProcessFileSegment(input, true);
