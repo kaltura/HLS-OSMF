@@ -2072,6 +2072,10 @@ package org.osmf.net.httpstreaming
 						super.close();
 						super.play(null);
 						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+
+						// Preserve pause state.
+						if(_isPaused)
+							super.pause();
 						
 						_initialTime = NaN;
 
