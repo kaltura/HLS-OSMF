@@ -529,7 +529,7 @@ package org.osmf.net.httpstreaming
 				if(indexHandler.liveEdge != Number.MAX_VALUE)
 					pubTime += indexHandler.liveEdge - indexHandler.windowDuration;
 				else
-					pubTime -= indexHandler.streamStartAbsoluteTime;
+					pubTime += indexHandler.streamStartAbsoluteTime;
 			}
 
 			return pubTime;
