@@ -266,7 +266,7 @@ package com.kaltura.hls.m2ts
 			return -1;
 		}
 		
-		public function append(packet:PESPacket, callback:Function):Boolean
+		public function append(packet:PESPacket, id3Callback:Function):Boolean
         {
 //            logger.debug("saw packet of " + packet.buffer.length);
             var b:ByteArray = packet.buffer;
@@ -460,7 +460,7 @@ package com.kaltura.hls.m2ts
 			if (lastID3Point == packet.packetID)
 			{							
 				//need to know the timestamp
-				callback(b);
+				id3Callback(b, pts/90000);
 			}else if(MediaClass.calculate(types[packet.packetID]) == MediaClass.VIDEO)
             {
 				// And process.

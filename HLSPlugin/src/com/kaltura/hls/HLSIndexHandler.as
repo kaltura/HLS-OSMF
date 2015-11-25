@@ -193,14 +193,17 @@ package com.kaltura.hls
 			// First, set any exactly known values.
 			for(var i:int=0; i<segments.length; i++)
 			{
+				const curUri:String = segments[i].uri;
+
 				// Skip unknowns.
-				if(!startTimeWitnesses.hasOwnProperty(segments[i].uri))
+				if(!startTimeWitnesses.hasOwnProperty(curUri))
 					continue;
 
-				segments[i].startTime = startTimeWitnesses[segments[i].uri];
+				trace("Segment #" + i + " from start witness " + startTimeWitnesses[curUri]);
+				segments[i].startTime = startTimeWitnesses[curUri];
 
-				if(endTimeWitnesses.hasOwnProperty(segments[i].uri))
-					segments[i].duration = endTimeWitnesses[segments[i].uri] - segments[i].startTime;
+				if(endTimeWitnesses.hasOwnProperty(curUri))
+					segments[i].duration = endTimeWitnesses[curUri] - segments[i].startTime;
 				
 				setSegments[i] = 1;
 			}
@@ -210,7 +213,7 @@ package com.kaltura.hls
 				// Then fill in any unknowns scanning forward....
 				for(i=1; i<segments.length; i++)
 				{
-					// Skip unknowns.
+					// Skip unknowns and explicitly set values.
 					if(!setSegments.hasOwnProperty(i-1) || setSegments.hasOwnProperty(i))
 						continue;
 
@@ -221,7 +224,7 @@ package com.kaltura.hls
 				// And scanning back...
 				for(i=segments.length-2; i>=0; i--)
 				{
-					// Skip unknowns.
+					// Skip unknowns and explicitly set values.
 					if(!setSegments.hasOwnProperty(i+1) || setSegments.hasOwnProperty(i))
 						continue;
 
