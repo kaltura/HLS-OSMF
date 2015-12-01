@@ -199,7 +199,7 @@ package com.kaltura.hls
 				if(!startTimeWitnesses.hasOwnProperty(curUri))
 					continue;
 
-				trace("Segment #" + i + " from start witness " + startTimeWitnesses[curUri]);
+				//trace("Segment #" + i + " from start witness " + startTimeWitnesses[curUri]);
 				segments[i].startTime = startTimeWitnesses[curUri];
 
 				if(endTimeWitnesses.hasOwnProperty(curUri))
@@ -917,7 +917,7 @@ package com.kaltura.hls
 		public function get isLiveEdgeValid():Boolean
 		{
 			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
-			return checkAnySegmentKnowledge(seg);
+			return checkAnySegmentKnowledge(seg) && getManifestForQuality(lastQuality).streamEnds == false;
 		}
 
 		public function get liveEdge():Number
@@ -926,9 +926,10 @@ package com.kaltura.hls
 
 			// Return time at least MAX_SEG_BUFFER from end of stream.
 			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
-			if(!seg || getManifestForQuality(lastQuality).streamEnds || seg.length < HLSManifestParser.MAX_SEG_BUFFER+1)
+			var backOff:Number = Math.min(HLSManifestParser.MAX_SEG_BUFFER + 1, seg.length - 1);
+			if(!seg || getManifestForQuality(lastQuality).streamEnds || backOff < 1)
 				return Number.MAX_VALUE;
-			var lastSeg:HLSManifestSegment = seg[Math.max(0, seg.length - (HLSManifestParser.MAX_SEG_BUFFER+1))];
+			var lastSeg:HLSManifestSegment = seg[Math.max(0, seg.length - backOff)];
 			return lastSeg.startTime;
 		}
 		
@@ -1682,6 +1683,7 @@ package com.kaltura.hls
 			// recreate the best effort download monitor
 			// this protects us against overlapping best effort downloads
 			_bestEffortDownloaderMonitor = new EventDispatcher();
+			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_PROGRESS, onBestEffortDownloadComplete);
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
 			_bestEffortDownloaderMonitor.addEventListener("dispatcherStart", onBestEffortDownloadStart);			
@@ -1818,6 +1820,11 @@ package com.kaltura.hls
 				trace("Got event for abandoned best effort download!");
 				return;
 			}
+
+			// If we have 512kb of the segment and it's a progress event, we can probably get a timestamp.
+			var downloader:HLSHTTPStreamDownloader = event.downloader as HLSHTTPStreamDownloader;
+			if(downloader.totalAvailableBytes < 512*1024 && downloader.isComplete == false && event.type == HTTPStreamingEvent.DOWNLOAD_PROGRESS)
+				return;
 			
 			trace("Best effort download complete " + event.toString());
 			
@@ -1846,29 +1853,6 @@ package com.kaltura.hls
 			// rather than getting confused by speedy cache responses.
 			_lastBestEffortFetchURI = _bestEffortFileHandler.segmentUri;
 			_lastBestEffortFetchDuration = getTimer() - _pendingBestEffortStartTime;
-			
-			// Is it the next one we want?
-			// This code path seems to result in buffer time getting screwed up and doesn't solve the
-			// bandwidth calculation/bitrate selection issues.
-			/*if(getLastSequenceManifest() && getManifestForQuality(targetQuality))
-			{
-			var nextSeg:HLSManifestSegment = getSegmentBySequence(getManifestForQuality(targetQuality).segments, getLastSequence() + 1);
-			if(nextSeg)
-			{
-			var nextUri:String = nextSeg.uri;
-			trace("onBestEffortDownloadComplete - Checking " + _bestEffortFileHandler.segmentUri + " vs " + nextUri);
-			if(_bestEffortFileHandler.segmentUri == nextUri)
-			{
-			trace("Keeping this download buddy.");
-			continueBestEffortFetch(nextUri, event.downloader);
-			
-			// And update the last sequence state.
-			updateLastSequence(getManifestForQuality(targetQuality), getLastSequence() + 1);
-			
-			return;
-			}
-			}
-			}*/
 			
 			// Otherwise skip.
 			skipBestEffortFetch(_bestEffortFileHandler.segmentUri, event.downloader as HLSHTTPStreamDownloader);

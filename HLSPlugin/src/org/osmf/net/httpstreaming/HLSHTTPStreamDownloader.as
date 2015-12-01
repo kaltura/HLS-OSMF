@@ -445,12 +445,12 @@ package org.osmf.net.httpstreaming
 					stopTimeoutMonitor();
 				}
 				_currentRetry = 0;
-				
-				_downloadBytesCount = event.bytesTotal;
-				CONFIG::LOGGING
-				{
-					logger.debug("Loaded " + event.bytesLoaded + " bytes from " + _downloadBytesCount + " bytes.");
-				}
+			}
+
+			_downloadBytesCount = event.bytesTotal;
+			CONFIG::LOGGING
+			{
+				logger.debug("Loaded " + event.bytesLoaded + " bytes from " + _downloadBytesCount + " bytes.");
 			}
 
 			_hasData = true;			

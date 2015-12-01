@@ -354,6 +354,14 @@ package com.kaltura.hls.m2ts
 				}
 				_parser.flush();
 			}
+
+			if(isBestEffort)
+			{
+				// Force processing immediately. We only need a starting timestamp.
+				trace("Extracting timestamps for BEF.");
+				_parser.handleBestEffortProcess();
+			}
+
 			_buffer = null;
 			buffer.position = 0;
 
@@ -364,6 +372,7 @@ package com.kaltura.hls.m2ts
 				{
 					logger.debug("Discarding normal data from best effort.");
 				}
+
 				buffer.length = 0;
 			}
 
