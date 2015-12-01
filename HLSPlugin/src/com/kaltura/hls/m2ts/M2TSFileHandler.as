@@ -358,7 +358,7 @@ package com.kaltura.hls.m2ts
 			if(isBestEffort)
 			{
 				// Force processing immediately. We only need a starting timestamp.
-				trace("Extracting timestamps for BEF.");
+				//trace("Extracting timestamps for BEF.");
 				_parser.handleBestEffortProcess();
 			}
 
