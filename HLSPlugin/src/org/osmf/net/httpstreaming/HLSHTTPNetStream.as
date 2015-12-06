@@ -470,9 +470,6 @@ package org.osmf.net.httpstreaming
 			// This code is optimized because it is frequently called and causes
 			// (on FF FP 17 debug) one second frame drop events when too slow.
 
-			if(isNaN(_initialTime))
-				return _lastValidTimeTime;
-
 			var startTime:int = getTimer();
 
 			// Do we need to expire the cache?
@@ -501,7 +498,6 @@ package org.osmf.net.httpstreaming
 				}
 
 				_timeCache_streamStartAbsoluteTime = indexHandler.streamStartAbsoluteTime;
-
 				_timeCache_LastUpdatedTimestamp = startTime;
 			}
 
@@ -511,9 +507,12 @@ package org.osmf.net.httpstreaming
 			//trace(" super.time (" + super.time + ") + " + _initialTime + " = " + potentialNewTime);
 
 			// If we are VOD, then offset time so 0 seconds is the start of the stream.
-			var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
-			if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
-				potentialNewTime -= _timeCache_streamStartAbsoluteTime;
+			if(indexHandler)
+			{
+				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
+				if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
+					potentialNewTime -= _timeCache_streamStartAbsoluteTime;				
+			}
 
 			// Take into account any cached live edge offset.
 			if(_timeCache_liveEdge != Number.MAX_VALUE)
@@ -1117,6 +1116,9 @@ package org.osmf.net.httpstreaming
 							indexHandler.bumpedTime = false;
 						}
 
+						// Clear time cache to ensure accurate time reporting.
+						_timeCache_LastUpdatedTimestamp = NaN;
+
 						// Netstream seek in data generation mode only clears the buffer.
 						// It does not matter what value you pass to it. However, netstream
 						// apparently doesn't do that if the value given is larger than
@@ -1205,7 +1207,7 @@ package org.osmf.net.httpstreaming
 						setState(HTTPStreamingState.SEEK);
 						break;
 					}
-					
+
 					// start the recovery process if we need to recover and our buffer is getting too low
 					if (recoveryDelayTimer.running && recoveryDelayTimer.currentCount >= 1)
 					{
@@ -1246,7 +1248,7 @@ package org.osmf.net.httpstreaming
 						if (
 							    (_state != HTTPStreamingState.PLAY) 	// we are no longer in play mode
 							 || (bytes == null) 						// or we don't have any additional data
-							 || (processed >= OSMFSettings.hdsBytesProcessingLimit) 	// or we have processed enough data  
+							 || (processed >= OSMFSettings.hdsBytesProcessingLimit && isNaN(_enhancedSeekTarget)) 	// or we have processed enough data  
 						)
 						{
 							keepProcessing = false;
@@ -1877,7 +1879,11 @@ package org.osmf.net.httpstreaming
 			{
 				// we need to parse the initial bytes
 				_flvParserProcessed = 0;
-				inBytes.position = 0;	
+				inBytes.position = 0;
+
+				// Apply sanity to any seek values.					
+				capSeekToLiveEdge();
+
 				_flvParser.parse(inBytes, true, onTag);
 				processed += _flvParserProcessed;
 				if(!_flvParserDone)
@@ -1954,11 +1960,20 @@ package org.osmf.net.httpstreaming
 			return timestampCastHelper;
 		}
 
+		private var _capSeekToLiveEdge_LastRunTime:Number = 0;
+
 		protected function capSeekToLiveEdge():void
 		{
+			var curTime:int = getTimer();
+			if(curTime - _capSeekToLiveEdge_LastRunTime < 1000)
+				return;
+
 			// Make sure we don't go past the live edge even if it changes while seeking.
 			if(!indexHandler || !indexHandler.isLiveEdgeValid)
 				return;
+
+			// Met prereqs so we don't have to check as much now.
+			_capSeekToLiveEdge_LastRunTime = curTime;
 
 			var liveEdgeValue:Number = indexHandler.liveEdge;
 			//trace("Seeing live edge of " + liveEdgeValue);
@@ -1983,7 +1998,6 @@ package org.osmf.net.httpstreaming
 		 */
 		private function onTag(tag:FLVTag):Boolean
 		{
-			capSeekToLiveEdge();
 
 			if(_enhancedSeekTarget == Number.MAX_VALUE)
 			{
@@ -2004,23 +2018,19 @@ package org.osmf.net.httpstreaming
 					logger.debug("Saw tag @ " + realTimestamp + " timestamp=" + tag.timestamp + " currentTime=" + currentTime + " _seekTime=" + _seekTime + " _enhancedSeekTarget="+ _enhancedSeekTarget + " dataSize=" + tag.dataSize);
 			}
 
-			if (_playForDuration >= 0)
+			if (_playForDuration >= 0 && !isNaN(_initialTime))
 			{
-				if (_initialTime >= 0)	// until we know this, we don't know where to stop, and if we're enhanced-seeking then we need that logic to be what sets this up
+				if (currentTime > (_initialTime + _playForDuration))
 				{
-					if (currentTime > (_initialTime + _playForDuration))
+					setState(HTTPStreamingState.STOP);
+					_flvParserDone = true;
+					if (!isNaN(_seekTime))
 					{
-
-						setState(HTTPStreamingState.STOP);
-						_flvParserDone = true;
-						if (_seekTime < 0)
-						{
-							_seekTime = _playForDuration + _initialTime;	// FMS behavior... the time is always the final time, even if we seek to past it
-							// XXX actually, FMS  actually lets exactly one frame though at that point and that's why the time gets to be what it is
-							// XXX that we don't exactly mimic that is also why setting a duration of zero doesn't do what FMS does (plays exactly that one still frame)
-						}
-						return false;
+						_seekTime = _playForDuration + _initialTime;	// FMS behavior... the time is always the final time, even if we seek to past it
+						// XXX actually, FMS  actually lets exactly one frame though at that point and that's why the time gets to be what it is
+						// XXX that we don't exactly mimic that is also why setting a duration of zero doesn't do what FMS does (plays exactly that one still frame)
 					}
+					return false;
 				}
 			}
 
@@ -2029,7 +2039,8 @@ package org.osmf.net.httpstreaming
 				// Note if we have encountered an I-frame.
 				var sawIFrame:Boolean = isTagIFrame(tag as FLVTagVideo);
 
-				if (currentTime < _enhancedSeekTarget || (_enhancedSeekTags != null && _enhancedSeekSawIFrame == false))
+				if (currentTime < _enhancedSeekTarget 
+					|| (_enhancedSeekTags != null && _enhancedSeekSawIFrame == false))
 				{
 					CONFIG::LOGGING
 					{
@@ -2094,7 +2105,8 @@ package org.osmf.net.httpstreaming
 							super.pause();
 						
 						_initialTime = NaN;
-
+						_timeCache_LastUpdatedTimestamp = NaN;
+						
 						var codecID:int;
 						var haveSeenVideoTag:Boolean = false;
 						
@@ -2120,6 +2132,7 @@ package org.osmf.net.httpstreaming
 								haveSeenVideoTag = true;
 							}
 							
+							// Copy timestamp unmodified.
 							vTag.timestamp = tag.timestamp;
 							
 							var bytes:ByteArray = new ByteArray();
@@ -2153,7 +2166,6 @@ package org.osmf.net.httpstreaming
 
 						// Update the last written time so we don't RESET_SEEK inappropriately.
 						lastWrittenTime = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000.0;
-
 					}
 					
 					// and append this one
@@ -2651,7 +2663,7 @@ package org.osmf.net.httpstreaming
 				// Skip totally implausible tags - we need to splice which means the splice must happen after
 				// tags we have fed into the flash decoder.
 				if(!scanningForIFrame && 
-					pendingTags.length > 0 && realTimestamp < wrapTagTimestampToFLVTimestamp(pendingTags[0].timestamp))
+					pendingTags.length > 0 && realTimestamp < wrapTagTimestampToFLVTimestamp(pendingTags[0].timestamp) - 64)
 				{
 					scanningForIFrame = true;
 
