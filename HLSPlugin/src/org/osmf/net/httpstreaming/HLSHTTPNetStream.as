@@ -2663,7 +2663,7 @@ package org.osmf.net.httpstreaming
 				// Skip totally implausible tags - we need to splice which means the splice must happen after
 				// tags we have fed into the flash decoder.
 				if(!scanningForIFrame && 
-					pendingTags.length > 0 && realTimestamp < wrapTagTimestampToFLVTimestamp(pendingTags[0].timestamp) - 64)
+					pendingTags.length > 0 && isBackInTime)
 				{
 					scanningForIFrame = true;
 
