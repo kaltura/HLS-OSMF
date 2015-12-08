@@ -538,7 +538,9 @@ package org.osmf.net.httpstreaming
 			{
 				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
 				if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
-					potentialNewTime -= _timeCache_streamStartAbsoluteTime;				
+					potentialNewTime -= _timeCache_streamStartAbsoluteTime;
+				else 
+					return absoluteTime;
 			}
 
 			// Take into account any cached live edge offset.
