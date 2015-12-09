@@ -470,13 +470,13 @@ package org.osmf.net.httpstreaming
 			// This code is optimized because it is frequently called and causes
 			// (on FF FP 17 debug) one second frame drop events when too slow.
 
+			var startTime:int = getTimer();
+
 			if(isNaN(_initialTime))
 				return _lastValidTimeTime;
 
-			var startTime:int = getTimer();
-
 			// Do we need to expire the cache?
-			if(startTime - _timeCache_LastUpdatedTimestamp > _timeCache_ExpirationPeriod)
+			if(getTimer() - _timeCache_LastUpdatedTimestamp > _timeCache_ExpirationPeriod)
 				_timeCache_LastUpdatedTimestamp = NaN;
 
 			// If cache invalid, repopulate it.
@@ -491,38 +491,30 @@ package org.osmf.net.httpstreaming
 				{
 					_timeCache_liveEdge = indexHandler.liveEdge;
 					_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
-					//trace("   o Perceived live stream (" + _timeCache_liveEdge + ", " + _timeCache_liveEdgeMinusWindowDuration + ")");
 				}
 				else
 				{
-					//trace("   o Perceived VOD stream.");
 					_timeCache_liveEdge = 0;
 					_timeCache_liveEdgeMinusWindowDuration = 0;
 				}
 
 				_timeCache_streamStartAbsoluteTime = indexHandler.streamStartAbsoluteTime;
 
-				_timeCache_LastUpdatedTimestamp = startTime;
+				_timeCache_LastUpdatedTimestamp = getTimer();
 			}
 
 			// First determine our absolute time.
 			var potentialNewTime:Number = super.time + _initialTime;
 
-			//trace(" super.time (" + super.time + ") + " + _initialTime + " = " + potentialNewTime);
-
-			// If we are VOD, then offset time so 0 seconds is the start of the stream.
+			// If we are VOD, then offset time so we start at the beginning.
 			var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
 			if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
 				potentialNewTime -= _timeCache_streamStartAbsoluteTime;
 
 			// Take into account any cached live edge offset.
 			if(_timeCache_liveEdge != Number.MAX_VALUE)
-			{
-				//trace(" minus " + _timeCache_liveEdgeMinusWindowDuration);
 				potentialNewTime -= _timeCache_liveEdgeMinusWindowDuration;
-			}
 
-			// Update cache as appropriate.
 			if(!isNaN(potentialNewTime))
 				_lastValidTimeTime = potentialNewTime;
 
@@ -537,7 +529,7 @@ package org.osmf.net.httpstreaming
 				if(indexHandler.liveEdge != Number.MAX_VALUE)
 					pubTime += indexHandler.liveEdge - indexHandler.windowDuration;
 				else
-					pubTime += indexHandler.streamStartAbsoluteTime;
+					pubTime -= indexHandler.streamStartAbsoluteTime;
 			}
 
 			return pubTime;
@@ -2080,10 +2072,6 @@ package org.osmf.net.httpstreaming
 						super.close();
 						super.play(null);
 						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-
-						// Preserve pause state.
-						if(_isPaused)
-							super.pause();
 						
 						_initialTime = NaN;
 
