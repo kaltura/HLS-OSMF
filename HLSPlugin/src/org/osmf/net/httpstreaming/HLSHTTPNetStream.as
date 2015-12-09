@@ -460,16 +460,12 @@ package org.osmf.net.httpstreaming
 		protected var _timeCache_ExpirationPeriod:Number = 5000;
 		protected var _timeCache_liveEdge:Number = 0.0;
 		protected var _timeCache_liveEdgeMinusWindowDuration:Number = NaN;
-		protected var _timeCache_streamStartAbsoluteTime:Number = NaN;
 
 		/**
 		 * @inheritDoc
 		 */
 		override public function get time():Number
 		{
-			// This code is optimized because it is frequently called and causes
-			// (on FF FP 17 debug) one second frame drop events when too slow.
-
 			var startTime:int = getTimer();
 
 			if(isNaN(_initialTime))
@@ -486,7 +482,6 @@ package org.osmf.net.httpstreaming
 				{
 					logger.debug("Repopulating time cache.");
 				}
-
 				if(indexHandler.isLiveEdgeValid)
 				{
 					_timeCache_liveEdge = indexHandler.liveEdge;
@@ -498,18 +493,11 @@ package org.osmf.net.httpstreaming
 					_timeCache_liveEdgeMinusWindowDuration = 0;
 				}
 
-				_timeCache_streamStartAbsoluteTime = indexHandler.streamStartAbsoluteTime;
-
 				_timeCache_LastUpdatedTimestamp = getTimer();
 			}
 
 			// First determine our absolute time.
 			var potentialNewTime:Number = super.time + _initialTime;
-
-			// If we are VOD, then offset time so we start at the beginning.
-			var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
-			if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
-				potentialNewTime -= _timeCache_streamStartAbsoluteTime;
 
 			// Take into account any cached live edge offset.
 			if(_timeCache_liveEdge != Number.MAX_VALUE)

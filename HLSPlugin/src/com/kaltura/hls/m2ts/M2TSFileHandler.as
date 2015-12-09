@@ -457,13 +457,13 @@ package com.kaltura.hls.m2ts
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
 		
-		private function handleID3(message:ByteArray, timestamp:Number):void
+		private function handleID3(message:ByteArray):void
 		{
 			if (message ){
 				message.position = 0;
 				var b64:Base64Encoder = new Base64Encoder();
 				b64.encodeBytes(message);
-				_parser.createAndSendID3Message(timestamp,b64.toString());
+				_parser.createAndSendID3Message(_segmentBeginSeconds,b64.toString());
 			}
 		}
 			
