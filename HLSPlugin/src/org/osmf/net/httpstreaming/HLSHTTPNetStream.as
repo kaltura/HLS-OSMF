@@ -518,7 +518,7 @@ package org.osmf.net.httpstreaming
 			if(_timeCache_liveEdge != Number.MAX_VALUE)
 			{
 				//trace(" minus " + _timeCache_liveEdgeMinusWindowDuration);
-			//	potentialNewTime -= _timeCache_liveEdgeMinusWindowDuration;
+				potentialNewTime -= _timeCache_liveEdgeMinusWindowDuration;
 			}
 
 			// Update cache as appropriate.
