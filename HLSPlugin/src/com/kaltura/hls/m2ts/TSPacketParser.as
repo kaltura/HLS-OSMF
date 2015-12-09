@@ -301,11 +301,6 @@ package com.kaltura.hls.m2ts
             }
         }
 
-        public function handleBestEffortProcess():void
-        {
-            pesProcessor.processAllNalus();
-        }
-
         public function clear(clearAACConfig:Boolean = true):void
         {
             _streams = {};

@@ -959,9 +959,6 @@ package org.osmf.net.httpstreaming
 			// Feed buffer.
 			keepBufferFed();
 
-			// Make sure we are capped properly.
-			capSeekToLiveEdge();
-
 			// Check for seeking state.
 			if (seeking && time != timeBeforeSeek && _state != HTTPStreamingState.HALT)
 			{
@@ -1954,27 +1951,6 @@ package org.osmf.net.httpstreaming
 			return timestampCastHelper;
 		}
 
-		protected function capSeekToLiveEdge():void
-		{
-			// Make sure we don't go past the live edge even if it changes while seeking.
-			if(!indexHandler || !indexHandler.isLiveEdgeValid)
-				return;
-
-			var liveEdgeValue:Number = indexHandler.liveEdge;
-			//trace("Seeing live edge of " + liveEdgeValue);
-
-			if((_seekTarget < liveEdgeValue && _enhancedSeekTarget < liveEdgeValue) || isNaN(_enhancedSeekTarget))
-				return;
-
-			CONFIG::LOGGING
-			{
-				logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " > " + liveEdgeValue + ", " + _enhancedSeekTarget + " > " + liveEdgeValue + ").");
-			}
-			_seekTarget = liveEdgeValue - 0.5;
-			_enhancedSeekTarget = liveEdgeValue - 0.5;
-			setState(HTTPStreamingState.SEEK);
-		}
-
 		/**
 		 * @private
 		 * 
@@ -1983,7 +1959,23 @@ package org.osmf.net.httpstreaming
 		 */
 		private function onTag(tag:FLVTag):Boolean
 		{
-			capSeekToLiveEdge();
+
+			// Make sure we don't go past the live edge even if it changes while seeking.
+			if(indexHandler && indexHandler.isLiveEdgeValid)
+			{
+				var liveEdgeValue:Number = indexHandler.liveEdge;
+				//trace("Seeing live edge of " + liveEdgeValue);
+				if(_seekTarget > liveEdgeValue || _enhancedSeekTarget > liveEdgeValue)
+				{
+					CONFIG::LOGGING
+					{
+						logger.warn("Capping seek (onTag) to the known-safe live edge (" + _seekTarget + " > " + liveEdgeValue + ", " + _enhancedSeekTarget + " > " + liveEdgeValue + ").");
+					}
+					_seekTarget = liveEdgeValue - 0.5;
+					_enhancedSeekTarget = liveEdgeValue - 0.5;
+					setState(HTTPStreamingState.SEEK);
+				}
+			}
 
 			if(_enhancedSeekTarget == Number.MAX_VALUE)
 			{
