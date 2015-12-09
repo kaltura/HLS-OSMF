@@ -394,7 +394,7 @@ package com.kaltura.hls.m2ts
             pts = handleMpegTimestampWrap(pts, lastPTS);
             lastPTS = pts;
 
-            dts = handleMpegTimestampWrap(dts, pts);
+            dts = handleMpegTimestampWrap(dts, lastDTS);
             lastDTS = dts;
 
             packet.pts = pts;
