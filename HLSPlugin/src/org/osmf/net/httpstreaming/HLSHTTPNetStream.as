@@ -461,6 +461,7 @@ package org.osmf.net.httpstreaming
 		protected var _timeCache_liveEdge:Number = 0.0;
 		protected var _timeCache_liveEdgeMinusWindowDuration:Number = NaN;
 		protected var _timeCache_streamStartAbsoluteTime:Number = NaN;
+		protected var _timeCache_lastTime:Number = NaN;
 
 		/**
 		 * @inheritDoc
@@ -476,6 +477,8 @@ package org.osmf.net.httpstreaming
 			if(startTime - _timeCache_LastUpdatedTimestamp > _timeCache_ExpirationPeriod)
 				_timeCache_LastUpdatedTimestamp = NaN;
 
+			_timeCache_lastTime = super.time;
+
 			// If cache invalid, repopulate it.
 			if(isNaN(_timeCache_LastUpdatedTimestamp) && indexHandler)
 			{
@@ -484,21 +487,45 @@ package org.osmf.net.httpstreaming
 					logger.debug("Repopulating time cache.");
 				}
 
-				if(indexHandler.isLiveEdgeValid)
+				var activeManifest:HLSManifestParser = indexHandler.getLastSequenceManifest();
+				var didValidUpdate:Boolean = false;
+
+				if(activeManifest && !isNaN(_initialTime))
 				{
-					_timeCache_liveEdge = indexHandler.liveEdge;
-					_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
-					//trace("   o Perceived live stream (" + _timeCache_liveEdge + ", " + _timeCache_liveEdgeMinusWindowDuration + ")");
+					if(activeManifest.streamEnds == false)
+					{
+						if(indexHandler.isLiveEdgeValid)
+						{
+							_timeCache_liveEdge = indexHandler.liveEdge;
+							_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
+							//trace("   o Perceived live stream (" + _timeCache_liveEdge + ", " + _timeCache_liveEdgeMinusWindowDuration + ")");						
+							didValidUpdate = true;
+						}
+						else
+						{
+							//trace("   o Failed to perceive live stream.");
+						}
+					}
+					else
+					{
+						//trace("   o Perceived VOD stream.");
+						_timeCache_liveEdge = 0;
+						_timeCache_liveEdgeMinusWindowDuration = 0;
+						didValidUpdate = true;
+					}					
+				}
+
+				if(didValidUpdate)
+				{
+					_timeCache_streamStartAbsoluteTime = indexHandler.streamStartAbsoluteTime;
+					_timeCache_LastUpdatedTimestamp = startTime;					
 				}
 				else
 				{
-					//trace("   o Perceived VOD stream.");
-					_timeCache_liveEdge = 0;
-					_timeCache_liveEdgeMinusWindowDuration = 0;
+					// Failed to cache so can't return a real value.
+					//trace("Failed to updated time cache so aborting.");
+					return NaN;
 				}
-
-				_timeCache_streamStartAbsoluteTime = indexHandler.streamStartAbsoluteTime;
-				_timeCache_LastUpdatedTimestamp = startTime;
 			}
 
 			// First determine our absolute time.
@@ -511,7 +538,9 @@ package org.osmf.net.httpstreaming
 			{
 				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
 				if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
-					potentialNewTime -= _timeCache_streamStartAbsoluteTime;				
+					potentialNewTime -= _timeCache_streamStartAbsoluteTime;
+				else 
+					return absoluteTime;
 			}
 
 			// Take into account any cached live edge offset.
