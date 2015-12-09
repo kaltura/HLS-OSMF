@@ -111,7 +111,6 @@ package org.osmf.net.httpstreaming.flv
 									currentTag = new FLVTagScriptDataObject(type);
 									break;
 								default:
-									trace("Unknown tag type " + type);
 									currentTag = new FLVTag(type);	// the generic case
 									break;
 							}
@@ -183,17 +182,12 @@ package org.osmf.net.httpstreaming.flv
 			{
 				input.readBytes(savedBytes, savedBytes.length);
 			}
-			
-			//trace("savedBytes.length = " + savedBytes.length);
-
 		} // parse
 
 		private function byteSource(input:IDataInput, numBytes:int):IDataInput
 		{
-			//trace("byteSource - " + numBytes);
 			if (savedBytes.bytesAvailable + input.bytesAvailable < numBytes)
 			{
-				//trace("byteSource - " + numBytes + " not available");
 				return null;
 			}
 			
