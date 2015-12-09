@@ -41,7 +41,7 @@ package com.kaltura.hls.m2ts
         protected var pendingBuffers:Vector.<Object> = new Vector.<Object>();
         protected var pendingLastConvertedIndex:int = 0;
 
-        public var lastPTS:Number = NaN, lastDTS:Number = NaN;
+        public var lastPTS:Number = 0, lastDTS:Number = 0;
 
         /**
          * Given a MPEG timestamp we've seen previously, determine if the new timestamp
@@ -74,7 +74,7 @@ package com.kaltura.hls.m2ts
             transcoder.clear(clearAACConfig);
 
             // Reset PTS/DTS reference.
-            lastPTS = lastDTS = NaN;
+            lastPTS = lastDTS = 0;
         }
 
         private function parseProgramAssociationTable(bytes:ByteArray, cursor:uint):Boolean
