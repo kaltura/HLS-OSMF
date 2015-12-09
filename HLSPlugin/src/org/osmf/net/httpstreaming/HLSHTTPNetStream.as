@@ -451,17 +451,9 @@ package org.osmf.net.httpstreaming
 			return;
 		}
 		
-		public var _hackAbsoluteTime:Number = 0.0;
-
 		public function get absoluteTime():Number
 		{
-			if(isNaN(_initialTime))
-				return 0.0;
-
-			var tmpTime:Number = super.time + _initialTime;
-			if(!isNaN(tmpTime))
-				_hackAbsoluteTime = tmpTime;
-			return _hackAbsoluteTime;
+			return super.time + _initialTime;
 		}
 
 		protected var _timeCache_LastUpdatedTimestamp:Number = NaN;
@@ -532,7 +524,7 @@ package org.osmf.net.httpstreaming
 				{
 					// Failed to cache so can't return a real value.
 					//trace("Failed to updated time cache so aborting.");
-					return _lastValidTimeTime;
+					return NaN;
 				}
 			}
 
