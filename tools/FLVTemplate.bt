@@ -1,0 +1,255 @@
+//-----------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+// File:     FLVTemplate.bt
+// Author:   lafei(indep@263.net)
+// Revision: 2.1
+// Purpose:  Defines a template for
+//    parsing FLV files.
+//-----------------------------------
+
+// Define structures used in FLV files
+
+typedef struct {
+    CHAR    signature[3];	//"FLV"
+    UBYTE   version;
+    UBYTE   dummy : 5;
+    UBYTE   audio : 1;		//1 if audio present
+    UBYTE   dummy2 : 1;
+    UBYTE   video : 1;		//1 if video present
+    DWORD   dataoffset;		//in abs. file offset
+    DWORD   zero;		//previous tag size
+} HEADER <bgcolor=cGreen>;
+
+local UINT taglen;
+
+enum <UINT> TagType
+{
+    Audio= 8,
+    Vide = 9,
+    Script = 18
+};
+
+typedef struct {
+    TagType tagType : 8;
+    UINT    datasize : 24;
+    UINT    timestamp : 24;
+    UINT    timestamphi : 8;
+    UINT    streamId : 24;
+} FLVTagStart <bgcolor=cRed>;
+
+enum <UINT> FrameType
+{
+    SeekableFrame = 1,
+    InterFrame = 2,
+    DisposableInterFrame = 3,
+    GeneratedKeyFrame = 4,
+    VideoInfoFrame = 5
+};
+
+enum <UINT> CodecID
+{
+    JPEG = 1,
+    Sorensen = 2,
+    Screen = 3,
+    On2_VP6 = 4,
+    On2_VP6A = 5,
+    Screen2 = 6,
+    AVC = 7
+};
+
+enum <UINT> AVCPacketType
+{
+    SequenceHeader = 0,
+    NALU = 1,
+    EndOfSequence = 2
+};
+
+typedef struct
+{
+    uchar configurationVersion;
+    uchar AVCProfileIndication;
+    uchar profile_compatibility;
+    uchar AVCLevelIndication;
+    uchar reserved : 6;
+    uchar lengthSizeMinusOne : 2;
+    uchar reserved : 3;
+    uchar numOfSequenceParameterSets : 5;
+
+    struct
+    {
+        uint16 sequenceParameterSetLength;
+        uchar sequenceParameterSetNALUnit[sequenceParameterSetLength];
+    } sequenceParameterSets[numOfSequenceParameterSets] <optimize=false>;
+
+    uchar numOfPictureParameterSets;
+    struct
+    {
+        uint16 pictureParameterSetLength;
+        uchar pictureParameterSetNALUnit[pictureParameterSetLength];
+    } pictureParameterSets[numOfPictureParameterSets] <optimize=false>;
+} AVCDecoderConfigurationRecord;
+
+struct ScriptDataString;
+struct ScriptDataValue;
+typedef struct {
+    ScriptDataString ObjectName;
+    ScriptDataValue ObjectData (ObjectName.stringData);
+} ScriptDataObject;
+ 
+typedef struct {
+    UINT16 stringLength;
+    CHAR   stringData[stringLength];
+} ScriptDataString;
+ 
+struct ScriptDataValue;
+ 
+typedef struct {
+    UINT32 ECMArrayLength;
+    ScriptDataObject Variables[ECMArrayLength] <optimize=false>;
+} ScriptDataECMAArray;
+ 
+typedef struct {
+    DOUBLE DateTime;
+    INT16 LocalDateTimeOffset;
+} ScriptDataDate;
+
+ 
+local uchar buffer[64];
+ 
+typedef struct {
+ 
+} ScriptDataLongString;
+ 
+typedef struct (char name[]) {
+    UBYTE    type : 8;
+    
+    Printf("ScriptDataName:%s\n", name);
+    
+    // Value
+    switch (type) {
+        case 0: DOUBLE value <comment="Num">; break;
+        case 1: UBYTE value <comment="Bool">; break;
+        case 2: ScriptDataString value <comment="Str">; break;
+        case 3: 
+        {
+            local BYTE isEnd;
+            do {
+                ScriptDataObject value2 <comment="Obj">; 
+                ReadBytes(buffer, FTell(), 3);
+                isEnd = buffer[0] == 0 && buffer[1] == 0 && buffer[2] == 9;
+            } while (!isEnd);
+            CHAR endFlag[3];
+            break;
+        }
+        case 7: UINT16 value <comment="Reference">; break;
+        case 8: ScriptDataECMAArray value <comment="Array">; break;
+        //case 9: UINT value : 24 <comment="Object end marker">; break;
+        case 10: 
+        {
+            UINT32 numberItems;
+            ScriptDataValue value(name)[numberItems] <comment="Strict array",optimize=false>; 
+            break;
+        }  
+        case 11: ScriptDataDate value <comment="Date">; break;
+        case 12: ScriptDataLongString value <comment="Long str">; break;
+    }
+} ScriptDataValue;
+ 
+typedef struct {
+    ScriptDataValue name ("FLVTagBody");
+    ScriptDataValue value (name.value.stringData);
+} ScriptTagBody;
+ 
+typedef struct {
+    
+} EncryptedBody;
+ 
+typedef struct {
+    if (1) {
+        ScriptTagBody tagBody;
+    } else {
+        EncryptedBody encBody;
+    }
+    CHAR End[3];
+    if (End[2] != 9) {
+        Warning( "End should be 9: %d", End[2]);
+        return -1;
+    }
+} ScriptData;
+
+typedef struct {
+    FLVTagStart tagStart;
+    taglen = tagStart.datasize - 1;
+    //Printf("tag length: %x\n",taglen);
+    local UINT readData = 1;
+
+    if(tagStart.tagType==8)	//audio
+    {
+        UINT fmt : 4;
+        UINT sr : 2;
+        UINT bits : 1;
+        UINT channels : 1;
+        if(fmt==10)
+        {
+            --taglen;
+            UBYTE frmtype;
+        }
+    }
+    else if(tagStart.tagType==9)//video
+    {
+        FrameType frameType : 4;
+        CodecID codecId : 4;
+        if(codecId==AVC)
+        {
+            taglen -= 4;
+            AVCPacketType packetType : 8;
+            UINT compositionTime : 24;
+            if(packetType == SequenceHeader)
+            {
+                readData = 0;
+                Printf("Saw AVCC\n");
+                AddBookmark(FTell(), "avcc", "AVCDecoderConfigurationRecord", 1, 0xFF00FF);
+                AVCDecoderConfigurationRecord avcc;
+            }
+        }
+    }
+    else if(tagStart.tagType==18)//script
+    {
+         //ScriptData scriptData <bgcolor=cLtPurple>;
+         readData = 1;
+    }
+
+    if(readData)    
+        UBYTE data[taglen] <bgcolor=0xFFE0E0>;
+    UINT lastsize <bgcolor=0xE0E0FF>;	//last tag size
+
+    //for debugging
+    //Printf("lastsize: %x\n",lastsize);
+    //Printf("Pos: %x\n",FTell());
+} Tag;
+
+BigEndian();
+SetBackColor( cLtGray );
+HEADER hdr;
+
+// Check for header
+if( hdr.signature != "FLV" )
+{
+    Warning( "File is not a FLV. Template stopped." );
+    return -1;
+}
+
+if( hdr.version != 1 )
+{
+    Warning( "Unsupported FLV version. Template stopped." );
+    return -1;
+}
+
+// Define the bytes of the data
+SetBackColor( cNone );
+
+while( !FEof() )
+{
+    Tag tag;
+}
