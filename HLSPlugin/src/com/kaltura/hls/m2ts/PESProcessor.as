@@ -441,9 +441,9 @@ package com.kaltura.hls.m2ts
 
 			if (lastID3Point == packet.packetID)
 			{							
-				//need to know the timestamp
-				callback(b);
-			}else if(MediaClass.calculate(types[packet.packetID]) == MediaClass.VIDEO)
+				callback(b, pts/90000);
+			}
+            else if(MediaClass.calculate(types[packet.packetID]) == MediaClass.VIDEO)
             {
 				// And process.
                 var start:int = NALU.scan(b, cursor, true);
