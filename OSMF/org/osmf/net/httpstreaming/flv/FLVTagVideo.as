@@ -55,7 +55,7 @@ package org.osmf.net.httpstreaming.flv
 		{
 			super(type);
 		}
-
+		
 		public function get frameType():int
 		{
 			return (bytes[TAG_HEADER_BYTE_COUNT + 0] >> 4) & 0x0f;

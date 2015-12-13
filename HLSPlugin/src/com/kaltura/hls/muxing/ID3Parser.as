@@ -28,8 +28,6 @@ package com.kaltura.hls.muxing
 					switch(header)
 					{
 						case "ID3":
-							//trace("Got ID3 at " + data.position);
-
 							data.position += 3;
 							
 							// retrieve tag length
@@ -54,19 +52,9 @@ package com.kaltura.hls.muxing
 										continue;
 									}
 									
-									data.position += 4;
+									data.position+=4;
 									
-									var cursor:int = data.position;
-									var pts:Number = 0;
-
-									pts  = data[cursor] & 0x01; pts = pts << 8;
-									pts  += data[cursor + 1];    pts = pts << 8;
-									pts  += data[cursor + 2];    pts = pts << 8;
-									pts  += data[cursor + 3];    pts = pts << 8;
-									pts  += data[cursor + 4];
-
-									timestamp = pts / 90;
-									//trace("saw timestamp " + timestamp + " pts=" + pts + "@ " + cursor);
+									timestamp = (data.readUnsignedInt() / 90) << (data.readUnsignedByte() & 0x1);
 									hasTimestamp = true;
 									return;
 								}								
