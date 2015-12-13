@@ -53,7 +53,7 @@ package com.kaltura.hls.manifest
 		 * until 10 seconds have passed and another segment becomes available.
 		 * Please take this into account when setting these values.
 		 */
-		public static var MAX_SEG_BUFFER:int = 4;
+		public static var MAX_SEG_BUFFER:int = 2;
 
 		/**
 		 * This overrides the value of the EXT-X-TARGETDURATION from any manifest we encounter.

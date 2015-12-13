@@ -37,6 +37,10 @@ package com.kaltura.hls.m2ts
         {
             pesProcessor.transcoder.callback = value;
         }
+		
+		public function set id3Callback(value:Function):void{
+			pesProcessor.transcoder.id3Callback = value;
+		}
 
         /**
          * Accepts arbitrary chunks of bytes and extracts TS packet data.
@@ -263,7 +267,7 @@ package com.kaltura.hls.m2ts
             }
 
             // Append to buffer.
-            if(!pesProcessor.append(new PESPacket(stream.packetID, stream.buffer)))
+			if(!pesProcessor.append(new PESPacket(stream.packetID, stream.buffer), pesProcessor.transcoder.id3Callback))
                 return;
 
             // Reset stream buffer if we succeeded.
@@ -305,6 +309,10 @@ package com.kaltura.hls.m2ts
             pesProcessor.transcoder.createAndSendCaptionMessage( timestamp, captionBuffer, lang, textid);
         }
 
+		public function createAndSendID3Message(timestamp:Number,buffer:String):void{
+			pesProcessor.transcoder.createAndSendID3Message(timestamp,buffer);
+		}
+		
         /**
          * Fire off a debug event.
          */

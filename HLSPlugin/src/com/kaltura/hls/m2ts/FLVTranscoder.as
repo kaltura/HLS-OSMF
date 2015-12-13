@@ -1,9 +1,8 @@
 package com.kaltura.hls.m2ts
 {
-    import flash.utils.ByteArray;
     import flash.net.ObjectEncoding;
     import flash.utils.ByteArray;
-    import flash.utils.Endian;    
+    import flash.utils.Endian;
     import flash.utils.IDataInput;
     import flash.utils.IDataOutput;
 
@@ -28,6 +27,7 @@ package com.kaltura.hls.m2ts
         public const MIN_FILE_HEADER_BYTE_COUNT:int = 9;
 
         public var callback:Function;
+		public var id3Callback:Function;
 
         private var _aacConfig:ByteArray;
         private var _aacRemainder:ByteArray;
@@ -488,6 +488,7 @@ package com.kaltura.hls.m2ts
             var bytes:ByteArray = generateScriptData(values);
             sendFLVTag(flvts, FLVTags.TYPE_SCRIPTDATA, -1, -1, bytes, 0, bytes.length, 0);
         }
+		
 
         /**
          * Fire off a subtitle caption.
@@ -504,6 +505,14 @@ package com.kaltura.hls.m2ts
             //var subtitleObject:Array = ["onTextData", { text:captionBuffer, language:lang, trackid:textid }];
             //sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
         }
+		
+		public function createAndSendID3Message(timeStamp:Number, ID3Buffer:String):void
+		{
+			var ID3Object:Array = ["onID3Data",{data:ID3Buffer}];
+			//sendScriptDataFLVTag with sendFLVTag buffer = false 
+			var bytes:ByteArray = generateScriptData(ID3Object);
+			sendFLVTag(timeStamp * 1000, FLVTags.TYPE_SCRIPTDATA, -1, -1, bytes, 0, bytes.length, 0, false);
+		}
 
         protected var pendingDebugEvents:Array = [];
 
