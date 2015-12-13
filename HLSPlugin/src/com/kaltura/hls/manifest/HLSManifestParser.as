@@ -53,7 +53,7 @@ package com.kaltura.hls.manifest
 		 * until 10 seconds have passed and another segment becomes available.
 		 * Please take this into account when setting these values.
 		 */
-		public static var MAX_SEG_BUFFER:int = 4;
+		public static var MAX_SEG_BUFFER:int = 2;
 
 		/**
 		 * This overrides the value of the EXT-X-TARGETDURATION from any manifest we encounter.
@@ -193,10 +193,11 @@ package com.kaltura.hls.manifest
 			timestamp = getTimer();
 
 			fullUrl = _fullUrl;
-			if(_fullUrl.indexOf("?") >= 0){
-				_fullUrl = _fullUrl.slice(0, _fullUrl.indexOf("?"));
-			}
-			baseUrl = _fullUrl.substring(0, _fullUrl.lastIndexOf("/") + 1);	
+			// Do not strip query parameters on manifest - this breaks some manifests!
+			//if(fullUrl.indexOf("?") >= 0){
+			//	fullUrl = fullUrl.slice(0, fullUrl.indexOf("?"));
+			//}
+			baseUrl = fullUrl.substring(0, fullUrl.lastIndexOf("/") + 1);
 			//logger.debug("BASE URL " + baseUrl);
 			
 			// Normalize line endings.

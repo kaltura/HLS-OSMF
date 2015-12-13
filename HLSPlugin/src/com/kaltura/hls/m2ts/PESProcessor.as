@@ -29,6 +29,9 @@ package com.kaltura.hls.m2ts
 
         public var lastVideoNALU:NALU = null;
 
+		public var lastID3NALU:NALU = null;
+		public var lastID3Point:uint;
+		
         public var transcoder:FLVTranscoder = new FLVTranscoder();
 
         public var headerSent:Boolean = false;
@@ -38,6 +41,19 @@ package com.kaltura.hls.m2ts
         protected var pendingBuffers:Vector.<Object> = new Vector.<Object>();
         protected var pendingLastConvertedIndex:int = 0;
 
+        public var lastPTS:Number = NaN, lastDTS:Number = NaN;
+
+        /**
+         * Given a MPEG timestamp we've seen previously, determine if the new timestamp
+         * has wrapped and correct it to follow the old timestamp.
+         */
+        public static function handleMpegTimestampWrap(newTime:Number, oldTime:Number):Number
+        {
+            while (!isNaN(oldTime) && (Math.abs(newTime - oldTime) > 4294967296))
+                newTime += (oldTime < newTime) ? -8589934592 : 8589934592;
+
+            return newTime;
+        }
 
         public function logStreams():void
         {
@@ -56,6 +72,9 @@ package com.kaltura.hls.m2ts
             streams = {};
             lastVideoNALU = null;
             transcoder.clear(clearAACConfig);
+
+            // Reset PTS/DTS reference.
+            lastPTS = lastDTS = NaN;
         }
 
         private function parseProgramAssociationTable(bytes:ByteArray, cursor:uint):Boolean
@@ -90,6 +109,7 @@ package com.kaltura.hls.m2ts
             var programInfoLength:uint;
             var type:uint;
             var pid:uint;
+			var oldPosition:uint;
             var esInfoLength:uint;
             var seenPIDsByClass:Array;
             var mediaClass:int;
@@ -101,7 +121,8 @@ package com.kaltura.hls.m2ts
             seenPIDsByClass = [];
             seenPIDsByClass[MediaClass.VIDEO] = Infinity;
             seenPIDsByClass[MediaClass.AUDIO] = Infinity;
-            
+			seenPIDsByClass[MediaClass.ID3] = 0;
+			
             // Process section length and limit.
             cursor++;
             
@@ -165,7 +186,18 @@ package com.kaltura.hls.m2ts
                     seenPIDsByClass[mediaClass] = pid;
                 }
                 
-                // Skip the esInfo data.
+				oldPosition = bytes.position;
+				var ID3Index:Number = indexOf(bytes,"ID3",cursor);
+				if (ID3Index > 0){
+					lastID3Point = pid;
+				}
+				bytes.position = oldPosition;
+				CONFIG::LOGGING
+				{
+					logger.debug("ID3 index:"+ID3Index);
+				}
+				
+				// Skip the esInfo data.
                 esInfoLength = ((bytes[cursor] & 0x0f) << 8) + bytes[cursor + 1];
                 cursor += 2;
                 cursor += esInfoLength;
@@ -178,7 +210,63 @@ package com.kaltura.hls.m2ts
             return true;
         }
 
-        public function append(packet:PESPacket):Boolean
+		public function indexOf(bytes:ByteArray, search:String, startOffset:uint = 0):Number
+		{
+			if (bytes == null || bytes.length == 0) {
+				throw new ArgumentError("bytes parameter should not be null or empty");
+			}
+							
+			if (search == null || search.length == 0) {
+				throw new ArgumentError("search parameter should not be null or empty");
+			}
+								
+			// Fast return is the search pattern length is shorter than the bytes one
+			if (bytes.length < startOffset + search.length) {
+				return -1;
+			}
+						
+			// Create the pattern
+			var pattern:ByteArray = new ByteArray();
+			pattern.writeUTFBytes(search);
+						
+			// Initialize loop variables
+			var end:Boolean;
+			var found:Boolean;
+			var i:uint = startOffset;
+			var j:uint = 0;
+			var p:uint = pattern.length;
+			var n:uint = bytes.length - p;
+					
+			// Repeat util end
+			do {
+				// Compare the current byte with the first one of the pattern
+				if (bytes[i] == pattern[0]) {
+					found = true;
+					j = p;
+								
+					// Loop through every byte of the pattern
+					while (--j) {
+						if (bytes[i + j] != pattern[j]) {
+								found = false;
+							break;
+						}
+					}
+										
+					// Return the pattern position
+					if (found) {
+						return i;
+					}
+				}
+			
+				// Check if end is reach
+				end = (++i > n);
+			} while (!end);
+						
+			// Pattern not found
+			return -1;
+		}
+		
+		public function append(packet:PESPacket, id3Callback:Function):Boolean
         {
 //            logger.debug("saw packet of " + packet.buffer.length);
             var b:ByteArray = packet.buffer;
@@ -302,15 +390,16 @@ package com.kaltura.hls.m2ts
                 }
             }
 
-            // Handle partially overflowed PTS/DTS values.
-            //if (pts < (1<<31) && dts > 3*(1<<31))
-            //    dts -= 1<<33;
+            // Condition PTS and DTS.
+            pts = handleMpegTimestampWrap(pts, lastPTS);
+            lastPTS = pts;
 
-            //if (dts < (1<<31) && pts > 3*(1<<31))
-            //    pts -= 1<<33;
+            dts = handleMpegTimestampWrap(dts, pts);
+            lastDTS = dts;
 
             packet.pts = pts;
             packet.dts = dts;
+
             //logger.debug("   PTS=" + pts/90000 + " DTS=" + dts/90000);
 
             cursor += pesHeaderDataLength;
@@ -341,9 +430,10 @@ package com.kaltura.hls.m2ts
                 {
                     CONFIG::LOGGING
                     {
-                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp, skipping");
+                        logger.warn("WARNING: parsePESPacket - invalid decode timestamp? DTS="  + dts);
                     }
-                    return true;
+                    dts += 0; // nop to avoid warnings when logging off.
+                    //return true;
                 }
                 
                 pes = new PESPacketStream();
@@ -367,9 +457,13 @@ package com.kaltura.hls.m2ts
             packet.type = types[packet.packetID];
             packet.headerLength = cursor;
 
-            // And process.
-            if(MediaClass.calculate(types[packet.packetID]) == MediaClass.VIDEO)
+			if (lastID3Point == packet.packetID)
+			{							
+				//need to know the timestamp
+				id3Callback(b, pts/90000);
+			}else if(MediaClass.calculate(types[packet.packetID]) == MediaClass.VIDEO)
             {
+				// And process.
                 var start:int = NALU.scan(b, cursor, true);
                 if(start == -1 && lastVideoNALU)
                 {

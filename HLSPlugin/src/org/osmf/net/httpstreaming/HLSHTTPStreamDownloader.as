@@ -182,6 +182,9 @@ package org.osmf.net.httpstreaming
 				startTimeoutMonitor(_timeoutInterval);
 				_urlStream.load(_request);
 			}
+
+			// Dispatch an event so any listeners can get a reference to us.
+			_dispatcher.dispatchEvent(new HTTPStreamingEvent("dispatcherStart", false, false, 0, null, "", request.url.toString(), 0, "", this));
 		}
 		
 		/**
@@ -442,12 +445,12 @@ package org.osmf.net.httpstreaming
 					stopTimeoutMonitor();
 				}
 				_currentRetry = 0;
-				
-				_downloadBytesCount = event.bytesTotal;
-				CONFIG::LOGGING
-				{
-					logger.debug("Loaded " + event.bytesLoaded + " bytes from " + _downloadBytesCount + " bytes.");
-				}
+			}
+
+			_downloadBytesCount = event.bytesTotal;
+			CONFIG::LOGGING
+			{
+				logger.debug("Loaded " + event.bytesLoaded + " bytes from " + _downloadBytesCount + " bytes.");
 			}
 
 			_hasData = true;			
