@@ -451,13 +451,10 @@ package org.osmf.net.httpstreaming
 			return;
 		}
 		
-		public var _hackAbsoluteTime:Number = 0.0;
+		public var _hackAbsoluteTime:Number = -Number.MAX_VALUE;
 
 		public function get absoluteTime():Number
 		{
-			if(isNaN(_initialTime))
-				return 0.0;
-
 			var tmpTime:Number = super.time + _initialTime;
 			if(!isNaN(tmpTime))
 				_hackAbsoluteTime = tmpTime;
@@ -494,6 +491,8 @@ package org.osmf.net.httpstreaming
 				{
 					logger.debug("Repopulating time cache.");
 				}
+
+				indexHandler.dvrGetStreamInfo(null);
 
 				var activeManifest:HLSManifestParser = indexHandler.getLastSequenceManifest();
 				var didValidUpdate:Boolean = false;
@@ -542,17 +541,21 @@ package org.osmf.net.httpstreaming
 			//trace(" super.time (" + super.time + ") + " + _initialTime + " = " + potentialNewTime);
 
 			// If we are VOD, then offset time so 0 seconds is the start of the stream.
+			var disableLiveEdgeFixup:Boolean = false;
 			if(indexHandler)
 			{
 				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
 				if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
 					potentialNewTime -= _timeCache_streamStartAbsoluteTime;
 				else 
-					return absoluteTime;
+				{
+					potentialNewTime = absoluteTime;
+					disableLiveEdgeFixup = true;
+				}
 			}
 
 			// Take into account any cached live edge offset.
-			if(_timeCache_liveEdge != Number.MAX_VALUE)
+			if(_timeCache_liveEdge != Number.MAX_VALUE && !disableLiveEdgeFixup)
 			{
 				//trace(" minus " + _timeCache_liveEdgeMinusWindowDuration);
 				potentialNewTime -= _timeCache_liveEdgeMinusWindowDuration;
