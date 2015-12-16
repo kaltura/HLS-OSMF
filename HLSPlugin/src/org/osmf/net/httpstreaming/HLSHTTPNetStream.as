@@ -484,7 +484,8 @@ package org.osmf.net.httpstreaming
 
 			_timeCache_lastTime = super.time;
 
-			// If cache invalid, repopulate it.
+			// If cache invalid, repopulate it. The segment time calculations are costly to
+			// do many times per second, so we try to do them only infrequently.
 			if(isNaN(_timeCache_LastUpdatedTimestamp) && indexHandler)
 			{
 				CONFIG::LOGGING
@@ -492,11 +493,10 @@ package org.osmf.net.httpstreaming
 					logger.debug("Repopulating time cache.");
 				}
 
-				indexHandler.dvrGetStreamInfo(null);
-
 				var activeManifest:HLSManifestParser = indexHandler.getLastSequenceManifest();
 				var didValidUpdate:Boolean = false;
 
+				// Attempt to determine _initialTime.
 				if(activeManifest && !isNaN(_initialTime))
 				{
 					if(activeManifest.streamEnds == false)
@@ -510,7 +510,7 @@ package org.osmf.net.httpstreaming
 						}
 						else
 						{
-							//trace("   o Failed to perceive live stream.");
+							//trace("   o Failed to perceive live stream, will retry later.");
 						}
 					}
 					else
@@ -522,6 +522,7 @@ package org.osmf.net.httpstreaming
 					}					
 				}
 
+				// If we succeeded, note our results.
 				if(didValidUpdate)
 				{
 					_timeCache_streamStartAbsoluteTime = indexHandler.streamStartAbsoluteTime;
@@ -541,21 +542,17 @@ package org.osmf.net.httpstreaming
 			//trace(" super.time (" + super.time + ") + " + _initialTime + " = " + potentialNewTime);
 
 			// If we are VOD, then offset time so 0 seconds is the start of the stream.
-			var disableLiveEdgeFixup:Boolean = false;
 			if(indexHandler)
 			{
 				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
 				if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
 					potentialNewTime -= _timeCache_streamStartAbsoluteTime;
-				else 
-				{
-					potentialNewTime = absoluteTime;
-					disableLiveEdgeFixup = true;
-				}
 			}
 
-			// Take into account any cached live edge offset.
-			if(_timeCache_liveEdge != Number.MAX_VALUE && !disableLiveEdgeFixup)
+			// If we are live/DVR, then subtract the live edge offset so we report time
+			// window-relative (0 seconds start of window, N seconds live edge of window
+			// of N seconds in length).
+			if(_timeCache_liveEdge != Number.MAX_VALUE)
 			{
 				//trace(" minus " + _timeCache_liveEdgeMinusWindowDuration);
 				potentialNewTime -= _timeCache_liveEdgeMinusWindowDuration;
@@ -1205,13 +1202,13 @@ package org.osmf.net.httpstreaming
 						}
 						
 						// We do not allow the user to seek to before the DVR window
-						if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0 && !isNaN(_seekTarget))
+						if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && !isNaN(_enhancedSeekTarget))
 						{
 							CONFIG::LOGGING
 							{
 								logger.debug("Attempting to seek outside of DVR window, seeking to last known playlist start time of " + indexHandler.lastKnownPlaylistStartTime);
 							}
-							_seekTarget = indexHandler.lastKnownPlaylistStartTime;
+							_seekTarget = _enhancedSeekTarget = indexHandler.lastKnownPlaylistStartTime;
 						}
 						
 						// Handle a case where seeking to the end of a VOD causes the replay function to break
