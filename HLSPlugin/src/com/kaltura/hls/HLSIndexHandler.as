@@ -79,7 +79,21 @@ package com.kaltura.hls
 			return new Vector.<HLSManifestSegment>();
 		}
 		
-		public var lastKnownPlaylistStartTime:Number = 0.0;
+		public function get lastKnownPlaylistStartTime():Number
+		{
+			if(!manifest)
+				return NaN;
+			
+			// Fetch active data.
+			var activeManifest:HLSManifestParser = getManifestForQuality(targetQuality);
+			var segments:Vector.<HLSManifestSegment> = activeManifest.segments;
+			updateSegmentTimes(segments);
+
+			if(segments.length <= 0)
+				return NaN;
+			return segments[0].startTime;
+		}
+
 		public var lastQuality:int = 0;
 		public var targetQuality:int = 0;
 		public var manifest:HLSManifestParser = null;
@@ -1414,7 +1428,7 @@ package com.kaltura.hls
 			
 			if(segments.length > 0)
 			{
-				lastKnownPlaylistStartTime = segments[0].startTime;
+				var localLastKnownPlaylistStartTime:Number = segments[0].startTime;
 				var i:int = segments.length - 1;
 				if (i >= 0 && (activeManifest.allowCache || activeManifest.streamEnds))
 				{
@@ -1492,7 +1506,6 @@ package com.kaltura.hls
 			dvrInfo.endOffset = lastSegment.startTime + lastSegment.duration;
 			dvrInfo.curLength = dvrInfo.endOffset - dvrInfo.beginOffset;
 			dvrInfo.windowDuration = dvrInfo.curLength; // TODO: verify that this is what we want to be putting here
-			
 			dispatchEvent(new DVRStreamInfoEvent(DVRStreamInfoEvent.DVRSTREAMINFO, false, false, dvrInfo));
 		}
 		

@@ -283,7 +283,7 @@ package org.osmf.net.httpstreaming
 			// Initialize ourselves.
 			_mainTimer.start();
 			_initialTime = NaN;
-			_lastValidTimeTime = 0;
+			_lastValidTimeTime = -Number.MAX_VALUE;
 			_seekTime = 0;
 			_isPlaying = true;
 			_isPaused = false;
@@ -328,7 +328,7 @@ package org.osmf.net.httpstreaming
 		 */
 		override public function play2(param:NetStreamPlayOptions):void
 		{
-			_lastValidTimeTime = 0;
+			_lastValidTimeTime = -Number.MAX_VALUE;
 
 			// See if any of our alternative audio sources (if we have any) are marked as DEFAULT if this is our initial play
 			if (!hasStarted)
@@ -451,13 +451,10 @@ package org.osmf.net.httpstreaming
 			return;
 		}
 		
-		public var _hackAbsoluteTime:Number = 0.0;
+		public var _hackAbsoluteTime:Number = -Number.MAX_VALUE;
 
 		public function get absoluteTime():Number
 		{
-			if(isNaN(_initialTime))
-				return 0.0;
-
 			var tmpTime:Number = super.time + _initialTime;
 			if(!isNaN(tmpTime))
 				_hackAbsoluteTime = tmpTime;
@@ -487,7 +484,8 @@ package org.osmf.net.httpstreaming
 
 			_timeCache_lastTime = super.time;
 
-			// If cache invalid, repopulate it.
+			// If cache invalid, repopulate it. The segment time calculations are costly to
+			// do many times per second, so we try to do them only infrequently.
 			if(isNaN(_timeCache_LastUpdatedTimestamp) && indexHandler)
 			{
 				CONFIG::LOGGING
@@ -498,6 +496,7 @@ package org.osmf.net.httpstreaming
 				var activeManifest:HLSManifestParser = indexHandler.getLastSequenceManifest();
 				var didValidUpdate:Boolean = false;
 
+				// Attempt to determine _initialTime.
 				if(activeManifest && !isNaN(_initialTime))
 				{
 					if(activeManifest.streamEnds == false)
@@ -511,7 +510,7 @@ package org.osmf.net.httpstreaming
 						}
 						else
 						{
-							//trace("   o Failed to perceive live stream.");
+							//trace("   o Failed to perceive live stream, will retry later.");
 						}
 					}
 					else
@@ -523,6 +522,7 @@ package org.osmf.net.httpstreaming
 					}					
 				}
 
+				// If we succeeded, note our results.
 				if(didValidUpdate)
 				{
 					_timeCache_streamStartAbsoluteTime = indexHandler.streamStartAbsoluteTime;
@@ -547,11 +547,11 @@ package org.osmf.net.httpstreaming
 				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
 				if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
 					potentialNewTime -= _timeCache_streamStartAbsoluteTime;
-				else 
-					return absoluteTime;
 			}
 
-			// Take into account any cached live edge offset.
+			// If we are live/DVR, then subtract the live edge offset so we report time
+			// window-relative (0 seconds start of window, N seconds live edge of window
+			// of N seconds in length).
 			if(_timeCache_liveEdge != Number.MAX_VALUE)
 			{
 				//trace(" minus " + _timeCache_liveEdgeMinusWindowDuration);
@@ -640,7 +640,7 @@ package org.osmf.net.httpstreaming
 
 				// Hack for better playhead reporting.
 				if(_state == "init")
-					_lastValidTimeTime = 0;
+					_lastValidTimeTime = -Number.MAX_VALUE;
 			}
 		}
 		
@@ -1038,7 +1038,7 @@ package org.osmf.net.httpstreaming
 			{
 				case HTTPStreamingState.INIT:
 					// do nothing
-					_lastValidTimeTime = 0;
+					_lastValidTimeTime = -Number.MAX_VALUE;
 					break;
 				
 				case HTTPStreamingState.WAIT:
@@ -1202,13 +1202,13 @@ package org.osmf.net.httpstreaming
 						}
 						
 						// We do not allow the user to seek to before the DVR window
-						if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && _seekTarget >= 0 && !isNaN(_seekTarget))
+						if (indexHandler && _seekTarget < indexHandler.lastKnownPlaylistStartTime && !isNaN(_enhancedSeekTarget))
 						{
 							CONFIG::LOGGING
 							{
 								logger.debug("Attempting to seek outside of DVR window, seeking to last known playlist start time of " + indexHandler.lastKnownPlaylistStartTime);
 							}
-							_seekTarget = indexHandler.lastKnownPlaylistStartTime;
+							_seekTarget = _enhancedSeekTarget = indexHandler.lastKnownPlaylistStartTime;
 						}
 						
 						// Handle a case where seeking to the end of a VOD causes the replay function to break
@@ -2468,7 +2468,7 @@ package org.osmf.net.httpstreaming
 
 				var tagTimeSeconds:Number = wrapTagTimestampToFLVTimestamp(tag.timestamp) / 1000;
 
-				if (isNaN(_initialTime))
+				if (isNaN(_initialTime) && (tag is FLVTagVideo || tag is FLVTagAudio))
 					_initialTime = tagTimeSeconds;
 
 				// If it's more than 0.5 second jump ahead of current playhead, insert a RESET_SEEK so we won't stall forever.
@@ -3100,7 +3100,7 @@ package org.osmf.net.httpstreaming
 		
 		private var _initialTime:Number = NaN;	// this is the timestamp derived at start-of-play (offset or not)... what FMS would call "0" - it is used to adjust super.time to be an absolute time
 		private var _seekTime:Number = -1;		// this is the timestamp derived at end-of-seek (enhanced or not)... what we need to add to super.time (assuming play started at zero) - this guy is not used for anything much anymore
-		private var _lastValidTimeTime:Number = 0; // this is the last known timestamp returned; used to avoid showing garbage times.
+		private var _lastValidTimeTime:Number = -Number.MAX_VALUE; // this is the last known timestamp returned; used to avoid showing garbage times.
 		
 		private var _initializeFLVParser:Boolean = false;
 		private var _flvParser:FLVParser = null;	// this is the new common FLVTag Parser
