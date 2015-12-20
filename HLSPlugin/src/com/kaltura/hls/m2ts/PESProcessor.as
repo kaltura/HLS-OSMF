@@ -38,6 +38,8 @@ package com.kaltura.hls.m2ts
 
         public var pmtStreamId:int = -1;
 
+        public var hasVideo:Boolean = false;
+
         protected var pendingBuffers:Vector.<Object> = new Vector.<Object>();
         protected var pendingLastConvertedIndex:int = 0;
 
@@ -69,6 +71,7 @@ package com.kaltura.hls.m2ts
 
         public function clear(clearAACConfig:Boolean = true):void
         {
+            hasVideo = false;
             streams = {};
             lastVideoNALU = null;
             transcoder.clear(clearAACConfig);
@@ -114,7 +117,7 @@ package com.kaltura.hls.m2ts
             var seenPIDsByClass:Array;
             var mediaClass:int;
 
-            var hasAudio:Boolean = false, hasVideo:Boolean = false;
+            var hasAudio:Boolean = false;
 
             // Set up types.
             types = [];

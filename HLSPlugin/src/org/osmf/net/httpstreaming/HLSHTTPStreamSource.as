@@ -989,6 +989,13 @@ package org.osmf.net.httpstreaming
 				_dispatcher.dispatchEvent(event);
 			}
 		}
+
+		public function get hasVideo():Boolean
+		{
+			if(_fileHandler as M2TSFileHandler == null)
+				return false;
+			return (_fileHandler as M2TSFileHandler).hasVideo;
+		}
 		
 		/// Internals
 		private var _dispatcher:IEventDispatcher = null;

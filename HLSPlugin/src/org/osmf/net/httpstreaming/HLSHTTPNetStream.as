@@ -2076,6 +2076,10 @@ package org.osmf.net.httpstreaming
 				// Note if we have encountered an I-frame.
 				var sawIFrame:Boolean = isTagIFrame(tag as FLVTagVideo);
 
+				// If we don't have any video, we've always seen an I-frame.
+				if((_videoHandler as HLSHTTPStreamSource) && (_videoHandler as HLSHTTPStreamSource).hasVideo == false)
+					sawIFrame = true;
+
 				if (currentTime < _enhancedSeekTarget 
 					|| (_enhancedSeekTags != null && _enhancedSeekSawIFrame == false))
 				{

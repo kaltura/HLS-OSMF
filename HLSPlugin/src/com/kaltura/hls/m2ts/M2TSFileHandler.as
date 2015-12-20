@@ -97,6 +97,11 @@ package com.kaltura.hls.m2ts
 			return -1;
 		}
 
+		public function get hasVideo():Boolean
+		{
+			return _parser.hasVideo;
+		}
+
 		public function set extendedIndexHandler(handler:IExtraIndexHandlerState):void
 		{
 			_extendedIndexHandler = handler;
