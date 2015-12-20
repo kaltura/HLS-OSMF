@@ -3160,7 +3160,7 @@ package org.osmf.net.httpstreaming
 		
 		public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
 		public static var indexHandler:HLSIndexHandler;// a reference to the active index handler. Used to update the quality list after a change.
-		public static var recognizeBadStreamTime:Number = 20;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
+		public static var recognizeBadStreamTime:Number = 5*60;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
 		public static var badManifestUrl:String = null;// if this is not null we need to close down the stream
 		public static var recoveryStateNum:int = URLErrorRecoveryStates.IDLE;// used when recovering from a URL error to determine if we need to quickly skip ahead due to a bad segment
 		public static var errorSurrenderTimer:Timer = new Timer(1000);// Timer used by both this and HLSHTTPNetStream to determine if we should give up recovery of a URL error

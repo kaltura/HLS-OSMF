@@ -543,6 +543,7 @@ package com.kaltura.hls
 			// Shut everything down if we have had too many errors in a row
 			if (HLSHTTPNetStream.errorSurrenderTimer.currentCount >= HLSHTTPNetStream.recognizeBadStreamTime)
 			{
+				trace("Encountered too many errors and failed to reestablish manifest after " + HLSHTTPNetStream.errorSurrenderTimer.currentCount + " seconds, giving up.");
 				HLSHTTPNetStream.badManifestUrl = lastBadManifestUri;
 				return;	
 			}
@@ -1153,8 +1154,9 @@ package com.kaltura.hls
 				&& reloadingManifest.timestamp < reloadingManifest.lastReloadRequestTime)
 			{
 				// Waiting on a reload already.
-				trace("issueManifestReloadIfNeeded - waiting on reload");
-				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
+				var timeToWait:int = manToReload.targetDuration * 500 - (curTime - reloadingManifest.lastReloadRequestTime);
+				trace("issueManifestReloadIfNeeded - waiting on reload for another " + timeToWait + "ms");
+				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, timeToWait);
 			}
 			
 			// Otherwise, issue a reload and return a stall.
