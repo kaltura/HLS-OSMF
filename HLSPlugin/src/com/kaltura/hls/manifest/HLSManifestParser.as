@@ -36,7 +36,7 @@ package com.kaltura.hls.manifest
 		
 		/**
 		 * When true, we cease issuing any manifest requests. This can be used
-		 * to suppress manifest realods while a stream is down.
+		 * to suppress manifest reloads while a stream is down.
 		 */
 		public static var STREAM_DEAD:Boolean = false;
 
