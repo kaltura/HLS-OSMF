@@ -946,8 +946,8 @@ package com.kaltura.hls
 
 		public function get isLiveEdgeValid():Boolean
 		{
-			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
-			return checkAnySegmentKnowledge(seg) && getManifestForQuality(lastQuality).streamEnds == false;
+			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(targetQuality);
+			return getManifestForQuality(targetQuality).streamEnds == false && checkAnySegmentKnowledge(seg);
 		}
 
 		public function get liveEdge():Number
