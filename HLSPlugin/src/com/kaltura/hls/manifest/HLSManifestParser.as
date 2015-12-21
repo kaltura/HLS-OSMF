@@ -35,6 +35,12 @@ package com.kaltura.hls.manifest
 		public static const SUBTITLES:String = "SUBTITLES";
 		
 		/**
+		 * When true, we cease issuing any manifest requests. This can be used
+		 * to suppress manifest realods while a stream is down.
+		 */
+		public static var STREAM_DEAD:Boolean = false;
+
+		/**
 		 * When true, we issue JS callbacks to an HTML5 debug visualizer.
 		 */
 		public static var SEND_LOGS:Boolean = false;

@@ -1130,6 +1130,12 @@ package com.kaltura.hls
 		
 		private function issueManifestReloadIfNeeded(quality:int):HTTPStreamRequest
 		{
+			if(HLSManifestParser.STREAM_DEAD)
+			{
+				trace("Supressing manifest reload due to STREAM_DEAD being set.");
+				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
+			}
+
 			// If we don't need a reload, return null.
 			var manToReload:HLSManifestParser = getManifestForQuality(quality);
 			
