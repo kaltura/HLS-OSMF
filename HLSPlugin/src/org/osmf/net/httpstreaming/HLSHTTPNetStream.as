@@ -504,7 +504,11 @@ package org.osmf.net.httpstreaming
 						if(indexHandler.isLiveEdgeValid)
 						{
 							_timeCache_liveEdge = indexHandler.liveEdge;
-							_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
+							var potentialWindowDuration:Number = indexHandler.windowDuration;
+							if(_timeCache_liveEdge > potentialWindowDuration)
+								_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
+							else
+								_timeCache_liveEdgeMinusWindowDuration = 0;
 							//trace("   o Perceived live stream (" + _timeCache_liveEdge + ", " + _timeCache_liveEdgeMinusWindowDuration + ")");						
 							didValidUpdate = true;
 						}
@@ -545,7 +549,7 @@ package org.osmf.net.httpstreaming
 			if(indexHandler)
 			{
 				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
-				if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
+				if(lastMan && lastMan.streamEnds == true && !isNaN(_timeCache_streamStartAbsoluteTime))
 					potentialNewTime -= _timeCache_streamStartAbsoluteTime;
 			}
 

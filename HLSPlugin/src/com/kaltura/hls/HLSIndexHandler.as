@@ -1130,15 +1130,15 @@ package com.kaltura.hls
 		
 		private function issueManifestReloadIfNeeded(quality:int):HTTPStreamRequest
 		{
+			// If we don't need a reload, return null.
+			var manToReload:HLSManifestParser = getManifestForQuality(quality);
+			
 			if(HLSManifestParser.STREAM_DEAD)
 			{
 				trace("Supressing manifest reload due to STREAM_DEAD being set.");
 				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 			}
 
-			// If we don't need a reload, return null.
-			var manToReload:HLSManifestParser = getManifestForQuality(quality);
-			
 			// If it's VOD, never need this.
 			if(manToReload.streamEnds)
 			{
@@ -1160,9 +1160,8 @@ package com.kaltura.hls
 				&& reloadingManifest.timestamp < reloadingManifest.lastReloadRequestTime)
 			{
 				// Waiting on a reload already.
-				var timeToWait:int = manToReload.targetDuration * 500 - (curTime - reloadingManifest.lastReloadRequestTime);
-				trace("issueManifestReloadIfNeeded - waiting on reload for another " + timeToWait + "ms");
-				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, timeToWait);
+				trace("issueManifestReloadIfNeeded - waiting on reload for another " + SHORT_LIVE_STALL_DELAY + "ms");
+				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 			}
 			
 			// Otherwise, issue a reload and return a stall.
