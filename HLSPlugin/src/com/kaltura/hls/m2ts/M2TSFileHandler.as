@@ -401,7 +401,7 @@ package com.kaltura.hls.m2ts
 				//trace("Writing AAC Tag @ " + timestampSeconds)
 				_segmentLastSeconds = timestampSeconds;
 
-				if(_segmentBeginSeconds < 0)
+				if(timestampSeconds < _segmentBeginSeconds)
 				{
 					_segmentBeginSeconds = timestampSeconds;
 
