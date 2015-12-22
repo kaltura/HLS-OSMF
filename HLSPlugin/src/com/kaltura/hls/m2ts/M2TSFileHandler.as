@@ -312,7 +312,8 @@ package com.kaltura.hls.m2ts
 				//logger.debug("Adding to AAC accum " + tmpBuffer.length + " bytes");
 				var oldLen:int = aacAccumulator.length;
 				aacAccumulator.length += tmpBuffer.length;
-				aacAccumulator.writeBytes(tmpBuffer, oldLen, tmpBuffer.length);
+				aacAccumulator.position = oldLen;
+				aacAccumulator.writeBytes(tmpBuffer, 0, tmpBuffer.length);
 				//logger.debug("accum now " + aacAccumulator.length);
 
 				var aacBytesRead:int = aacParser.parse(aacAccumulator, _fragReadHandler, _flush);
@@ -323,7 +324,7 @@ package com.kaltura.hls.m2ts
 				{
 					//logger.debug("Moving bytes to beginning");
 					// Move remaining bytes to beginning.
-					aacAccumulator.writeBytes(aacAccumulator, aacBytesRead, aacAccumulator.length);
+					aacAccumulator.writeBytes(aacAccumulator, aacBytesRead, aacAccumulator.length - aacBytesRead);
 					aacAccumulator.length -= aacBytesRead;
 					//logger.debug("Bytes left: " + aacAccumulator.length);
 				}
