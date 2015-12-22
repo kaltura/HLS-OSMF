@@ -2295,37 +2295,15 @@ package org.osmf.net.httpstreaming
 		private function onActionNeeded(event:HTTPStreamingEvent):void
 		{
 			// [FM-1387] we are appending this action only when we are 
-			// dealing with late-binding audio streams
-			// This workaround appears to be unneeded due to smarter mixing
-			// logic. It also causes the stream to skip when the end of the 
-			// stream is buffered. Therefore it is disabled for now -- BJG
-			if (_mixer != null && false)
-			{	
-				CONFIG::LOGGING
-				{
-					logger.debug("We need to appendBytesAction RESET_BEGIN in order to reset NetStream internal state");
-				}
-				
-				appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
-				
-				_initialTime = NaN;
+			// dealing with late-binding audio streams.
 
-				// Before we feed any TCMessages to the Flash Player, we must feed
-				// an FLV header first.
-				var header:FLVHeader = new FLVHeader();
-				var headerBytes:ByteArray = new ByteArray();
-				header.write(headerBytes);
-				if(writeToMasterBuffer)
-				{
-					trace("RESETTING MASTER BUFFER");
-					_masterBuffer.length = 0;
-					_masterBuffer.position = 0;
-					_masterBuffer.writeBytes(headerBytes);
-				}
-				appendBytes(headerBytes);
-
-				flushPendingTags();
-				keepBufferFed();
+			// Further investigation - we don't need to do anything when actionNeeded
+			// is fired. When we do encounter a switch we can simply seek to reload
+			// from cache and quickly resume playback.
+			if (_mixer != null && event.type != "actionNeeded")
+			{
+				trace("onActionNeeded - " + event);
+				seek(time);
 			}
 		}
 
