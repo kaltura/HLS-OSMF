@@ -686,7 +686,7 @@ package org.osmf.net.httpstreaming
 			_initializeFLVParser = true;
 			CONFIG::LOGGING
 			{
-				logger.debug("Changing source to " + streamName + " , " + seekTarget);
+				logger.debug("Changing source to " + streamName + " , seekTarget=" + seekTarget);
 			}
 
 			// Make sure we don't go past the buffer for the live edge.
