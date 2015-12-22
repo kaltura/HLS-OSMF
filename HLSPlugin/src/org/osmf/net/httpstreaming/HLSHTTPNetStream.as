@@ -1992,6 +1992,9 @@ package org.osmf.net.httpstreaming
 		{
 			var timestampCastHelper:Number = timestamp;
 
+			if(isNaN(timestampCastHelper))
+				return 0;
+
 			while(timestampCastHelper > int.MAX_VALUE)
 				timestampCastHelper -= Number(uint.MAX_VALUE);
 
