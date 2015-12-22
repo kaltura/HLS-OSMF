@@ -575,7 +575,7 @@ package org.osmf.net.httpstreaming
 			if(indexHandler)
 			{
 				if(indexHandler.liveEdge != Number.MAX_VALUE)
-					pubTime += indexHandler.liveEdge - indexHandler.windowDuration;
+					pubTime += _timeCache_liveEdgeMinusWindowDuration;
 				else
 					pubTime += indexHandler.streamStartAbsoluteTime;
 			}
@@ -690,7 +690,7 @@ package org.osmf.net.httpstreaming
 			}
 
 			// Make sure we don't go past the buffer for the live edge.
-			if(indexHandler && seekTarget > indexHandler.liveEdge)
+			if(indexHandler && indexHandler.isLiveEdgeValid && seekTarget > indexHandler.liveEdge)
 			{
 				CONFIG::LOGGING
 				{
