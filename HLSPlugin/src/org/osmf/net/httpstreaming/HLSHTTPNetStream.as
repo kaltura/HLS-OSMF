@@ -2296,7 +2296,10 @@ package org.osmf.net.httpstreaming
 		{
 			// [FM-1387] we are appending this action only when we are 
 			// dealing with late-binding audio streams
-			if (_mixer != null)
+			// This workaround appears to be unneeded due to smarter mixing
+			// logic. It also causes the stream to skip when the end of the 
+			// stream is buffered. Therefore it is disabled for now -- BJG
+			if (_mixer != null && false)
 			{	
 				CONFIG::LOGGING
 				{
