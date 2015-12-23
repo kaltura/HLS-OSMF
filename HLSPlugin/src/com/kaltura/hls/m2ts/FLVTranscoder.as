@@ -217,6 +217,11 @@ package com.kaltura.hls.m2ts
                 var lowestTagTimestamp:Number = Number.MAX_VALUE;
                 for(var i:int=0; i<bufferedTagTimestamp.length; i++)
                 {
+                    // We must filter for video keyframes for best results. Ideally we
+                    // would do it on keyframes but that causes problems currently.
+                    if(bufferedTagData[i].length < 12 || bufferedTagData[i][0] != 9) 
+                        continue;
+
                     if(bufferedTagTimestamp[i] < lowestTagTimestamp)
                         lowestTagTimestamp = bufferedTagTimestamp[i];
                 }
