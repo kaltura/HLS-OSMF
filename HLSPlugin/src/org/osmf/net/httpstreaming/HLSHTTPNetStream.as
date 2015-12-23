@@ -504,7 +504,11 @@ package org.osmf.net.httpstreaming
 						if(indexHandler.isLiveEdgeValid)
 						{
 							_timeCache_liveEdge = indexHandler.liveEdge;
-							_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
+							var potentialWindowDuration:Number = indexHandler.windowDuration;
+							if(_timeCache_liveEdge > potentialWindowDuration)
+								_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
+							else
+								_timeCache_liveEdgeMinusWindowDuration = 0;
 							//trace("   o Perceived live stream (" + _timeCache_liveEdge + ", " + _timeCache_liveEdgeMinusWindowDuration + ")");						
 							didValidUpdate = true;
 						}
@@ -545,7 +549,7 @@ package org.osmf.net.httpstreaming
 			if(indexHandler)
 			{
 				var lastMan:HLSManifestParser = indexHandler.getLastSequenceManifest();
-				if(lastMan && lastMan.streamEnds == true && _timeCache_streamStartAbsoluteTime)
+				if(lastMan && lastMan.streamEnds == true && !isNaN(_timeCache_streamStartAbsoluteTime))
 					potentialNewTime -= _timeCache_streamStartAbsoluteTime;
 			}
 
@@ -571,7 +575,7 @@ package org.osmf.net.httpstreaming
 			if(indexHandler)
 			{
 				if(indexHandler.liveEdge != Number.MAX_VALUE)
-					pubTime += indexHandler.liveEdge - indexHandler.windowDuration;
+					pubTime += _timeCache_liveEdgeMinusWindowDuration;
 				else
 					pubTime += indexHandler.streamStartAbsoluteTime;
 			}
@@ -682,11 +686,11 @@ package org.osmf.net.httpstreaming
 			_initializeFLVParser = true;
 			CONFIG::LOGGING
 			{
-				logger.debug("Changing source to " + streamName + " , " + seekTarget);
+				logger.debug("Changing source to " + streamName + " , seekTarget=" + seekTarget);
 			}
 
 			// Make sure we don't go past the buffer for the live edge.
-			if(indexHandler && seekTarget > indexHandler.liveEdge)
+			if(indexHandler && indexHandler.isLiveEdgeValid && seekTarget > indexHandler.liveEdge)
 			{
 				CONFIG::LOGGING
 				{
@@ -1988,6 +1992,9 @@ package org.osmf.net.httpstreaming
 		{
 			var timestampCastHelper:Number = timestamp;
 
+			if(isNaN(timestampCastHelper))
+				return 0;
+
 			while(timestampCastHelper > int.MAX_VALUE)
 				timestampCastHelper -= Number(uint.MAX_VALUE);
 
@@ -2075,6 +2082,10 @@ package org.osmf.net.httpstreaming
 			{
 				// Note if we have encountered an I-frame.
 				var sawIFrame:Boolean = isTagIFrame(tag as FLVTagVideo);
+
+				// If we don't have any video, we've always seen an I-frame.
+				if((_videoHandler as HLSHTTPStreamSource) && (_videoHandler as HLSHTTPStreamSource).hasVideo == false)
+					sawIFrame = true;
 
 				if (currentTime < _enhancedSeekTarget 
 					|| (_enhancedSeekTags != null && _enhancedSeekSawIFrame == false))
@@ -2284,34 +2295,15 @@ package org.osmf.net.httpstreaming
 		private function onActionNeeded(event:HTTPStreamingEvent):void
 		{
 			// [FM-1387] we are appending this action only when we are 
-			// dealing with late-binding audio streams
-			if (_mixer != null)
-			{	
-				CONFIG::LOGGING
-				{
-					logger.debug("We need to appendBytesAction RESET_BEGIN in order to reset NetStream internal state");
-				}
-				
-				appendBytesAction(NetStreamAppendBytesAction.RESET_BEGIN);
-				
-				_initialTime = NaN;
+			// dealing with late-binding audio streams.
 
-				// Before we feed any TCMessages to the Flash Player, we must feed
-				// an FLV header first.
-				var header:FLVHeader = new FLVHeader();
-				var headerBytes:ByteArray = new ByteArray();
-				header.write(headerBytes);
-				if(writeToMasterBuffer)
-				{
-					trace("RESETTING MASTER BUFFER");
-					_masterBuffer.length = 0;
-					_masterBuffer.position = 0;
-					_masterBuffer.writeBytes(headerBytes);
-				}
-				appendBytes(headerBytes);
-
-				flushPendingTags();
-				keepBufferFed();
+			// Further investigation - we don't need to do anything when actionNeeded
+			// is fired. When we do encounter a switch we can simply seek to reload
+			// from cache and quickly resume playback.
+			if (_mixer != null && event.type != "actionNeeded")
+			{
+				trace("onActionNeeded - " + event);
+				seek(time);
 			}
 		}
 
@@ -2669,7 +2661,8 @@ package org.osmf.net.httpstreaming
 			{
 				var vTag:FLVTagVideo = tag as FLVTagVideo;
 
-				var timeDelta:Number = getHighestVideoTime() - realTimestamp;
+				var highestVideoTime:Number = getHighestVideoTime();
+				var timeDelta:Number = highestVideoTime - realTimestamp;
 				var isBackInTime:Boolean = timeDelta > 150;
 				var isIFrame:Boolean = isTagIFrame(vTag);
 
@@ -2691,7 +2684,7 @@ package org.osmf.net.httpstreaming
 				{
 					CONFIG::LOGGING
 					{
-						logger.debug("   o I-FRAME SCAN due to backwards time (delta=" + timeDelta + ")");
+						logger.debug("   o I-FRAME SCAN due to backwards time (delta=" + timeDelta + ", timestamp=" + realTimestamp + " highestVideoTime=" + highestVideoTime + ")");
 					}
 					
 					scanningForIFrame = true;
@@ -3156,7 +3149,7 @@ package org.osmf.net.httpstreaming
 		
 		public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
 		public static var indexHandler:HLSIndexHandler;// a reference to the active index handler. Used to update the quality list after a change.
-		public static var recognizeBadStreamTime:Number = 20;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
+		public static var recognizeBadStreamTime:Number = 5*60;// this is how long in seconds we will attempt to recover after a URL error before we give up completely
 		public static var badManifestUrl:String = null;// if this is not null we need to close down the stream
 		public static var recoveryStateNum:int = URLErrorRecoveryStates.IDLE;// used when recovering from a URL error to determine if we need to quickly skip ahead due to a bad segment
 		public static var errorSurrenderTimer:Timer = new Timer(1000);// Timer used by both this and HLSHTTPNetStream to determine if we should give up recovery of a URL error

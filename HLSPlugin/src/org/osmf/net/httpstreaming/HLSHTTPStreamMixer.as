@@ -571,6 +571,8 @@ package org.osmf.net.httpstreaming
 					break;
 				}
 
+				var wroteSomething:Boolean = false;
+
 				// We need to mix tags.
 				if ((_alternateTag != null) 
 					&& _alternateTagDataLoaded
@@ -581,6 +583,7 @@ package org.osmf.net.httpstreaming
 					_currentTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_alternateTag.timestamp);
 					_alternateTag.write(mixedBytes);
 					_alternateTag = null;
+					wroteSomething = true;
 				}
 				
 				if ((_mediaTag != null)
@@ -592,10 +595,12 @@ package org.osmf.net.httpstreaming
 					_currentTime = HLSHTTPNetStream.wrapTagTimestampToFLVTimestamp(_mediaTag.timestamp);
 					_mediaTag.write(mixedBytes);
 					_mediaTag = null;
+					wroteSomething = true;
 				}
 
-				// Only keep going if there's data to consume in both streams.
-				keepProcessing = (_mediaInput.bytesAvailable && _alternateInput.bytesAvailable);
+				// Only keep going if there's data to consume in both streams and we succeeded in getting something
+				// written.
+				keepProcessing = (_mediaInput.bytesAvailable && _alternateInput.bytesAvailable) && wroteSomething;
 			}
 			
 			return mixedBytes;

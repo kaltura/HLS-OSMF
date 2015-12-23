@@ -543,6 +543,7 @@ package com.kaltura.hls
 			// Shut everything down if we have had too many errors in a row
 			if (HLSHTTPNetStream.errorSurrenderTimer.currentCount >= HLSHTTPNetStream.recognizeBadStreamTime)
 			{
+				trace("Encountered too many errors and failed to reestablish manifest after " + HLSHTTPNetStream.errorSurrenderTimer.currentCount + " seconds, giving up.");
 				HLSHTTPNetStream.badManifestUrl = lastBadManifestUri;
 				return;	
 			}
@@ -945,8 +946,8 @@ package com.kaltura.hls
 
 		public function get isLiveEdgeValid():Boolean
 		{
-			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(lastQuality);
-			return checkAnySegmentKnowledge(seg) && getManifestForQuality(lastQuality).streamEnds == false;
+			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(targetQuality);
+			return getManifestForQuality(targetQuality).streamEnds == false && checkAnySegmentKnowledge(seg);
 		}
 
 		public function get liveEdge():Number
@@ -1132,6 +1133,12 @@ package com.kaltura.hls
 			// If we don't need a reload, return null.
 			var manToReload:HLSManifestParser = getManifestForQuality(quality);
 			
+			if(HLSManifestParser.STREAM_DEAD)
+			{
+				trace("Supressing manifest reload due to STREAM_DEAD being set.");
+				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
+			}
+
 			// If it's VOD, never need this.
 			if(manToReload.streamEnds)
 			{
@@ -1153,7 +1160,7 @@ package com.kaltura.hls
 				&& reloadingManifest.timestamp < reloadingManifest.lastReloadRequestTime)
 			{
 				// Waiting on a reload already.
-				trace("issueManifestReloadIfNeeded - waiting on reload");
+				trace("issueManifestReloadIfNeeded - waiting on reload for another " + SHORT_LIVE_STALL_DELAY + "ms");
 				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
 			}
 			

@@ -42,6 +42,11 @@ package com.kaltura.hls.m2ts
 			pesProcessor.transcoder.id3Callback = value;
 		}
 
+        public function get hasVideo():Boolean
+        {
+            return pesProcessor.hasVideo;
+        }
+
         /**
          * Accepts arbitrary chunks of bytes and extracts TS packet data.
          */

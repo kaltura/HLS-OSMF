@@ -212,7 +212,21 @@ package com.kaltura.hls.m2ts
             if(avcc)
             { 
                 //logger.debug("Wrote AVCC at " + convertFLVTimestamp(unit.pts));
-                sendFLVTag(bufferedTagTimestamp[0], 
+
+                // First SPS/PPS must be lowest tag time, so scan for it.
+                var lowestTagTimestamp:Number = Number.MAX_VALUE;
+                for(var i:int=0; i<bufferedTagTimestamp.length; i++)
+                {
+                    // We must filter for video keyframes for best results. Ideally we
+                    // would do it on keyframes but that causes problems currently.
+                    if(bufferedTagData[i].length < 12 || bufferedTagData[i][0] != 9) 
+                        continue;
+
+                    if(bufferedTagTimestamp[i] < lowestTagTimestamp)
+                        lowestTagTimestamp = bufferedTagTimestamp[i];
+                }
+
+                sendFLVTag(lowestTagTimestamp, 
                     FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, 
                     FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length, 0, false);
             }
