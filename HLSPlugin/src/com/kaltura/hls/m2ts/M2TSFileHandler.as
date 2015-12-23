@@ -474,12 +474,17 @@ package com.kaltura.hls.m2ts
 		
 		private function handleID3(message:ByteArray, timestamp:Number):void
 		{
-			if (message ){
-				message.position = 0;
-				var b64:Base64Encoder = new Base64Encoder();
-				b64.encodeBytes(message);
-				_parser.createAndSendID3Message(timestamp,b64.toString());
-			}
+			if (!message)
+				return;
+
+			CONFIG::LOGGING
+			{
+				logger.debug("Processing ID3 @ " + timestamp + "ms");
+			}				
+			message.position = 0;
+			var b64:Base64Encoder = new Base64Encoder();
+			b64.encodeBytes(message);
+			_parser.createAndSendID3Message(timestamp,b64.toString());
 		}
 			
 		private function handleFLVMessage(timestamp:int, message:ByteArray, duration:int):void
