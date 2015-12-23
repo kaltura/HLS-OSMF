@@ -2661,7 +2661,8 @@ package org.osmf.net.httpstreaming
 			{
 				var vTag:FLVTagVideo = tag as FLVTagVideo;
 
-				var timeDelta:Number = getHighestVideoTime() - realTimestamp;
+				var highestVideoTime:Number = getHighestVideoTime();
+				var timeDelta:Number = highestVideoTime - realTimestamp;
 				var isBackInTime:Boolean = timeDelta > 150;
 				var isIFrame:Boolean = isTagIFrame(vTag);
 
@@ -2683,7 +2684,7 @@ package org.osmf.net.httpstreaming
 				{
 					CONFIG::LOGGING
 					{
-						logger.debug("   o I-FRAME SCAN due to backwards time (delta=" + timeDelta + ")");
+						logger.debug("   o I-FRAME SCAN due to backwards time (delta=" + timeDelta + ", timestamp=" + realTimestamp + " highestVideoTime=" + highestVideoTime + ")");
 					}
 					
 					scanningForIFrame = true;
