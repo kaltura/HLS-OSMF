@@ -105,7 +105,7 @@ package com.kaltura.hls.m2ts
             return true;
         }
 
-        private function parseProgramMapTable(bytes:ByteArray, cursor:uint):Boolean
+        private function parseProgramMapTable(bytes:ByteArray, cursor:uint, id3Callback:Function):Boolean
         {
             var sectionLength:uint;
             var sectionLimit:uint;
@@ -189,16 +189,23 @@ package com.kaltura.hls.m2ts
                     seenPIDsByClass[mediaClass] = pid;
                 }
                 
+                // Check for ID3 tag content.
 				oldPosition = bytes.position;
-				var ID3Index:Number = indexOf(bytes,"ID3",cursor);
-				if (ID3Index > 0){
+				var id3Offset:Number = indexOf(bytes,"ID3",cursor);
+				if (id3Offset > 0)
+                {
 					lastID3Point = pid;
+                    CONFIG::LOGGING
+                    {
+                        logger.debug("ID3 found at PID #" + pid + " offset=" + id3Offset + " lastDTS=" + lastDTS);
+                    }
+                    
+                    // You can use this to parse the tag immediately but it will not have a valid
+                    // DTS as PMT doesn't have DTS.
+                    //bytes.position = id3Offset;
+                    //id3Callback(bytes, lastDTS);
 				}
 				bytes.position = oldPosition;
-				CONFIG::LOGGING
-				{
-					logger.debug("ID3 index:"+ID3Index);
-				}
 				
 				// Skip the esInfo data.
                 esInfoLength = ((bytes[cursor] & 0x0f) << 8) + bytes[cursor + 1];
@@ -206,8 +213,7 @@ package com.kaltura.hls.m2ts
                 cursor += esInfoLength;
             }
 
-            // Cook out header to transcoder.
-            //transcoder.writeHeader(hasAudio, hasVideo);
+            // Note that we've processed a PMT.
             headerSent = true;
             
             return true;
@@ -271,7 +277,7 @@ package com.kaltura.hls.m2ts
 		
 		public function append(packet:PESPacket, id3Callback:Function):Boolean
         {
-//            logger.debug("saw packet of " + packet.buffer.length);
+            //logger.debug("saw packet of " + packet.buffer.length);
             var b:ByteArray = packet.buffer;
             b.position = 0;
 
@@ -298,7 +304,7 @@ package com.kaltura.hls.m2ts
                 // It could be the program map table.
                 if((startCode & 0xFFFFFC00) == 0x0002b000)
                 {
-                    parseProgramMapTable(b, 1);
+                    parseProgramMapTable(b, 1, id3Callback);
                     return true;
                 }
 
@@ -431,12 +437,12 @@ package com.kaltura.hls.m2ts
             {
                 if(dts < 0.0)
                 {
+                    // This actually isn't a big deal if we are working with negative timestamps.
                     CONFIG::LOGGING
                     {
                         logger.warn("WARNING: parsePESPacket - invalid decode timestamp? DTS="  + dts);
                     }
-                    dts += 0; // nop to avoid warnings when logging off.
-                    //return true;
+                    dts += 0; // nop to avoid warnings when logging is off.
                 }
                 
                 pes = new PESPacketStream();
@@ -461,10 +467,14 @@ package com.kaltura.hls.m2ts
             packet.headerLength = cursor;
 
 			if (lastID3Point == packet.packetID)
-			{							
-				//need to know the timestamp
+			{
+                CONFIG::LOGGING
+                {
+                    logger.debug("Processing ID3 tag. PTS=" + pts);
+                }
 				id3Callback(b, pts/90000);
-			}else if(MediaClass.calculate(types[packet.packetID]) == MediaClass.VIDEO)
+			}
+            else if(MediaClass.calculate(types[packet.packetID]) == MediaClass.VIDEO)
             {
 				// And process.
                 var start:int = NALU.scan(b, cursor, true);

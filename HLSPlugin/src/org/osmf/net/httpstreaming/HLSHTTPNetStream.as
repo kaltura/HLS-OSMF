@@ -2409,7 +2409,7 @@ package org.osmf.net.httpstreaming
 				CONFIG::LOGGING
 				{
 					if(logEveryPacket)
-						logger.debug("Saw super.bufferLength " + super.bufferLength + " < " + bufferFeedMin);
+						logger.debug("Saw super.bufferLength " + super.bufferLength + " >= " + bufferFeedMin);
 				}
 				return;
 			}
@@ -2652,7 +2652,7 @@ package org.osmf.net.httpstreaming
 				{
 					CONFIG::LOGGING
 					{
-						logger.warn("Skipping audio due to too low time (" + realTimestamp + " < " + highestAudioTime + ")");
+						logger.warn("Skipping audio tag due to too low time (" + realTimestamp + " < " + highestAudioTime + ")");
 					}
 					return true;
 				}
