@@ -468,6 +468,9 @@ package org.osmf.net.httpstreaming
 		protected var _timeCache_streamStartAbsoluteTime:Number = NaN;
 		protected var _timeCache_lastTime:Number = NaN;
 
+		// Used to suppress repopulating time cache spam.
+		private static var _timeCache_logLatch:Boolean = false;
+
 		/**
 		 * @inheritDoc
 		 */
@@ -490,7 +493,9 @@ package org.osmf.net.httpstreaming
 			{
 				CONFIG::LOGGING
 				{
-					logger.debug("Repopulating time cache.");
+					if(_timeCache_logLatch)
+						logger.debug("Repopulating time cache.");
+					_timeCache_logLatch = false;
 				}
 
 				var activeManifest:HLSManifestParser = indexHandler.getLastSequenceManifest();
@@ -564,7 +569,16 @@ package org.osmf.net.httpstreaming
 
 			// Update cache as appropriate.
 			if(!isNaN(potentialNewTime))
+			{
+				CONFIG::LOGGING
+				{
+					if(_timeCache_logLatch == false)
+						logger.debug("Finished repopulating time cache to " + potentialNewTime + ".");
+					_timeCache_logLatch = true;
+				}
+
 				_lastValidTimeTime = potentialNewTime;
+			}
 
 			return _lastValidTimeTime;
 		}
