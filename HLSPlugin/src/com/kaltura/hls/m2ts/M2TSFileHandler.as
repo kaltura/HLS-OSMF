@@ -474,7 +474,7 @@ package com.kaltura.hls.m2ts
 		
 		private function handleID3(message:ByteArray, timestamp:Number):void
 		{
-			if (!message)
+			if (!message || isBestEffort)
 				return;
 
 			CONFIG::LOGGING

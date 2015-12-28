@@ -1150,7 +1150,7 @@ package com.kaltura.hls
 			if(curTime - manToReload.timestamp < manToReload.targetDuration * 500)
 			{
 				// Don't need to reload.
-				trace("issueManifestReloadIfNeeded - Don't need to reload yet.");
+				trace("issueManifestReloadIfNeeded - Do not need to reload yet.");
 				return null;
 			}
 			
@@ -1878,10 +1878,29 @@ package com.kaltura.hls
 				return;
 			}
 
-			// If we have 512kb of the segment and it's a progress event, we can probably get a timestamp.
-			if(downloader.totalAvailableBytes < 512*1024 && downloader.isComplete == false && event.type == HTTPStreamingEvent.DOWNLOAD_PROGRESS)
-				return;
-			
+			// If we have a good initial chunk of the segment and it's a progress event, we can probably get a timestamp.
+			if(event.type == HTTPStreamingEvent.DOWNLOAD_PROGRESS)
+				{
+				// Only consider for segments over 4mb.
+				if(downloader.downloadBytesCount > 4*1024*1024 
+					&& downloader.isComplete == false)
+				{
+					trace("Considering fast-skip of best effort segment.");
+					if(downloader.totalAvailableBytes > 512*1024)
+					{
+						// Pass through as if complete.
+					}
+					else
+					{
+						return;
+					}
+				}
+				else
+				{
+					return;
+				}
+			}
+
 			trace("Best effort download complete " + event.toString());
 			
 			// unregister the listeners
