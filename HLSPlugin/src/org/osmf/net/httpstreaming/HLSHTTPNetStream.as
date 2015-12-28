@@ -2316,8 +2316,27 @@ package org.osmf.net.httpstreaming
 			// from cache and quickly resume playback.
 			if (_mixer != null && event.type != "actionNeeded")
 			{
-				trace("onActionNeeded - " + event);
-				seek(time);
+				CONFIG::LOGGING
+				{
+					logger.debug("onActionNeeded - " + event);
+				}
+
+				if(!isNaN(_enhancedSeekTarget) && _enhancedSeekTarget > time)
+				{
+					CONFIG::LOGGING
+					{
+						logger.debug("Resetting to enhanced seek target @ " + _enhancedSeekTarget);
+					}
+					seek(_enhancedSeekTarget);
+				}
+				else
+				{
+					CONFIG::LOGGING
+					{
+						logger.debug("Resetting to current time @ " + time);
+					}
+					seek(time);
+				}
 			}
 		}
 
