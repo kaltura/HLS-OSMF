@@ -2436,6 +2436,21 @@ package org.osmf.net.httpstreaming
 		 */
 		private function keepBufferFed():void
 		{
+			// We have to make sure we don't cease buffering until we exceed the
+			// minimum buffer time - since we spoonfeed tags we have to do this
+			// rule manually here.
+			if(_wasBufferEmptied)
+			{
+				if(bufferLength < _desiredBufferTime_Min)
+				{
+					CONFIG::LOGGING
+					{
+						logger.debug("keepBufferFed - waiting until " + bufferLength + " >= " + _desiredBufferTime_Min + " to resume writing tags.");
+					}
+					return;
+				}
+			}
+
 			// Check the actual amount of content present.
 			if(super.bufferLength >= bufferFeedMin && !_wasBufferEmptied)
 			{
