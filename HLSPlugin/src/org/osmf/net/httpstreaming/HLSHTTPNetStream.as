@@ -866,6 +866,16 @@ package org.osmf.net.httpstreaming
 			return result;
 		}
 		
+		private function onJumpToLiveEdgeTimer(e:*):void
+		{
+			CONFIG::LOGGING
+			{
+				logger.debug("onJumpToLiveEdgeTimer - firing live edge seek.");
+			}
+			
+			seek(Number.MAX_VALUE);
+		}
+
 		/**
 		 * @private
 		 * 
@@ -880,7 +890,7 @@ package org.osmf.net.httpstreaming
 			
 			switch(event.info.code)
 			{
-				case NetStreamCodes.NETSTREAM_BUFFER_EMPTY:
+				case NetStreamCodes.NETSTREAM_BUFFER_EMPTY:					
 
 					// Only apply bias after our first buffering event.
 					if(bufferBias < HLSManifestParser.BUFFER_EMPTY_MAX_INCREASE && _state != HTTPStreamingState.HALT && neverBuffered == false)
@@ -890,6 +900,26 @@ package org.osmf.net.httpstreaming
 						CONFIG::LOGGING
 						{
 							logger.debug("NetStream emptied out, increasing buffer time bias by " + HLSManifestParser.BUFFER_EMPTY_BUMP + " seconds to " + bufferBias);
+						}
+					}
+
+					if(HLSManifestParser.ALWAYS_SEEK_TO_LIVE_EDGE_ON_BUFFER)
+					{
+						CONFIG::LOGGING
+						{
+							logger.debug("ALWAYS_SEEK_TO_LIVE_EDGE_ON_BUFFER is active, turning on timer.");
+						}
+
+						if(jumpToLiveEdgeTimer)
+						{
+							jumpToLiveEdgeTimer.stop();
+							jumpToLiveEdgeTimer.start();
+						}
+						else
+						{
+							// Wait until we've been buffering for more than 2 segments to jump ahead.
+							jumpToLiveEdgeTimer = new Timer(indexHandler.getTargetSegmentDuration() * 2000);
+							jumpToLiveEdgeTimer.addEventListener(TimerEvent.TIMER, onJumpToLiveEdgeTimer);
 						}
 					}
 
@@ -919,6 +949,12 @@ package org.osmf.net.httpstreaming
 					{
 						logger.debug("Received NETSTREAM_BUFFER_FULL. _wasBufferEmptied = "+_wasBufferEmptied+" bufferLength "+this.bufferLength);
 					}
+
+					if(jumpToLiveEdgeTimer)
+					{
+						jumpToLiveEdgeTimer.stop();
+					}
+
 					break;
 				
 				case NetStreamCodes.NETSTREAM_BUFFER_FLUSH:
@@ -2436,6 +2472,21 @@ package org.osmf.net.httpstreaming
 		 */
 		private function keepBufferFed():void
 		{
+			// We have to make sure we don't cease buffering until we exceed the
+			// minimum buffer time - since we spoonfeed tags we have to do this
+			// rule manually here.
+			if(_wasBufferEmptied)
+			{
+				if(bufferLength < _desiredBufferTime_Min)
+				{
+					CONFIG::LOGGING
+					{
+						logger.debug("keepBufferFed - waiting until " + bufferLength + " >= " + _desiredBufferTime_Min + " to resume writing tags.");
+					}
+					return;
+				}
+			}
+
 			// Check the actual amount of content present.
 			if(super.bufferLength >= bufferFeedMin && !_wasBufferEmptied)
 			{
@@ -3190,5 +3241,7 @@ package org.osmf.net.httpstreaming
 		public static var reloadDelayTime:int = 2500;// The amount of time (in miliseconds) we want to wait between reload attempts in case of a URL error
 		
 		private static const HIGH_PRIORITY:int = int.MAX_VALUE;
+
+		private var jumpToLiveEdgeTimer:Timer;
 	}
 }

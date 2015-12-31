@@ -1013,7 +1013,7 @@ package com.kaltura.hls
 						// Get last item less MAX_SEG_BUFFER
 						if(segments.length > 0 && !manifest.streamEnds)
 						{
-							var bufferSeg:HLSManifestSegment = segments[Math.max(0, segments.length - HLSManifestParser.MAX_SEG_BUFFER)];
+							var bufferSeg:HLSManifestSegment = segments[Math.max(0, segments.length - (1 + HLSManifestParser.MAX_SEG_BUFFER))];
 							return initiateBestEffortRequest(bufferSeg.id, origQuality, segments, manifest);
 						}
 						else
