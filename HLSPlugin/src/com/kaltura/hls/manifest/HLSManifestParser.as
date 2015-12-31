@@ -46,6 +46,11 @@ package com.kaltura.hls.manifest
 		public static var SEND_LOGS:Boolean = false;
 
 		/**
+		 * When true, we seek to live edge when we experience a buffering event.
+		 */
+		public static var ALWAYS_SEEK_TO_LIVE_EDGE_ON_BUFFER:Boolean = false;
+
+		/**
 		 * Keep this many segments back from the live edge in DVR/Live streams.
 		 *
 		 * Note that if the buffer threshold is LONGER than this, you will have 
