@@ -96,6 +96,7 @@ package com.kaltura.hls
 		private var primaryStream:HLSManifestStream;// The manifest we are currently using when we attempt to switch to a backup
 		private var isRecovering:Boolean = false;// If we are currently recovering from a URL error
 		private var lastBadManifestUri:String = "Unknown URI";
+		private var reloadErrorCounter:int = 0;
 		
 		// _bestEffortState values
 		private static const BEST_EFFORT_STATE_OFF:String = "off"; 											// not performing best effort fetch
@@ -485,23 +486,30 @@ package com.kaltura.hls
 			isRecovering = true;
 			lastBadManifestUri = (event as IOErrorEvent).text;
 			
-			// Create our timer if it hasn't been created yet and set the delay to our delay time
-			if (!reloadTimer)
-				setUpReloadTimer(HLSHTTPNetStream.reloadDelayTime);
-			else if (reloadTimer.delay != HLSHTTPNetStream.reloadDelayTime)
-			{
-				reloadTimer.reset();
-				reloadTimer.delay = HLSHTTPNetStream.reloadDelayTime;
+			if(reloadErrorCounter < 3){
+				reloadErrorCounter++;
+						
+				// Create our timer if it hasn't been created yet and set the delay to our delay time
+				if (!reloadTimer)
+					setUpReloadTimer(HLSHTTPNetStream.reloadDelayTime);
+				else if (reloadTimer.delay != HLSHTTPNetStream.reloadDelayTime)
+				{
+					reloadTimer.reset();
+					reloadTimer.delay = HLSHTTPNetStream.reloadDelayTime;
+				}
+				
+				reloadTimer.start();
+				
+				if (reloadTimer.currentCount < 1)
+				{
+					return;
+				}
+				
+				attemptRecovery();
+			}else{
+				reloadErrorCounter = 0;
+				dispatchEvent(new Event("RECOVERY_FAILED"));
 			}
-			
-			reloadTimer.start();
-			
-			if (reloadTimer.currentCount < 1)
-			{
-				return;
-			}
-			
-			attemptRecovery();
 		}
 		
 		private function attemptRecovery():void
@@ -796,6 +804,9 @@ package com.kaltura.hls
 				trace("Can't remap to new manifest, aborting!")
 				return;
 			}
+			
+			//reload succeed, so reset reloadErrorCounter
+			reloadErrorCounter = 0;
 			
 			// Update our manifest for this quality level.
 			//trace("Changing from " + lastQuality + " to " + reloadingQuality);

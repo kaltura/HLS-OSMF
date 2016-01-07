@@ -21,26 +21,25 @@
  *****************************************************/
 package org.osmf.net.httpstreaming
 {	
+	import com.kaltura.hls.HLSIndexHandler;
+	import com.kaltura.hls.m2ts.M2TSFileHandler;
+	
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.events.IEventDispatcher;
+	import flash.external.ExternalInterface;
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
-	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.events.HTTPStreamingEvent;
 	import org.osmf.events.HTTPStreamingIndexHandlerEvent;
 	import org.osmf.media.MediaResourceBase;
+	import org.osmf.net.httpstreaming.dvr.DVRInfo;
 	import org.osmf.net.qos.FragmentDetails;
 	import org.osmf.net.qos.QualityLevel;
-	import org.osmf.net.httpstreaming.dvr.DVRInfo;
 	import org.osmf.utils.OSMFSettings;
 	import org.osmf.utils.OSMFStrings;
-
-	import com.kaltura.hls.HLSIndexHandler;
-	import com.kaltura.hls.m2ts.M2TSFileHandler;
-	import flash.external.ExternalInterface;
 	
 	CONFIG::LOGGING
 	{
@@ -117,6 +116,7 @@ package org.osmf.net.httpstreaming
 			
 			_indexHandler.addEventListener(HTTPStreamingIndexHandlerEvent.INDEX_READY, onIndexReady);
 			_indexHandler.addEventListener(HTTPStreamingIndexHandlerEvent.RATES_READY, onRatesReady);
+			_indexHandler.addEventListener("RECOVERY_FAILED", onRecoveryFailed);
 			_indexHandler.addEventListener(HTTPStreamingIndexHandlerEvent.REQUEST_LOAD_INDEX, onRequestLoadIndex);
 			_indexHandler.addEventListener(DVRStreamInfoEvent.DVRSTREAMINFO, onDVRStreamInfo);
 			_indexHandler.addEventListener(HTTPStreamingEvent.FRAGMENT_DURATION, onFragmentDuration);
@@ -752,6 +752,26 @@ package org.osmf.net.httpstreaming
 			_qualityRates = event.rates;
 			_streamNames = event.streamNames;
 			_numQualityLevels = _qualityRates.length;
+		}
+		
+		private function onRecoveryFailed(event:HTTPStreamingIndexHandlerEvent):void
+		{
+			var ind:int = _streamNames.indexOf(_streamName);
+			if( ind != -1 ){
+				//find _desiredQualityStreamName and _desiredQualityLevel (always try to go up with the bitrate)
+				if(ind<_streamNames.length-1){
+					_desiredQualityStreamName = _streamNames[ind+1];
+					_desiredQualityLevel = _qualityRates[ind+1];
+				}else{
+					_desiredQualityStreamName = _streamNames[ind-1];
+					_desiredQualityLevel = _qualityRates[ind-1];
+				}
+				//mark bad _streamName and bad _qualityLevel
+				//_badStreamNames.push(_streamName);
+				
+			}
+			
+			beginQualityLevelChange(_qualityRates.indexOf(_desiredQualityLevel));
 		}
 		
 		/**
