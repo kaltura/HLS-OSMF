@@ -367,10 +367,19 @@ package org.osmf.net.httpstreaming
 			{
 				_enhancedSeekTarget = _seekTarget = convertWindowTimeToAbsoluteTime(offset);
 
+				if(isNaN(_seekTarget))
+				{
+					CONFIG::LOGGING
+					{
+						logger.info("Preserving seek offset due to NaN.");
+						_enhancedSeekTarget = _seekTarget = offset;
+					}
+				}
+
 				CONFIG::LOGGING
 				{
 					logger.info("Setting seek (B) to " + _seekTarget + " based on passed value " + offset);
-				}				
+				}
 				
 				setState(HTTPStreamingState.SEEK);
 				
@@ -872,7 +881,7 @@ package org.osmf.net.httpstreaming
 			{
 				logger.debug("onJumpToLiveEdgeTimer - firing live edge seek.");
 			}
-			
+
 			seek(Number.MAX_VALUE);
 		}
 
@@ -3242,6 +3251,6 @@ package org.osmf.net.httpstreaming
 		
 		private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 
-		private var jumpToLiveEdgeTimer:Timer;
+		private var jumpToLiveEdgeTimer:Timer = null;
 	}
 }
