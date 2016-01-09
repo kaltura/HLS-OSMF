@@ -334,11 +334,21 @@ package org.osmf.net.httpstreaming
 						if (_alternateHandler != null)
 						{
 							var alternateSynchronizationTime:int = _alternateTime != int.MIN_VALUE ? _alternateTime : _mediaTime;
-							CONFIG::LOGGING
+							if(Math.abs(_currentTime - _mediaTime) < 1000)
 							{
-								logger.debug("Synchronizing alternate packets. (currentTime = " + _currentTime + ", mediaTime = " + _mediaTime + ", alternateSyncTime =" + alternateSynchronizationTime + ").");
+								CONFIG::LOGGING
+								{
+									logger.debug("Skipping synchronizing alternate packets due to delta < 1sec. (currentTime = " + _currentTime + ", mediaTime = " + _mediaTime + ", alternateSyncTime =" + alternateSynchronizationTime + ").");
+								}
 							}
-							_alternateHandler.source.seek(alternateSynchronizationTime / 1000);
+							else
+							{
+								CONFIG::LOGGING
+								{
+									logger.debug("Synchronizing alternate packets. (currentTime = " + _currentTime + ", mediaTime = " + _mediaTime + ", alternateSyncTime =" + alternateSynchronizationTime + ").");
+								}
+								_alternateHandler.source.seek(alternateSynchronizationTime / 1000);								
+							}
 						}
 					}
 
@@ -828,7 +838,7 @@ package org.osmf.net.httpstreaming
 					
 				}
 				_alternateNeedsInitialization = false;
-								
+				
 				_dispatcher.dispatchEvent(
 					new HTTPStreamingEvent(
 						HTTPStreamingEvent.TRANSITION_COMPLETE,
@@ -954,6 +964,8 @@ package org.osmf.net.httpstreaming
 			}
 		}
 		
+		public static var oldHTTPStreamingEventTargetIsAudio:Boolean;
+
 		/**
 		 * @private
 		 * 
@@ -962,6 +974,7 @@ package org.osmf.net.httpstreaming
 		 */
 		private function onHTTPStreamingEvent(event:HTTPStreamingEvent):void
 		{
+			oldHTTPStreamingEventTargetIsAudio = (event.target == _alternateHandler);
 			_dispatcher.dispatchEvent(event);
 		}
 		
