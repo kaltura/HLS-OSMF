@@ -1,9 +1,8 @@
 package com.kaltura.hls.m2ts
 {
-    import flash.utils.ByteArray;
     import flash.net.ObjectEncoding;
     import flash.utils.ByteArray;
-    import flash.utils.Endian;    
+    import flash.utils.Endian;
     import flash.utils.IDataInput;
     import flash.utils.IDataOutput;
 
@@ -28,6 +27,7 @@ package com.kaltura.hls.m2ts
         public const MIN_FILE_HEADER_BYTE_COUNT:int = 9;
 
         public var callback:Function;
+		public var id3Callback:Function;
 
         private var _aacConfig:ByteArray;
         private var _aacRemainder:ByteArray;
@@ -43,17 +43,26 @@ package com.kaltura.hls.m2ts
         private var keyFrame:Boolean = false;
         private var totalAppended:int = 0;
 
+        // State used to estimate video framerate.
+        public var videoLastDTS:int = int.MIN_VALUE;
+
         public function clear(clearAACConfig:Boolean = false):void
         {
             if(clearAACConfig)
                 _aacConfig = null;
             _aacRemainder = null;
             _aacTimestamp = 0;
+
+            bufferedTagData.length = 0;
+            bufferedTagTimestamp.length = 0;
+            bufferedTagDuration.length = 0;
+
+            videoLastDTS = int.MIN_VALUE;
         }
 
         protected var sendingDebugEvents:Boolean = false;
 
-        private function sendFLVTag(flvts:uint, type:uint, codec:int, mode:int, bytes:ByteArray, offset:uint, length:uint, duration:uint, buffer:Boolean = true):void
+        private function sendFLVTag(flvts:int, type:uint, codec:int, mode:int, bytes:ByteArray, offset:uint, length:uint, duration:int, buffer:Boolean = true):void
         {
             var tag:ByteArray = new ByteArray();
             
@@ -68,7 +77,7 @@ package com.kaltura.hls.m2ts
 
             CONFIG::LOGGING
             {
-                logger.debug("FLV @ " + flvts + " dur=" + duration + " len=" + tag.length + " type=" + type + " payloadLen=" + msgLength);
+                logger.debug("FLV @ " + flvts + " dur=" + duration + " len=" + tag.length + " type=" + type + " payloadLen=" + msgLength + " buffer=" + buffer);
             }
 
             tag[cursor++] = type;
@@ -133,7 +142,7 @@ package com.kaltura.hls.m2ts
                 {
                     CONFIG::LOGGING
                     {
-                        logger.error("Discarding buffered FLV tag due to no callback!");                        
+                        logger.error("Discarding buffered FLV tag due to no callback!");
                     }
                 }
             }
@@ -203,7 +212,21 @@ package com.kaltura.hls.m2ts
             if(avcc)
             { 
                 //logger.debug("Wrote AVCC at " + convertFLVTimestamp(unit.pts));
-                sendFLVTag(bufferedTagTimestamp[0], 
+
+                // First SPS/PPS must be lowest tag time, so scan for it.
+                var lowestTagTimestamp:Number = Number.MAX_VALUE;
+                for(var i:int=0; i<bufferedTagTimestamp.length; i++)
+                {
+                    // We must filter for video keyframes for best results. Ideally we
+                    // would do it on keyframes but that causes problems currently.
+                    if(bufferedTagData[i].length < 12 || bufferedTagData[i][0] != 9) 
+                        continue;
+
+                    if(bufferedTagTimestamp[i] < lowestTagTimestamp)
+                        lowestTagTimestamp = bufferedTagTimestamp[i];
+                }
+
+                sendFLVTag(lowestTagTimestamp, 
                     FLVTags.TYPE_VIDEO, FLVTags.VIDEO_CODEC_AVC_KEYFRAME, 
                     FLVTags.AVC_MODE_AVCC, avcc, 0, avcc.length, 0, false);
             }
@@ -219,16 +242,13 @@ package com.kaltura.hls.m2ts
             naluProcessor.resetAVCCExtraction();
         }
 
-        // State used to estimate video framerate.
-        public var videoLastDTS:int = -1000000.0;
-
         /**
          * Convert and emit AVC NALU data.
          */
         public function convert(unit:NALU):void
         {
-            var flvts:uint = convertFLVTimestamp(unit.dts);
-            var tsu:uint = convertFLVTimestamp(unit.pts - unit.dts);
+            var flvts:Number = convertFLVTimestamp(unit.dts);
+            var tsu:Number = convertFLVTimestamp(unit.pts - unit.dts);
 
             // Estimate current framerate, default to 30hz if can't get a plausible estimate.
             var tsDelta:int = convertFLVTimestamp(unit.dts - videoLastDTS);
@@ -260,9 +280,12 @@ package com.kaltura.hls.m2ts
             
             CONFIG::LOGGING
             {
-                logger.debug("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+                //logger.debug("ts=" + flvts + " tsu=" + tsu + " keyframe = " + keyFrame);
+
+                if(flvts > int.MAX_VALUE)
+                    logger.error("FLVTranscoder - warning - timestamp too big for FLV time value: " + flvts);
             }
-            
+
             sendFLVTag(flvts, FLVTags.TYPE_VIDEO, codec, FLVTags.AVC_MODE_PICTURE, flvGenerationBuffer, 0, flvGenerationBuffer.length, tsDelta);
         }
 
@@ -282,7 +305,7 @@ package com.kaltura.hls.m2ts
             return true;
         }
 
-        private function sendAACConfigFLVTag(flvts:uint, profile:uint, sampleRateIndex:uint, channelConfig:uint):void
+        private function sendAACConfigFLVTag(flvts:int, profile:uint, sampleRateIndex:uint, channelConfig:uint):void
         {
             var isNewConfig:Boolean = true;
             var audioSpecificConfig:ByteArray = new ByteArray();
@@ -432,7 +455,7 @@ package com.kaltura.hls.m2ts
                 
                 if(sampleRate)
                 {
-                    var flvts:uint = convertFLVTimestamp(timestamp + timeAccumulation);
+                    var flvts:int = convertFLVTimestamp(timestamp + timeAccumulation);
                     
                     sendAACConfigFLVTag(flvts, profile, sampleRateIndex, channelConfig);
                     //logger.debug("Sending AAC @ " + flvts + " ts=" + timestamp + " acc=" + timeAccumulation);
@@ -483,11 +506,12 @@ package com.kaltura.hls.m2ts
             return bytes;
         }
         
-        private function sendScriptDataFLVTag(flvts:uint, values:Array):void
+        private function sendScriptDataFLVTag(flvts:int, values:Array):void
         {
             var bytes:ByteArray = generateScriptData(values);
             sendFLVTag(flvts, FLVTags.TYPE_SCRIPTDATA, -1, -1, bytes, 0, bytes.length, 0);
         }
+		
 
         /**
          * Fire off a subtitle caption.
@@ -504,6 +528,14 @@ package com.kaltura.hls.m2ts
             //var subtitleObject:Array = ["onTextData", { text:captionBuffer, language:lang, trackid:textid }];
             //sendScriptDataFLVTag( timeStamp * 1000, subtitleObject);
         }
+		
+		public function createAndSendID3Message(timeStamp:Number, ID3Buffer:String):void
+		{
+			var ID3Object:Array = ["onID3Data",{data:ID3Buffer}];
+			//sendScriptDataFLVTag with sendFLVTag buffer = false 
+			var bytes:ByteArray = generateScriptData(ID3Object);
+			sendFLVTag(timeStamp * 1000, FLVTags.TYPE_SCRIPTDATA, -1, -1, bytes, 0, bytes.length, 0, false);
+		}
 
         protected var pendingDebugEvents:Array = [];
 

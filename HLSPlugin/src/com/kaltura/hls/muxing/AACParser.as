@@ -24,24 +24,40 @@ package com.kaltura.hls.muxing
 		private static const SAMPLE_RATES:Vector.<int> = 
 			new<int> [96000, 88200, 64000, 48000, 44100, 32000,
 					  24000, 22050, 16000, 12000, 11025, 8000, 7350];
-				
+
+
+		// Set if we have found an ID3 tag.
+		public var lastId3:ID3Parser = null;
+
+		// Once we encounter an ADIF, it's stored for reuse.
+		public var lastAdif:ByteArray = null;
+
+		// Last PTS so we can resume emitting data at right time.
+		public var lastPts:Number = 0;
+
 		// Helper to determine if some bytes probably have AAC data in them.
 		public static function probe(data:ByteArray):Boolean 
 		{
+			//trace("AAC Probing " + data.length + " bytes, pos = " + data.position);
+
 			// Extract ID3 header.
 			var pos:Number = data.position;
+			data.position = 0;
 			var id3:ID3Parser = new ID3Parser();
 			id3.parse(data);
 			
 			// If we failed to extract a timestamp, bail.
 			if(!id3.hasTimestamp)
 			{
+				//trace("NO ID3 TIMESTAMP");
 				data.position = pos;
 				return false;
 			}
 			
+			//trace("ID3 TIMESTAMP = " + id3.timestamp);
+
 			// Scan a little ways into the buffer looking for an ADTS syncword.
-			var searchDistance:Number = Math.min(data.bytesAvailable,256);
+			var searchDistance:Number = Math.min(data.bytesAvailable, 4096);
 			do 
 			{
 				var potentialSync:uint = data.readUnsignedShort();
@@ -52,28 +68,42 @@ package com.kaltura.hls.muxing
 				
 				// It's a match!
 				data.position-=2;
+				//trace("SYNC");
 				return true;
 			}
 			while(data.position < searchDistance);
 			
 			// Clean up and return, no sync.
+			//trace("NO SYNC");
 			data.position = pos;
 			return false;
 		}
 		
-		public function parse(data:ByteArray, callback:Function):void 
+		/**
+		 * Parse and return how many bytes we consumed.
+		 */
+		public function parse(data:ByteArray, callback:Function, flush:Boolean = false):int 
 		{
+			if(data.length == 0)
+				return 0;
+
 			// Store output as FLV tags.
 			var audioTags:Vector.<FLVTagAudio> = new Vector.<FLVTagAudio>();
 			
 			// Extract any ID3 header so we can use the timestamp.
 			data.position = 0;
-			var id3:ID3Parser = new ID3Parser();
-			id3.parse(data);
+			if(lastId3 == null)
+			{
+				lastId3 = new ID3Parser();
+				lastId3.parse(data);
+				lastPts = lastId3.timestamp;
+				//trace("Start timestamp of " + lastPts);
+			}
 			
 			// Parse frames/ADIF data.
 			var frameExtents:Vector.<AudioFrameExtents> = getFrameExtents(data, data.position);
-			var adifHeader:ByteArray = getADIF(data, 0);
+			if(!lastAdif)
+				lastAdif = getADIF(data, 0);
 
 			// Convert everything to FLV tags.
 			var curTag:FLVTagAudio;
@@ -81,13 +111,17 @@ package com.kaltura.hls.muxing
 			var tmpBytes:ByteArray = new ByteArray();
 			for(var i:int=0; i<frameExtents.length; i++)
 			{
-				curPTS = Math.round(id3.timestamp+i*1024000 / frameExtents[i].sampleRate);
+				lastPts += 1024000 / frameExtents[i].sampleRate;
+				//trace("lastPts = " + lastPts + " , sampleRate = " + frameExtents[i].sampleRate);
+				curPTS = Math.round(lastPts);
 				
 				curTag = new FLVTagAudio();
 				curTag.soundFormat = FLVTagAudio.SOUND_FORMAT_AAC;
 
 				if (i != frameExtents.length-1)
 					tmpBytes.length = frameExtents[i].length;
+				else if (i == frameExtents.length - 1 && !flush)
+					break; // Don't parse last tag until we are in flush mode.
 				else
 					tmpBytes.length = data.length - frameExtents[i].start;
 				
@@ -101,7 +135,20 @@ package com.kaltura.hls.muxing
 			}
 
 			// And issue the callback.
-			callback(audioTags, adifHeader);
+			callback(audioTags, lastAdif);
+
+			var lastExtent:AudioFrameExtents = null;
+			if(frameExtents.length > 0)
+				lastExtent = frameExtents[frameExtents.length-1];
+			
+			if(lastExtent == null)
+				return 0;
+
+			// We ate all the bytes up to this point.
+			if(flush == false)
+				return lastExtent.start + lastExtent.length;
+			else
+				return data.length;
 		}
 
 		// Retrieve ADIF header from ADTS stream.
@@ -149,15 +196,10 @@ package com.kaltura.hls.muxing
 		}
 		
 		// Extract AAC frames from an ADTS.
-		public static function getFrameExtents(adts:ByteArray,position:Number=0):Vector.<AudioFrameExtents> 
+		public function getFrameExtents(adts:ByteArray,position:Number=0):Vector.<AudioFrameExtents> 
 		{
 			var frameStartOffset:uint, frameLength:uint;
 			var frames:Vector.<AudioFrameExtents> = new Vector.<AudioFrameExtents>();
-			
-			// Parse the ID3 tag.
-			var id3:ID3Parser = new ID3Parser();
-			id3.parse(adts);
-			position += id3.lengthInBytes;
 			
 			// Get raw AAC frames from audio stream.
 			adts.position = position;
@@ -202,7 +244,7 @@ package com.kaltura.hls.muxing
 			}
 			
 			// Don't forget trailing data.
-			if(frameStartOffset) 
+			if(frameStartOffset && frameLength + frameStartOffset <= adts.length) 
 				frames.push(new AudioFrameExtents(frameStartOffset, frameLength, sampleRate));
 
 			// Reset position.

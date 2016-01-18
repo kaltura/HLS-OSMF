@@ -31,6 +31,7 @@ package com.kaltura.kdpfl.plugin
 		public static const HLS_END_LIST:String = "hlsEndList";
 		public static const HLS_TRACK_SWITCH:String = "doTextTrackSwitch";
 		
+		private var _kMediator:KMediaPlayerMediator;
 		private var _mediaProxy:MediaProxy;
 		private var _subtitleTrait:SubtitleTrait;
 		private var _loadTrait:NetStreamLoadTrait;
@@ -41,8 +42,8 @@ package com.kaltura.kdpfl.plugin
 		private var _currentBitrateValue:Number;
 		private var _currentFPS:Number = -1;
 		private var _currentTime:Number = -1;
-		
-		public function KalturaHLSMediator( viewComponent:Object=null)
+				
+		public function KalturaHLSMediator(viewComponent:Object=null)
 		{
 			super(NAME, viewComponent);
 		}
@@ -50,6 +51,7 @@ package com.kaltura.kdpfl.plugin
 		override public function onRegister():void
 		{
 			_mediaProxy = facade.retrieveProxy(MediaProxy.NAME) as MediaProxy;
+			_kMediator = facade.retrieveMediator(KMediaPlayerMediator.NAME) as KMediaPlayerMediator;
 			super.onRegister();
 			
 
@@ -106,6 +108,7 @@ package com.kaltura.kdpfl.plugin
 					break;
 				
 				case NotificationType.PLAYER_UPDATE_PLAYHEAD:
+					updateBufferLength();
 					sendCurrentTime();
 					break;
 			}		
@@ -253,6 +256,11 @@ package com.kaltura.kdpfl.plugin
 				}
 				ExternalInterface.call("onCurrentTime(" + _currentTime + ", " + ((_timeTrait is HLSDVRTimeTrait) ? "true" : "false") + ")");
 			}
+		}
+		
+		protected function updateBufferLength():void
+		{
+			_kMediator.setCurrentBufferLength(_loadTrait.netStream.bufferLength);
 		}
 		
 	}

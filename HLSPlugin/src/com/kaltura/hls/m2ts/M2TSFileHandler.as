@@ -12,6 +12,8 @@ package com.kaltura.hls.m2ts
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.getTimer;
+	
+	import mx.utils.Base64Encoder;
 
 	import flash.external.ExternalInterface;
 	
@@ -45,11 +47,10 @@ package com.kaltura.hls.m2ts
 		public var isBestEffort:Boolean = false;
 		
 		private var _parser:TSPacketParser;
-		private var _curTimeOffset:uint;
 		private var _buffer:ByteArray;
 		private var _fragReadBuffer:ByteArray;
 		private var _encryptedDataBuffer:ByteArray;
-		private var _timeOrigin:uint;
+		private var _timeOrigin:Number;
 		private var _timeOriginNeeded:Boolean;
 		private var _segmentBeginSeconds:Number;
 		private var _segmentLastSeconds:Number;
@@ -61,6 +62,11 @@ package com.kaltura.hls.m2ts
 		
 		private var _decryptionIV:ByteArray;
 		
+		public var flvLowWaterAudio:int = int.MIN_VALUE;
+		public var flvLowWaterVideo:int = int.MIN_VALUE;
+		public var flvRecoveringIFrame:Boolean = false;
+		public const filterThresholdMs:int = 64;
+
 		public function M2TSFileHandler()
 		{
 			super();
@@ -69,12 +75,13 @@ package com.kaltura.hls.m2ts
 
 			_parser = new TSPacketParser();
 			_parser.callback = handleFLVMessage;
+			_parser.id3Callback = handleID3;
 			
 			_timeOrigin = 0;
 			_timeOriginNeeded = true;
 			
-			_segmentBeginSeconds = -1;
-			_segmentLastSeconds = -1;
+			_segmentBeginSeconds = Number.MAX_VALUE;
+			_segmentLastSeconds = -Number.MAX_VALUE;
 			
 			_firstSeekTime = 0;
 			
@@ -90,6 +97,11 @@ package com.kaltura.hls.m2ts
 			return -1;
 		}
 
+		public function get hasVideo():Boolean
+		{
+			return _parser.hasVideo;
+		}
+
 		public function set extendedIndexHandler(handler:IExtraIndexHandlerState):void
 		{
 			_extendedIndexHandler = handler;
@@ -102,15 +114,7 @@ package com.kaltura.hls.m2ts
 		
 		public override function beginProcessFile(seek:Boolean, seekTime:Number):void
 		{
-			if(seek && !isBestEffort)
-			{
-				// Reset low water mark for the file handler so we don't drop stuff.
-				CONFIG::LOGGING
-				{
-					logger.debug("RESETTING LOW WATER MARK");
-				}
-				clearFLVWaterMarkFilter();
-			}
+			aacParser = null;
 
 			if( key && !key.isLoading && !key.isLoaded)
 				throw new Error("Tried to process segment with key not set to load or loaded.");
@@ -183,8 +187,8 @@ package com.kaltura.hls.m2ts
 				}
 			}
 			
-			_segmentBeginSeconds = -1;
-			_segmentLastSeconds = -1;
+			_segmentBeginSeconds = Number.MAX_VALUE;
+			_segmentLastSeconds = -Number.MAX_VALUE;
 			_lastInjectedSubtitleTime = -1;
 			_encryptedDataBuffer.length = 0;
 
@@ -198,6 +202,9 @@ package com.kaltura.hls.m2ts
 		}
 
 		public static var tmpBuffer:ByteArray = new ByteArray();
+
+		protected var aacParser:AACParser = null;
+		protected var aacAccumulator:ByteArray = new ByteArray(); // AAC bytes we haven't processed yet.
 
 		private function basicProcessFileSegment(input:IDataInput, _flush:Boolean):ByteArray
 		{
@@ -242,7 +249,7 @@ package com.kaltura.hls.m2ts
 
 			if(amountToRead > 0)
 				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
-			
+
 			if ( key )
 			{
 				// We need to decrypt available data.
@@ -289,14 +296,43 @@ package com.kaltura.hls.m2ts
 				tmpBuffer = key.decrypt( tmpBuffer, currentIV );
 			}
 			
-			// If it's AAC, process it.
-			if(AACParser.probe(tmpBuffer))
+			// Check for AAC content.
+			if(!aacParser && AACParser.probe(tmpBuffer))
 			{
-				//logger.debug("GOT AAC " + tmpBuffer.bytesAvailable);
-				var aac:AACParser = new AACParser();
-				aac.parse(tmpBuffer, _fragReadHandler);
-				//logger.debug("    - returned " + _fragReadBuffer.length + " bytes!");
-				_fragReadBuffer.position = 0;
+				aacParser = new AACParser();
+				//logger.debug("GOT AAC " + tmpBuffer.length);
+			}
+
+			// If we know we're an AAC, process it.
+			if(aacParser)
+			{
+				_fragReadBuffer = new ByteArray();
+
+				// Stick any bytes that we have into the AAC accumulator...
+				//logger.debug("Adding to AAC accum " + tmpBuffer.length + " bytes");
+				var oldLen:int = aacAccumulator.length;
+				aacAccumulator.length += tmpBuffer.length;
+				aacAccumulator.position = oldLen;
+				aacAccumulator.writeBytes(tmpBuffer, 0, tmpBuffer.length);
+				//logger.debug("accum now " + aacAccumulator.length);
+
+				var aacBytesRead:int = aacParser.parse(aacAccumulator, _fragReadHandler, _flush);
+				//logger.debug("AAC parsed " + aacBytesRead + " bytes out of " + aacAccumulator.length);
+
+				// Save off any bytes we haven't processed yet.
+				if(aacBytesRead > 0 && aacBytesRead < aacAccumulator.length)
+				{
+					//logger.debug("Moving bytes to beginning");
+					// Move remaining bytes to beginning.
+					aacAccumulator.writeBytes(aacAccumulator, aacBytesRead, aacAccumulator.length - aacBytesRead);
+					aacAccumulator.length -= aacBytesRead;
+					//logger.debug("Bytes left: " + aacAccumulator.length);
+				}
+				else if(aacBytesRead >= aacAccumulator.length)
+				{
+					//logger.debug("Read too many bytes; assuming that means all of them.");
+					aacAccumulator.length = 0;
+				}
 
 				if(isBestEffort && _fragReadBuffer.length > 0)
 				{
@@ -307,6 +343,8 @@ package com.kaltura.hls.m2ts
 					_fragReadBuffer.length = 0;
 				}
 
+				_fragReadBuffer.position = 0;
+				//logger.debug("Returning " + _fragReadBuffer.length + " bytes of AAC data");
 				return _fragReadBuffer;
 			}
 			
@@ -322,6 +360,14 @@ package com.kaltura.hls.m2ts
 				}
 				_parser.flush();
 			}
+
+			if(isBestEffort)
+			{
+				// Force processing immediately. We only need a starting timestamp.
+				trace("Extracting timestamps for BEF.");
+				_parser.handleBestEffortProcess();
+			}
+
 			_buffer = null;
 			buffer.position = 0;
 
@@ -332,6 +378,7 @@ package com.kaltura.hls.m2ts
 				{
 					logger.debug("Discarding normal data from best effort.");
 				}
+
 				buffer.length = 0;
 			}
 
@@ -343,7 +390,6 @@ package com.kaltura.hls.m2ts
 		
 		private function _fragReadHandler(audioTags:Vector.<FLVTagAudio>, adif:ByteArray):void 
 		{
-			_fragReadBuffer = new ByteArray();
 			var audioTag:FLVTagAudio = new FLVTagAudio();
 			audioTag.soundFormat = FLVTagAudio.SOUND_FORMAT_AAC;
 			audioTag.data = adif;
@@ -351,7 +397,26 @@ package com.kaltura.hls.m2ts
 			audioTag.write(_fragReadBuffer);
 			
 			for(var i:int=0; i<audioTags.length; i++)
-				audioTags[i].write(_fragReadBuffer);
+			{
+				var timestampSeconds:Number = audioTags[i].timestamp / 1000.0;
+				//trace("Writing AAC Tag @ " + timestampSeconds)
+				_segmentLastSeconds = timestampSeconds;
+
+				if(timestampSeconds < _segmentBeginSeconds)
+				{
+					_segmentBeginSeconds = timestampSeconds;
+
+					CONFIG::LOGGING
+					{
+						logger.info("Noting segment start time for " + segmentUri + " of " + timestampSeconds);
+					}
+
+					HLSIndexHandler.startTimeWitnesses[segmentUri] = timestampSeconds;
+				}
+
+				if(!isBestEffort)
+					audioTags[i].write(_fragReadBuffer);
+			}
 		}
 
 		public override function processFileSegment(input:IDataInput):ByteArray
@@ -371,7 +436,7 @@ package com.kaltura.hls.m2ts
 
 			if ( key ) key.usePadding = true;
 
-			// Note the start as a debug event.
+			// Note the end as a debug event.
 			_parser.sendDebugEvent( {type:"segmentEnd", uri:segmentUri});
 			
 			var rv:ByteArray = basicProcessFileSegment(input, true);
@@ -406,25 +471,28 @@ package com.kaltura.hls.m2ts
 		{
 			return basicProcessFileSegment(input || new ByteArray(), true);
 		}
-			
-		public var flvLowWaterAudio:uint = 0;
-		public var flvLowWaterVideo:uint = 0;
-		public var flvRecoveringIFrame:Boolean = false;
-		public const filterThresholdMs:uint = 64;
-
-		private function clearFLVWaterMarkFilter():void
+		
+		private function handleID3(message:ByteArray, timestamp:Number):void
 		{
-			flvLowWaterAudio = 0;
-			flvLowWaterVideo = 0;
-			flvRecoveringIFrame = false;
-		}
+			if (!message || isBestEffort)
+				return;
 
-		private function handleFLVMessage(timestamp:uint, message:ByteArray, duration:uint):void
+			CONFIG::LOGGING
+			{
+				logger.debug("Processing ID3 @ " + timestamp + "ms");
+			}				
+			message.position = 0;
+			var b64:Base64Encoder = new Base64Encoder();
+			b64.encodeBytes(message);
+			_parser.createAndSendID3Message(timestamp,b64.toString());
+		}
+			
+		private function handleFLVMessage(timestamp:int, message:ByteArray, duration:int):void
 		{
 			var timestampSeconds:Number = timestamp / 1000.0;
 			var endTimestampSeconds:Number = (timestamp + duration) / 1000.0;
 
-			if(_segmentBeginSeconds < 0)
+			if(timestampSeconds < _segmentBeginSeconds)
 			{
 				_segmentBeginSeconds = timestampSeconds;
 
@@ -444,94 +512,17 @@ package com.kaltura.hls.m2ts
 
 			var type:int = message[0];
 
-			// Alway pass through SPS/PPS...
-			var alwaysPass:Boolean = false
-			var isKeyFrame:Boolean = false;
-			if(type == 9)
-			{
-				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME
-					&& message[12] == FLVTags.AVC_MODE_AVCC)
-				{
-					CONFIG::LOGGING
-					{
-						logger.debug("Got AVCC, always pass.");
-					}
-
-					alwaysPass = true;
-				}
-
-				if(message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
-					isKeyFrame = true;
-			}
-
-			if(type == 9)
-			{
-				var videoWasBelowWatermark:Boolean = (timestamp < flvLowWaterVideo - filterThresholdMs);
-				var willSkip:Boolean = false;
-
-				if(flvRecoveringIFrame)
-				{
-					// Skip until we encounter an I-frame past the filter threshold.
-					willSkip = true;
-					if(isKeyFrame && !videoWasBelowWatermark)
-					{
-						// We got past filter and saw an I-frame... stop recovery.
-						flvRecoveringIFrame = false;
-						willSkip = false;
-					}
-				}
-				else
-				{
-					if(videoWasBelowWatermark && !alwaysPass)
-					{
-						flvRecoveringIFrame = true;
-						willSkip = true;
-					}
-				}
-
-				if(willSkip)
-				{
-					CONFIG::LOGGING
-					{
-						logger.debug("SKIPPING TOO LOW FLV VID TS @ " + timestamp);
-					}
-
-					if(SEND_LOGS)
-					{
-						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
-					}
-					return;
-				}
-
-				// Don't update low water if it's an always pass.
-				if(!alwaysPass)
-					flvLowWaterVideo = timestamp + duration;
-			}
-			else if(type == 8)
-			{
-				if(timestamp < flvLowWaterAudio - filterThresholdMs)
-				{
-					CONFIG::LOGGING
-					{
-						logger.debug("SKIPPING TOO LOW FLV AUD TS @ " + timestamp);
-					}
-
-					if(SEND_LOGS)
-					{
-						ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", false, " + isKeyFrame + ")");
-					}
-					return;
-				}
-
-				flvLowWaterAudio = timestamp + duration;
-			}
-
 			if(SEND_LOGS)
 			{
-				ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + flvLowWaterAudio + "," + flvLowWaterVideo + ", true, " + isKeyFrame + ")");			
+				var alwaysPass:Boolean = false
+				var isKeyFrame:Boolean = false;
+				if(type == 9 && message[11] == FLVTags.VIDEO_CODEC_AVC_KEYFRAME)
+						isKeyFrame = true;
+				
+				ExternalInterface.call("onTag(" + timestampSeconds + ", " + type + "," + 0 + "," + 0 + ", true, " + isKeyFrame + ")");	
 			}
 
-			//logger.debug("Got " + message.length + " bytes at " + timestampSeconds + " seconds");
+			//logger.debug("Got FLV " + type + " with " + message.length + " bytes at " + timestampSeconds + " seconds");
 
 			if(_timeOriginNeeded)
 			{
@@ -543,9 +534,9 @@ package com.kaltura.hls.m2ts
 				_timeOrigin = timestamp;
 			
 			// Encode the timestamp.
-			message[6] = (timestamp      ) & 0xff;
-			message[5] = (timestamp >>  8) & 0xff;
 			message[4] = (timestamp >> 16) & 0xff;
+			message[5] = (timestamp >>  8) & 0xff;
+			message[6] = (timestamp      ) & 0xff;
 			message[7] = (timestamp >> 24) & 0xff;
 
 			// If timer was reset due to seek, reset last subtitle time
