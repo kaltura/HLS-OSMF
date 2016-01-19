@@ -89,7 +89,7 @@ package com.kaltura.hls
 			var segments:Vector.<HLSManifestSegment> = activeManifest.segments;
 			updateSegmentTimes(segments);
 
-			if(segments.length <= 0)
+			if(segments.length <= 0 || checkAnySegmentKnowledge(segments) == false)
 				return NaN;
 			return segments[0].startTime;
 		}
@@ -478,6 +478,12 @@ package com.kaltura.hls
 		// Here a quality of -1 indicates that we are attempting to load a backup manifest
 		public function reload(quality:int, manifest:HLSManifestParser = null):void
 		{
+			if(HLSManifestParser.STREAM_DEAD)
+			{
+				trace("reload - suppressing due to STREAM_DEAD");
+				return;
+			}
+
 			if (reloadTimer)
 				reloadTimer.stop(); // In case the timer is active - don't want to do another reload in the middle of it
 			
@@ -1135,8 +1141,8 @@ package com.kaltura.hls
 			
 			if(HLSManifestParser.STREAM_DEAD)
 			{
-				trace("Supressing manifest reload due to STREAM_DEAD being set.");
-				return new HTTPStreamRequest (HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
+				trace("issueManifestReloadIfNeeded - Supressing manifest reload due to STREAM_DEAD being set.");
+				return null;
 			}
 
 			// If it's VOD, never need this.
@@ -1268,9 +1274,9 @@ package com.kaltura.hls
 			}
 			
 			// Fire a reload if needed.
-			if(quality != origQuality && manifest.streamEnds == false)
+			if(quality != origQuality && manifest.streamEnds == false && !HLSManifestParser.STREAM_DEAD)
 			{
-				trace("Firing reload of manifest for quality " + origQuality);
+				trace("getNextFile - Firing reload of manifest for quality " + origQuality);
 				
 				var hadPendingReload:Boolean = reloadingManifest != null;
 				
