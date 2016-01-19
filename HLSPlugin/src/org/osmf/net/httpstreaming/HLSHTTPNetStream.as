@@ -372,8 +372,8 @@ package org.osmf.net.httpstreaming
 					CONFIG::LOGGING
 					{
 						logger.info("Preserving seek offset due to NaN.");
-						_enhancedSeekTarget = _seekTarget = offset;
 					}
+					_enhancedSeekTarget = _seekTarget = offset;
 				}
 
 				CONFIG::LOGGING
