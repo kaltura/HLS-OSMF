@@ -373,6 +373,7 @@ package org.osmf.net.httpstreaming
 					{
 						logger.info("Preserving seek offset due to NaN.");
 					}
+
 					_enhancedSeekTarget = _seekTarget = offset;
 				}
 
@@ -2353,6 +2354,10 @@ package org.osmf.net.httpstreaming
 		 */
 		private function onActionNeeded(event:HTTPStreamingEvent):void
 		{
+			// Only trigger this behavior if it's the alternate audio track being changed.
+			if(HLSHTTPStreamMixer.oldHTTPStreamingEventTargetIsAudio == false)
+				return;
+
 			// [FM-1387] we are appending this action only when we are 
 			// dealing with late-binding audio streams.
 
@@ -2364,6 +2369,9 @@ package org.osmf.net.httpstreaming
 				CONFIG::LOGGING
 				{
 					logger.debug("onActionNeeded - " + event);
+					var tempError:Error = new Error();
+					var stackTrace:String = tempError.getStackTrace();
+					logger.debug("Saw at  " + stackTrace);
 				}
 
 				if(!isNaN(_enhancedSeekTarget) && _enhancedSeekTarget > time)
@@ -2475,6 +2483,8 @@ package org.osmf.net.httpstreaming
 			return pickedTag;
 		}
 	
+		static private var suppressKeepBufferFedLog:Number = NaN;
+
 		/**
 		 * Write the next few tags to keep the required amount of data in the
 		 * Flash decoder buffer. This pulls from pendingTags.
@@ -2488,13 +2498,19 @@ package org.osmf.net.httpstreaming
 			{
 				if(bufferLength < _desiredBufferTime_Min)
 				{
-					CONFIG::LOGGING
+					if(suppressKeepBufferFedLog != bufferLength)
 					{
-						logger.debug("keepBufferFed - waiting until " + bufferLength + " >= " + _desiredBufferTime_Min + " to resume writing tags.");
+						CONFIG::LOGGING
+						{
+							logger.debug("keepBufferFed - waiting until " + bufferLength + " >= " + _desiredBufferTime_Min + " to resume writing tags.");
+						}
+						suppressKeepBufferFedLog = bufferLength;						
 					}
 					return;
 				}
 			}
+
+			suppressKeepBufferFedLog = NaN;
 
 			// Check the actual amount of content present.
 			if(super.bufferLength >= bufferFeedMin && !_wasBufferEmptied)

@@ -23,6 +23,14 @@ package com.kaltura.hls.manifest
 		public var dynamicStream:DynamicStreamingItem;
 		public var numBackups:int = 0;
 		
+
+		public function get isProbablyVideo():Boolean
+		{
+			if(codecs != null && codecs.toLowerCase().indexOf("avc") == -1)
+				return false;
+			return true;
+		}
+
 		public static function fromString(input:String):HLSManifestStream
 		{
 			// Input like this:

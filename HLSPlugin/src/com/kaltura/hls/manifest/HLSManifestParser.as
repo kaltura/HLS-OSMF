@@ -345,8 +345,10 @@ package com.kaltura.hls.manifest
 						break;
 					
 					case "EXT-X-STREAM-INF":
-						streams.push(HLSManifestStream.fromString(tagParams));
-						lastHint = streams[streams.length-1];
+						var substream:HLSManifestStream = HLSManifestStream.fromString(tagParams);
+						lastHint = substream;
+						if(lastHint.isProbablyVideo)
+							streams.push(substream);
 						break;
 					
 					case "EXTINF":
