@@ -1441,12 +1441,9 @@ package com.kaltura.hls
 			
 			if(segments.length > 0)
 			{
-				var localLastKnownPlaylistStartTime:Number = segments[0].startTime;
 				var i:int = segments.length - 1;
-				if (i >= 0 && (activeManifest.allowCache || activeManifest.streamEnds))
-				{
-					accum = (segments[i].startTime + segments[i].duration) - lastKnownPlaylistStartTime;
-				}
+				if(i >= 0)
+					accum = (segments[i].startTime + segments[i].duration) - segments[0].startTime;
 			}
 			
 			// Push the metadata out.
@@ -1714,8 +1711,9 @@ package com.kaltura.hls
 				{
 					if(newMan.streamEnds == false)
 					{
-						trace("Waiting on live edge!");
-						return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, SHORT_LIVE_STALL_DELAY);
+						// We can't live stall as mismatched sequence IDs might cause an arbitrary live stall delay.
+						// Instead, if our guess is off the live edge, just adjust our guess.
+						nextFragmentId = nextSeg.id;
 					}
 					else
 					{

@@ -373,6 +373,7 @@ package org.osmf.net.httpstreaming
 					{
 						logger.info("Preserving seek offset due to NaN.");
 					}
+
 					_enhancedSeekTarget = _seekTarget = offset;
 				}
 
@@ -2482,7 +2483,7 @@ package org.osmf.net.httpstreaming
 			return pickedTag;
 		}
 	
-		static var suppressKeepBufferFedLog:Number = NaN;
+		static private var suppressKeepBufferFedLog:Number = NaN;
 
 		/**
 		 * Write the next few tags to keep the required amount of data in the
