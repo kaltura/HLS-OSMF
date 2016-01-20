@@ -340,6 +340,7 @@ package org.osmf.net.httpstreaming
 								{
 									logger.debug("Skipping synchronizing alternate packets due to delta < 1sec. (currentTime = " + _currentTime + ", mediaTime = " + _mediaTime + ", alternateSyncTime =" + alternateSynchronizationTime + ").");
 								}
+								; // nop
 							}
 							else
 							{
