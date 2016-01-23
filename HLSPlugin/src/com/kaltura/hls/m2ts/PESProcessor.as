@@ -76,8 +76,9 @@ package com.kaltura.hls.m2ts
             lastVideoNALU = null;
             transcoder.clear(clearAACConfig);
 
-            // Reset PTS/DTS reference.
-            lastPTS = lastDTS = NaN;
+            // Don't reset PTS/DTS reference. This implies the
+            // total stream length is < ~27 hours or else you'll
+            // get erroneous timecodes.
         }
 
         private function parseProgramAssociationTable(bytes:ByteArray, cursor:uint):Boolean
