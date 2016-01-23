@@ -142,6 +142,21 @@ package org.osmf.net.httpstreaming
 		}
 		
 		/**
+		 * True when we're able to download content in realtime or faster.
+		 */
+		public function get isDownloadingAtRealtimeOrFaster():Boolean
+		{
+			if(_downloader && (_indexHandler as HLSIndexHandler) != null)
+			{
+				// We want to complete the segment in faster than the target duration.
+				var expectedCompletionTime:Number = _downloader.downloadBytesCount / _downloader.currentDownloadSpeedInBytesPerSecond;
+				trace(" isDownloadingAtRealtimeOrFaster - " + expectedCompletionTime + " < " + (_indexHandler as HLSIndexHandler).getTargetSegmentDuration());
+				return expectedCompletionTime < (_indexHandler as HLSIndexHandler).getTargetSegmentDuration();
+			}
+			return false;
+		}
+
+		/**
 		 * @inheritDoc
 		 */
 		public function get source():IHTTPStreamSource

@@ -878,6 +878,21 @@ package org.osmf.net.httpstreaming
 		
 		private function onJumpToLiveEdgeTimer(e:*):void
 		{
+			// Only do this for live streams.
+			if((indexHandler as HLSIndexHandler) && (indexHandler as HLSIndexHandler).isLiveEdgeValid == false)
+				return;
+
+			// Don't jump unless we are exceeding realtime download speeds.
+			if((_videoHandler as HLSHTTPStreamSource) && (_videoHandler as HLSHTTPStreamSource).isDownloadingAtRealtimeOrFaster == false)
+			{
+				CONFIG::LOGGING
+				{
+					logger.debug("onJumpToLiveEdgeTimer - skipping live seek due to too-slow download rate.");
+					return;
+				}
+			}
+
+			// If fast enough, go for it!
 			CONFIG::LOGGING
 			{
 				logger.debug("onJumpToLiveEdgeTimer - firing live edge seek.");
@@ -927,8 +942,8 @@ package org.osmf.net.httpstreaming
 						}
 						else
 						{
-							// Wait until we've been buffering for more than 2 segments to jump ahead.
-							jumpToLiveEdgeTimer = new Timer(indexHandler.getTargetSegmentDuration() * 2000);
+							// Wait until we've been buffering for more than 1.5 segments to jump ahead.
+							jumpToLiveEdgeTimer = new Timer(indexHandler.getTargetSegmentDuration() * 1500);
 							jumpToLiveEdgeTimer.addEventListener(TimerEvent.TIMER, onJumpToLiveEdgeTimer);
 						}
 					}
