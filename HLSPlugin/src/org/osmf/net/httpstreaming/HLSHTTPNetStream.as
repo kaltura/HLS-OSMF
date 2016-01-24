@@ -836,19 +836,48 @@ package org.osmf.net.httpstreaming
 				var audioResource:MediaResourceBase = createAudioResource(_resource, _desiredAudioStreamName);
 				if (audioResource != null)
 				{
+					CONFIG::LOGGING
+					{
+						logger.debug("   o Opened alternate audio resource for [" + _desiredAudioStreamName + "]");
+					}
+
 					// audio handler is not dispatching events on the NetStream
 					_mixer.audio = new HLSHTTPStreamSource(_factory, audioResource, _mixer);
 					_mixer.audio.open(_desiredAudioStreamName);
+
+					// Seek to current time.
+					if(!isNaN(_enhancedSeekTarget) && _enhancedSeekTarget > time)
+					{
+						CONFIG::LOGGING
+						{
+							logger.debug("Resetting to enhanced seek target @ " + _enhancedSeekTarget);
+						}
+						seek(_enhancedSeekTarget);
+					}
+					else
+					{
+						CONFIG::LOGGING
+						{
+							logger.debug("Resetting to current time @ " + time);
+						}
+						seek(time);
+					}
+
 				}
 				else
 				{
+					CONFIG::LOGGING
+					{
+						logger.debug("   o Failed generating audio resource for [" + _desiredAudioStreamName + "]");
+					}
+
 					_mixer.audio = null;
 				}
 				
 				_audioStreamNeedsChanging = false;
 				_desiredAudioStreamName = null;
 			}
-			
+
 			_notifyPlayUnpublishPending = false;
 		}
 		
