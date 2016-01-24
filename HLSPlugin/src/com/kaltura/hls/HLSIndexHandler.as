@@ -1368,7 +1368,7 @@ package com.kaltura.hls
 				return createHTTPStreamRequest( curSegment );
 			}
 			
-			if ( reloadingManifest || !manifest.streamEnds )
+			if ( (reloadingManifest || !manifest.streamEnds) && segments.length > 0)
 			{
 				trace("Stalling -- requested segment " + newSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream");
 				
