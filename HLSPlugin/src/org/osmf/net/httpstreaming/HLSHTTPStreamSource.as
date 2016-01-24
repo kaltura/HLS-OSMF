@@ -150,7 +150,10 @@ package org.osmf.net.httpstreaming
 			{
 				// We want to complete the segment in faster than the target duration.
 				var expectedCompletionTime:Number = _downloader.downloadBytesCount / _downloader.currentDownloadSpeedInBytesPerSecond;
-				trace(" isDownloadingAtRealtimeOrFaster - " + expectedCompletionTime + " < " + (_indexHandler as HLSIndexHandler).getTargetSegmentDuration());
+				CONFIG::LOGGING
+				{
+					logger.debug(" isDownloadingAtRealtimeOrFaster - " + expectedCompletionTime + " < " + (_indexHandler as HLSIndexHandler).getTargetSegmentDuration());
+				}
 				return expectedCompletionTime < (_indexHandler as HLSIndexHandler).getTargetSegmentDuration();
 			}
 			return false;
