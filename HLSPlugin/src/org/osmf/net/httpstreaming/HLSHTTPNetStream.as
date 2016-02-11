@@ -1284,7 +1284,8 @@ package org.osmf.net.httpstreaming
 						
 						flushPendingTags();
 
-						CONFIG::FLASH_10_1
+						// Disabled to reduce black screen during seek.
+						/*CONFIG::FLASH_10_1
 						{
 							CONFIG::LOGGING
 							{
@@ -1292,8 +1293,7 @@ package org.osmf.net.httpstreaming
 							}
 
 							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-							
-						}
+						}*/
 
 						_initialTime = NaN;
 
