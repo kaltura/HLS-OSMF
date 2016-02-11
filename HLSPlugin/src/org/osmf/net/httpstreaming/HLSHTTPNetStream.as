@@ -907,9 +907,20 @@ package org.osmf.net.httpstreaming
 		
 		private function onJumpToLiveEdgeTimer(e:*):void
 		{
+			CONFIG::LOGGING
+			{
+				logger.debug("onJumpToLiveEdgeTimer - timed out!");
+			}
+
 			// Only do this for live streams.
-			if((indexHandler as HLSIndexHandler) && (indexHandler as HLSIndexHandler).isLiveEdgeValid == false)
+			if((indexHandler as HLSIndexHandler) && (indexHandler as HLSIndexHandler).isLive == false)
+			{
+				CONFIG::LOGGING
+				{
+					logger.debug("onJumpToLiveEdgeTimer - skipping as it is not live.");
+				}
 				return;
+			}
 
 			// Don't jump unless we are exceeding realtime download speeds.
 			if((_videoHandler as HLSHTTPStreamSource) && (_videoHandler as HLSHTTPStreamSource).isDownloadingAtRealtimeOrFaster == false)

@@ -950,6 +950,11 @@ package com.kaltura.hls
 			return (lastSegment.startTime + lastSegment.duration) - firstSegment.startTime;
 		}
 
+		public function get isLive():Boolean
+		{
+			return getManifestForQuality(targetQuality).streamEnds == false;
+		}
+
 		public function get isLiveEdgeValid():Boolean
 		{
 			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(targetQuality);
