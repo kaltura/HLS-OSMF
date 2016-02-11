@@ -950,6 +950,11 @@ package com.kaltura.hls
 			return (lastSegment.startTime + lastSegment.duration) - firstSegment.startTime;
 		}
 
+		public function get isLive():Boolean
+		{
+			return getManifestForQuality(targetQuality).streamEnds == false;
+		}
+
 		public function get isLiveEdgeValid():Boolean
 		{
 			var seg:Vector.<HLSManifestSegment> = getSegmentsForQuality(targetQuality);
@@ -1368,7 +1373,7 @@ package com.kaltura.hls
 				return createHTTPStreamRequest( curSegment );
 			}
 			
-			if ( reloadingManifest || !manifest.streamEnds )
+			if ( (reloadingManifest || !manifest.streamEnds) && segments.length > 0)
 			{
 				trace("Stalling -- requested segment " + newSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream");
 				
@@ -1713,7 +1718,7 @@ package com.kaltura.hls
 					{
 						// We can't live stall as mismatched sequence IDs might cause an arbitrary live stall delay.
 						// Instead, if our guess is off the live edge, just adjust our guess.
-						nextFragmentId = nextSeg.id;
+						nextSeg.id = nextFragmentId ;
 					}
 					else
 					{

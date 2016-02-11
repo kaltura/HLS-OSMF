@@ -907,9 +907,20 @@ package org.osmf.net.httpstreaming
 		
 		private function onJumpToLiveEdgeTimer(e:*):void
 		{
+			CONFIG::LOGGING
+			{
+				logger.debug("onJumpToLiveEdgeTimer - timed out!");
+			}
+
 			// Only do this for live streams.
-			if((indexHandler as HLSIndexHandler) && (indexHandler as HLSIndexHandler).isLiveEdgeValid == false)
+			if((indexHandler as HLSIndexHandler) && (indexHandler as HLSIndexHandler).isLive == false)
+			{
+				CONFIG::LOGGING
+				{
+					logger.debug("onJumpToLiveEdgeTimer - skipping as it is not live.");
+				}
 				return;
+			}
 
 			// Don't jump unless we are exceeding realtime download speeds.
 			if((_videoHandler as HLSHTTPStreamSource) && (_videoHandler as HLSHTTPStreamSource).isDownloadingAtRealtimeOrFaster == false)
@@ -1273,7 +1284,8 @@ package org.osmf.net.httpstreaming
 						
 						flushPendingTags();
 
-						CONFIG::FLASH_10_1
+						// Disabled to reduce black screen during seek.
+						/*CONFIG::FLASH_10_1
 						{
 							CONFIG::LOGGING
 							{
@@ -1281,8 +1293,7 @@ package org.osmf.net.httpstreaming
 							}
 
 							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-							
-						}
+						}*/
 
 						_initialTime = NaN;
 

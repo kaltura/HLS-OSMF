@@ -406,7 +406,9 @@ package org.osmf.net.httpstreaming
 			}
 			
 			_downloadEndDate = new Date();
-			_downloadDuration = (_downloadEndDate.valueOf() - _downloadBeginDate.valueOf())/1000.0;
+
+			// We inexplicably see reversal of times in some cases. So maybe just cap to be positive duration.
+			_downloadDuration = Math.abs(_downloadEndDate.valueOf() - _downloadBeginDate.valueOf())/1000.0;
 			
 			_isComplete = true;
 			_hasErrors = false;
