@@ -2259,10 +2259,10 @@ package org.osmf.net.httpstreaming
 						// We do this dance to get the NetStream into a clean state. If we don't
 						// do this, then we can get failed resume in some scenarios - ie, audio
 						// but no picture.
-						super.close();
-						super.play(null);
-						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 
+						// Dance truncated (was close/play(null)); now just a seek.
+						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+						
 						// Preserve pause state.
 						if(_isPaused)
 							super.pause();
@@ -2282,7 +2282,8 @@ package org.osmf.net.httpstreaming
 							{
 								var vTagVideo:FLVTagVideo = vTag as FLVTagVideo;
 								
-								if (vTagVideo.codecID == FLVTagVideo.CODEC_ID_AVC && vTagVideo.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU)
+								if (vTagVideo.codecID == FLVTagVideo.CODEC_ID_AVC 
+									&& vTagVideo.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU)
 								{
 									// for H.264 we need to move the timestamp forward but the composition time offset backwards to compensate
 									var adjustment:int = wrapTagTimestampToFLVTimestamp(tag.timestamp) - wrapTagTimestampToFLVTimestamp(vTagVideo.timestamp); // how far we are adjusting
@@ -2310,7 +2311,11 @@ package org.osmf.net.httpstreaming
 						// Emit end of client seek tag if we started client seek.
 						if (haveSeenVideoTag)
 						{
-							trace("Writing end-of-seek tag");
+							CONFIG::LOGGING
+							{
+								logger.debug("Writing end-of-seek tag");
+							}
+
 							var _unmuteTag:FLVTagVideo = new FLVTagVideo();
 							_unmuteTag.timestamp = tag.timestamp;  // may get overwritten, ok
 							_unmuteTag.codecID = codecID;
