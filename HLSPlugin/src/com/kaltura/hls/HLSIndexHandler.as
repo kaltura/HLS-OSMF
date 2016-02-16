@@ -1718,7 +1718,7 @@ package com.kaltura.hls
 					{
 						// We can't live stall as mismatched sequence IDs might cause an arbitrary live stall delay.
 						// Instead, if our guess is off the live edge, just adjust our guess.
-						nextSeg.id = nextFragmentId ;
+						nextSeg.id = nextFragmentId;
 					}
 					else
 					{
