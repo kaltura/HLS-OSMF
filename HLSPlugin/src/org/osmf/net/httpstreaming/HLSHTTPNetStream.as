@@ -983,7 +983,7 @@ package org.osmf.net.httpstreaming
 						else
 						{
 							// Wait until we've been buffering for more than 1.5 segments to jump ahead.
-							jumpToLiveEdgeTimer = new Timer(indexHandler.getTargetSegmentDuration() * 1500);
+							jumpToLiveEdgeTimer = new Timer(indexHandler.getTargetSegmentDuration() * 1500, 1);
 							jumpToLiveEdgeTimer.addEventListener(TimerEvent.TIMER, onJumpToLiveEdgeTimer);
 						}
 					}
@@ -2260,7 +2260,7 @@ package org.osmf.net.httpstreaming
 						// do this, then we can get failed resume in some scenarios - ie, audio
 						// but no picture.
 
-						// Dance truncated (was close/play(null)); now just a seek.
+						// Dance truncated (was close/play(null)); now just a reset_seek.
 						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 						
 						// Preserve pause state.
