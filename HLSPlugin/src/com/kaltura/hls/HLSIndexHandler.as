@@ -667,7 +667,7 @@ package com.kaltura.hls
 			else if(!checkAnySegmentKnowledge(currentManifest.segments) && !isBestEffortActive())
 			{
 				trace("(B) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, lastQuality, currentManifest.segments, currentManifest);
+				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, targetQuality, currentManifest.segments, currentManifest);
 			}
 			
 			if(!checkAnySegmentKnowledge(newManifest.segments) || !checkAnySegmentKnowledge(currentManifest.segments))
@@ -1680,7 +1680,7 @@ package com.kaltura.hls
 		private function initiateBestEffortRequest(nextFragmentId:uint, quality:int, segments:Vector.<HLSManifestSegment>, localManifest:HLSManifestParser):HTTPStreamRequest
 		{
 			// if we had a pending BEF download, invalidate it
-			stopListeningToBestEffortDownload();
+			stopListeningToBestEffortDownload(true);
 			
 			// clean up best effort state
 			_bestEffortDownloadReply = null;
@@ -1704,6 +1704,12 @@ package com.kaltura.hls
 			{
 				trace("initiateBestEffortRequest - NO SEGMENTS FOUND, ABORTING initiateBestEffortRequest");
 				return null;
+			}
+
+			if(newMan.streamEnds == false && segments.length > 0 && nextFragmentId <= segments[0].id)
+			{
+				trace("initiateBestEffortRequest - Forcing to live edge to avoid eternal BEF.");
+				nextFragmentId = segments[segments.length - 1].id;
 			}
 			
 			var nextSeg:HLSManifestSegment = getSegmentBySequenceCapped(segments, nextFragmentId);
@@ -1779,10 +1785,16 @@ package com.kaltura.hls
 		 *
 		 * if we had a pending BEF download, invalid it
 		 **/
-		private function stopListeningToBestEffortDownload():void
+		private function stopListeningToBestEffortDownload(cleanup:Boolean = false):void
 		{
 			if(_bestEffortDownloaderMonitor != null)
 			{
+				if(_bestEffortDownloader != null && cleanup)
+				{
+					trace("stopListeningToBestEffortDownload - firing skip event to keep rest of system in sync");
+					skipBestEffortFetch(_lastBestEffortFetchURI, _bestEffortDownloader as HLSHTTPStreamDownloader);					
+				}
+
 				trace("stopListeningToBestEffortDownload - Disconnecting existing best effort monitor.");
 				_bestEffortDownloaderMonitor.removeEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
 				_bestEffortDownloaderMonitor.removeEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
@@ -1913,7 +1925,7 @@ package com.kaltura.hls
 			trace("Best effort download complete " + event.toString());
 			
 			// unregister the listeners
-			stopListeningToBestEffortDownload();
+			stopListeningToBestEffortDownload(false);
 			
 			trace("Start download parse");
 			bufferAndParseDownloadedBestEffortBytes(event.url, event.downloader as HLSHTTPStreamDownloader);
@@ -1959,7 +1971,7 @@ package com.kaltura.hls
 			trace("Best effort download error " + event.toString());
 			
 			// unregister our listeners
-			stopListeningToBestEffortDownload();
+			stopListeningToBestEffortDownload(false);
 			
 			if(_bestEffortDownloadReply != null)
 			{
