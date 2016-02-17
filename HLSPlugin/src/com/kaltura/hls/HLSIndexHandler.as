@@ -163,6 +163,9 @@ package com.kaltura.hls
 		// as a global cache.
 		public static var startTimeWitnesses:Object = {};
 		public static var endTimeWitnesses:Object = {};
+
+		// Set when a segment download fails; we won't consider it for BEF anymore.
+		public static var failureWitnesses:Object = {};
 		
 		
 		CONFIG::LOGGING
@@ -657,20 +660,47 @@ package com.kaltura.hls
 			}
 			
 			var newSequence:int = -1;
+
+			var haveNewKnowledge:Boolean = checkAnySegmentKnowledge(newManifest.segments);
+			var haveOldKnowledge:Boolean = checkAnySegmentKnowledge(currentManifest.segments);
 			
+			var firedInitiate:Boolean = false;
+
 			// Check knowledge on both sequences and queue request as appropriate.
-			if(!checkAnySegmentKnowledge(newManifest.segments) && !isBestEffortActive())
+			if(!haveNewKnowledge && !isBestEffortActive())
 			{
 				trace("(A) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
 				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, reloadingQuality, newManifest.segments, newManifest);
+				firedInitiate = true;
 			} 
-			else if(!checkAnySegmentKnowledge(currentManifest.segments) && !isBestEffortActive())
+			else if(!haveOldKnowledge && !isBestEffortActive())
 			{
 				trace("(B) Encountered a live/VOD manifest with no timebase knowledge, request newest segment via best effort path for quality " + reloadingQuality);
-				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, targetQuality, currentManifest.segments, currentManifest);
+				_pendingBestEffortRequest = initiateBestEffortRequest(getLastSequence() + 1, lastQuality, currentManifest.segments, currentManifest);
+				firedInitiate = true;
+			}
+
+			if(firedInitiate && _pendingBestEffortRequest == null)
+			{
+				// We can't BEF due to a failure, so just remap to beginning (if VOD) or live edge (if live)
+				trace("Failed to initiate BEF, so returning best-guess sequence ID.");
+				if(newManifest.streamEnds)
+				{
+					if(newManifest.segments.length)
+						return newManifest.segments[0].id;
+					else
+						return 0;
+				}
+				else
+				{
+					if(newManifest.segments.length)
+						return newManifest.segments[newManifest.segments.length-1].id;
+					else
+						return int.MAX_VALUE;
+				}
 			}
 			
-			if(!checkAnySegmentKnowledge(newManifest.segments) || !checkAnySegmentKnowledge(currentManifest.segments))
+			if(!haveNewKnowledge || !haveOldKnowledge)
 			{
 				trace("Bailing on remap due to lack of knowledge!");
 				
@@ -1724,6 +1754,7 @@ package com.kaltura.hls
 					{
 						// We can't live stall as mismatched sequence IDs might cause an arbitrary live stall delay.
 						// Instead, if our guess is off the live edge, just adjust our guess.
+						// TODO: This is suspect as it doesn't update the URI.
 						nextSeg.id = nextFragmentId;
 					}
 					else
@@ -1749,6 +1780,13 @@ package com.kaltura.hls
 				}
 			}
 			
+			// If it's a known bad, don't issue a BEF for it.
+			if(failureWitnesses[nextSeg.uri] == 1)
+			{
+				trace("Skipping BEF for known bad segment: " + nextSeg.uri);
+				return null;
+			}
+
 			// recreate the best effort download monitor
 			// this protects us against overlapping best effort downloads
 			_bestEffortDownloaderMonitor = new EventDispatcher();
@@ -1970,6 +2008,9 @@ package com.kaltura.hls
 			
 			trace("Best effort download error " + event.toString());
 			
+			// Note the failure.
+			failureWitnesses[event.url] = 1;
+
 			// unregister our listeners
 			stopListeningToBestEffortDownload(false);
 			
