@@ -1488,6 +1488,19 @@ package com.kaltura.hls
 			tag.objects = ["onMetaData", metadata];
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.SCRIPT_DATA, false, false, 0, tag, FLVTagScriptDataMode.IMMEDIATE));
 		}
+
+		public function getStreamEndTime():Number
+		{
+			if(!manifest)
+				return NaN;
+
+			var activeManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+			var segments:Vector.<HLSManifestSegment> = activeManifest.segments;
+			if(segments.length == 0)
+				return NaN;
+
+			return segments[segments.length-1].startTime + segments[segments.length-1].duration;
+		}
 		
 		// getSegmentIndexForTime()
 		//		returns
