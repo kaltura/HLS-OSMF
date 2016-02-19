@@ -1307,15 +1307,20 @@ package org.osmf.net.httpstreaming
 						flushPendingTags();
 
 						// Disabled to reduce black screen during seek.
-						/*CONFIG::FLASH_10_1
+						CONFIG::FLASH_10_1
 						{
-							CONFIG::LOGGING
+							if(_nextSeekShouldClearScreen)
 							{
-								logger.debug("Emitting RESET_SEEK due to initializing seek.");
-							}
+								CONFIG::LOGGING
+								{
+									logger.debug("Emitting RESET_SEEK due to initializing seek.");
+								}
 
-							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-						}*/
+								appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+
+								_nextSeekShouldClearScreen = false;								
+							}
+						}
 
 						_initialTime = NaN;
 
@@ -2753,6 +2758,8 @@ package org.osmf.net.httpstreaming
 
 				// Also flush our other state.
 				flushPendingTags();
+
+				_nextSeekShouldClearScreen = true;
 			}
 		}
 
@@ -3346,7 +3353,8 @@ package org.osmf.net.httpstreaming
 		private var recoveryBufferMin:Number = 2;// how low the bufferTime can get in seconds before we start trying to recover a stream by seeking
 		private var recoveryDelayTimer:Timer = new Timer(0); // timer that will be set to the required delay of reload attempts in the case of a URL error
 		private var gotBytes:Boolean = false;// If we got bytes- marks a stream that we should attempt to recover
-		
+		private var _nextSeekShouldClearScreen:Boolean = false; // When true, we trigger screen clearing behavior on seek.
+
 		private var streamTooSlowTimer:Timer;
 		
 		public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
