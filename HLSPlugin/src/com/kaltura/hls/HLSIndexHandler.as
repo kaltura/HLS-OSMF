@@ -1006,6 +1006,9 @@ package com.kaltura.hls
 		
 		public override function getFileForTime(time:Number, quality:int):HTTPStreamRequest
 		{	
+			// Update duration as we learn more.
+			dispatchDVRStreamInfo();
+
 			trace("--- getFileForTime(time=" + time + ", quality=" + quality + ")");
 			
 			targetQuality = quality;
@@ -1225,6 +1228,9 @@ package com.kaltura.hls
 		
 		public override function getNextFile(quality:int):HTTPStreamRequest
 		{
+			// Update duration as we learn more.
+			dispatchDVRStreamInfo();
+
 			trace("--- getNextFile(" + quality + ")");
 			
 			targetQuality = quality;
@@ -1489,6 +1495,27 @@ package com.kaltura.hls
 			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.SCRIPT_DATA, false, false, 0, tag, FLVTagScriptDataMode.IMMEDIATE));
 		}
 
+		public function getStreamDuration():Number
+		{
+			var accum:Number = NaN;
+			
+			if(!manifest)
+				return accum;
+			
+			// Fetch active data.
+			var activeManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+			var segments:Vector.<HLSManifestSegment> = activeManifest.segments;
+			
+			if(segments.length > 0)
+			{
+				var i:int = segments.length - 1;
+				if(i >= 0)
+					accum = (segments[i].startTime + segments[i].duration) - segments[0].startTime;
+			}
+
+			return accum;			
+		}
+
 		public function getStreamEndTime():Number
 		{
 			if(!manifest)
@@ -1500,6 +1527,19 @@ package com.kaltura.hls
 				return NaN;
 
 			return segments[segments.length-1].startTime + segments[segments.length-1].duration;
+		}
+
+		public function getStreamStartTime():Number
+		{
+			if(!manifest)
+				return NaN;
+
+			var activeManifest:HLSManifestParser = getManifestForQuality(lastQuality);
+			var segments:Vector.<HLSManifestSegment> = activeManifest.segments;
+			if(segments.length == 0)
+				return NaN;
+
+			return segments[0].startTime;
 		}
 		
 		// getSegmentIndexForTime()
@@ -1562,7 +1602,7 @@ package com.kaltura.hls
 			dvrInfo.startTime = firstSegment.startTime;
 			dvrInfo.beginOffset = firstSegment.startTime;
 			dvrInfo.endOffset = lastSegment.startTime + lastSegment.duration;
-			dvrInfo.curLength = dvrInfo.endOffset - dvrInfo.beginOffset;
+			dvrInfo.curLength = (dvrInfo.endOffset - dvrInfo.beginOffset);
 			dvrInfo.windowDuration = dvrInfo.curLength; // TODO: verify that this is what we want to be putting here
 			dispatchEvent(new DVRStreamInfoEvent(DVRStreamInfoEvent.DVRSTREAMINFO, false, false, dvrInfo));
 		}
