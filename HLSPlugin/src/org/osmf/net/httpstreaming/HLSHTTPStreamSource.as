@@ -426,6 +426,27 @@ package org.osmf.net.httpstreaming
 						_request = _indexHandler.getNextFile(_qualityLevel);
 					}
 
+					// Count best effort fetches in a row.
+					if(_request.kind == HTTPStreamRequestKind.BEST_EFFORT_DOWNLOAD)
+					{
+						_bestEffortFetchRunCount++;
+
+						CONFIG::LOGGING
+						{
+							logger.debug("Encountered " + _bestEffortFetchRunCount + " best effort fetch in a row.");
+						}
+					}
+					else if(_request.kind == HTTPStreamRequestKind.DOWNLOAD)
+					{
+						CONFIG::LOGGING
+						{
+							if(_bestEffortFetchRunCount > 0)
+								logger.debug("Got normal request after " + _bestEffortFetchRunCount + " best effort fetches in a row.");
+						}							
+
+						_bestEffortFetchRunCount = 0;
+					}
+
 					// Log the request.
 					if(SEND_LOGS)
 					{
@@ -1069,6 +1090,8 @@ package org.osmf.net.httpstreaming
 		
 		private var _isLiveStalled:Boolean = false;
 		
+		private var _bestEffortFetchRunCount:int = 0;
+
 		CONFIG::LOGGING
 		{
 			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HLSHTTPStreamSource");
