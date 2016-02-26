@@ -1602,7 +1602,7 @@ package com.kaltura.hls
 			dvrInfo.startTime = firstSegment.startTime;
 			dvrInfo.beginOffset = firstSegment.startTime;
 			dvrInfo.endOffset = lastSegment.startTime + lastSegment.duration;
-			dvrInfo.curLength = (dvrInfo.endOffset - dvrInfo.beginOffset);
+			dvrInfo.curLength = (lastSegment.startTime + lastSegment.duration) - firstSegment.startTime; // Avoid casting issues.
 			dvrInfo.windowDuration = dvrInfo.curLength; // TODO: verify that this is what we want to be putting here
 			dispatchEvent(new DVRStreamInfoEvent(DVRStreamInfoEvent.DVRSTREAMINFO, false, false, dvrInfo));
 		}
