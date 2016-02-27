@@ -102,6 +102,18 @@ package com.kaltura.hls
 			for(var i:int=0; i<parser.streams.length; i++)
 			{
 				var curStream:HLSManifestStream = parser.streams[i];
+
+				//If there is more than one streaming quality available, check to see if filtering is required
+				if (parser.streams.length > 1)
+				{
+					//Checks to see if there are min/max bitrate restrictions then throws out the outliers
+					if(HLSManifestParser.MAX_BITRATE != -1 && curStream.bandwidth > HLSManifestParser.MAX_BITRATE ||
+						HLSManifestParser.MIN_BITRATE != -1 && curStream.bandwidth < HLSManifestParser.MIN_BITRATE)
+					{
+						continue;
+					}
+				}
+
 				item = new DynamicStreamingItem(curStream.uri, curStream.bandwidth, curStream.width, curStream.height);
 				curStream.dynamicStream = item;
 				items.push(item);
@@ -141,7 +153,34 @@ package com.kaltura.hls
 			
 			stream.streamItems = items;
 			stream.alternativeAudioStreamItems = alternateAudioItems;
-			stream.initialIndex = 0;
+
+			var preferredIndex:int;
+
+			//If there is only one stream quality (or less) sets default to first stream
+			if (items.length <= 1)
+			{
+				preferredIndex = 0;
+			}
+			else if (HLSManifestParser.PREF_BITRATE != -1)
+			{
+				//If there is a preferred bitrate set by kaltura, tests all streams to find highest bitrate below the preferred
+				var bitrateDifference:int = HLSManifestParser.PREF_BITRATE - items[0].bitrate;
+				preferredIndex = 0;
+
+				for(var k:int=1; k<items.length; k++)
+				{
+					if (HLSManifestParser.PREF_BITRATE - items[k].bitrate > 0 && HLSManifestParser.PREF_BITRATE - items[k].bitrate < bitrateDifference)
+					{
+						preferredIndex = k;
+					}
+				}
+			}
+			else
+			{
+				//Sets the preferred index to the middle (or higher of the 2 middle) bitrate streams
+				preferredIndex = items.length / 2;
+			}
+			stream.initialIndex = preferredIndex;			
 			
 			stream.addMetadataValue( HLSMetadataNamespaces.PLAYABLE_RESOURCE_METADATA, true );
 			
