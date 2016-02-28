@@ -115,6 +115,16 @@ package com.kaltura.hls.manifest
 		public static var BUFFER_EMPTY_MAX_INCREASE:Number = 30.0;
 
 
+ 		/**
+		 * Used to control the minimum, maximum, and preferred starting bitrates.
+		 * -1 indicates there is no filtering. Non-zero values are intepreted as
+		 * bits per second.
+		 */
+		public static var MIN_BITRATE:int = -1;
+		public static var MAX_BITRATE:int = -1;
+		public static var PREF_BITRATE:int = -1;
+
+
 		public var type:String = DEFAULT;
 		public var version:int;
 		public var baseUrl:String;
