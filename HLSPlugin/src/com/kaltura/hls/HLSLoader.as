@@ -164,15 +164,20 @@ package com.kaltura.hls
 			else if (HLSManifestParser.PREF_BITRATE != -1)
 			{
 				//If there is a preferred bitrate set by kaltura, tests all streams to find highest bitrate below the preferred
-				var bitrateDifference:int = HLSManifestParser.PREF_BITRATE - items[0].bitrate;
 				preferredIndex = 0;
+				var preferredDistance:Number = Number.MAX_VALUE;
 
-				for(var k:int=1; k<items.length; k++)
+				for(var k:int=0; k<items.length; k++)
 				{
-					if (HLSManifestParser.PREF_BITRATE - items[k].bitrate > 0 && HLSManifestParser.PREF_BITRATE - items[k].bitrate < bitrateDifference)
-					{
-						preferredIndex = k;
-					}
+					var curItem:DynamicStreamingItem = items[k];
+					var curDist:Number = items[k].bitrate - HLSManifestParser.PREF_BITRATE;
+
+					/// Reject too low or not improved items.
+					if(curDist < 0 || curDist >= preferredDistance)
+						continue;
+
+					preferredIndex = k;
+					preferredDistance = curDist;
 				}
 			}
 			else
