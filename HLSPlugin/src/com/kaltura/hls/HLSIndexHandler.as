@@ -1041,7 +1041,7 @@ package com.kaltura.hls
 					_pendingStartTime = time;
 					
 					// We may also need to establish a timebase.
-					trace("getFileForTime - Seeking without timebase; initiating request.");
+					trace("getFileForTime - Seeking without timebase; initiating request on quality #" + origQuality + "/" + quality + ".");
 					if(getLastSequenceManifest())
 					{
 						// Check if we're seeking backwards...
@@ -1057,6 +1057,7 @@ package com.kaltura.hls
 						// Get last item less MAX_SEG_BUFFER
 						if(segments.length > 0 && !manifest.streamEnds)
 						{
+							trace("getFileForTime - (C) getting live edge best guess.");
 							var bufferSeg:HLSManifestSegment = segments[Math.max(0, segments.length - (1 + HLSManifestParser.MAX_SEG_BUFFER))];
 							return initiateBestEffortRequest(bufferSeg.id, origQuality, segments, manifest);
 						}
@@ -1753,6 +1754,10 @@ package com.kaltura.hls
 			return getManifestForQuality(lastQuality).targetDuration;
 		}
 		
+		// Stores flags indicating we've initiated a BEF for a given quality level
+		// efore. 
+		private var everRequestedBEFAtQuality:Object = {};
+
 		/**
 		 * @private
 		 * 
@@ -1789,12 +1794,21 @@ package com.kaltura.hls
 				return null;
 			}
 
-			if(newMan.streamEnds == false && segments.length > 0 && nextFragmentId <= segments[0].id)
+			if(newMan.streamEnds == false 
+				&& segments.length > 0 && nextFragmentId <= segments[0].id)
 			{
-				trace("initiateBestEffortRequest - Forcing to live edge to avoid eternal BEF.");
-				nextFragmentId = segments[segments.length - 1].id;
+				if(everRequestedBEFAtQuality[quality] < 2)
+				{
+					trace("initiateBestEffortRequest - Forcing to live edge to avoid eternal BEF.");
+					nextFragmentId = segments[segments.length - 1].id;
+				}
+				else
+				{
+					trace("initiateBestEffortRequest - Forcing to live edge less MAX_SEG_BUFFER on first BEF.");
+					nextFragmentId = segments[Math.max(0, segments.length - HLSManifestParser.MAX_SEG_BUFFER)].id;
+				}
 			}
-			
+
 			var nextSeg:HLSManifestSegment = getSegmentBySequenceCapped(segments, nextFragmentId);
 			if(nextSeg.id != nextFragmentId)
 			{
@@ -1843,7 +1857,7 @@ package com.kaltura.hls
 			// recreate the best effort download monitor
 			// this protects us against overlapping best effort downloads
 			_bestEffortDownloaderMonitor = new EventDispatcher();
-			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_PROGRESS, onBestEffortDownloadComplete);
+			//_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_PROGRESS, onBestEffortDownloadComplete);
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, onBestEffortDownloadComplete);
 			_bestEffortDownloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_ERROR, onBestEffortDownloadError);
 			_bestEffortDownloaderMonitor.addEventListener("dispatcherStart", onBestEffortDownloadStart);			
@@ -1862,6 +1876,9 @@ package com.kaltura.hls
 			
 			trace("initiateBestEffortRequest - Requesting: " + streamRequest.toString());
 			
+			// Increment our BEF request.
+			everRequestedBEFAtQuality[quality] = everRequestedBEFAtQuality[quality] + 1;
+
 			return streamRequest;
 		}
 		
@@ -1991,8 +2008,8 @@ package com.kaltura.hls
 			}
 
 			// If we have a good initial chunk of the segment and it's a progress event, we can probably get a timestamp.
-			if(event.type == HTTPStreamingEvent.DOWNLOAD_PROGRESS)
-				{
+			if(false && event.type == HTTPStreamingEvent.DOWNLOAD_PROGRESS)
+			{
 				// Only consider for segments over 4mb.
 				if(downloader.downloadBytesCount > 4*1024*1024 
 					&& downloader.isComplete == false)
