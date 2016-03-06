@@ -114,6 +114,15 @@ package com.kaltura.hls.manifest
 		 */
 		public static var BUFFER_EMPTY_MAX_INCREASE:Number = 30.0;
 
+		/**
+		 * We can force a zoom and pan factor to work around cropping issues on Chrome.
+		 *
+		 * Pan goes from -1 to 1, zoom from 1.0 to 8.0. See StageVideo zoom/pan for details.
+		 */
+		public static var FORCE_CROP_WORKAROUND_ZOOM_X:Number = 1.0;
+		public static var FORCE_CROP_WORKAROUND_ZOOM_Y:Number = 1.0;
+		public static var FORCE_CROP_WORKAROUND_PAN_X:Number = 0.0;
+		public static var FORCE_CROP_WORKAROUND_PAN_Y:Number = 0.0;
 
  		/**
 		 * Used to control the minimum, maximum, and preferred starting bitrates.
