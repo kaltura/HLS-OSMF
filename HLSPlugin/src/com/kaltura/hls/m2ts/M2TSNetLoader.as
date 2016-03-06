@@ -3,6 +3,7 @@ package com.kaltura.hls.m2ts
 	import com.kaltura.hls.HLSDVRTimeTrait;
 	import com.kaltura.hls.HLSDVRTrait;
 	import com.kaltura.hls.HLSMetadataNamespaces;
+	import com.kaltura.hls.manifest.HLSManifestParser;
 	
 	import flash.net.NetConnection;
 	import flash.net.NetStream;
@@ -19,12 +20,18 @@ package com.kaltura.hls.m2ts
 	import org.osmf.net.httpstreaming.HTTPStreamingFactory;
 	import org.osmf.net.httpstreaming.HTTPStreamingNetLoader;
 	import org.osmf.net.httpstreaming.dvr.DVRInfo;
+
 	import org.osmf.traits.LoadState;
+	import org.osmf.traits.MediaTraitType;
+	import org.osmf.traits.MediaTraitBase;
+	import org.osmf.net.NetStreamDynamicStreamTrait;
+	import org.osmf.net.NetStreamLoadTrait;
 
 	import org.osmf.net.NetStreamSwitchManagerBase
 	import org.osmf.net.metrics.BandwidthMetric;
 	import org.osmf.net.DynamicStreamingResource;
 	import org.osmf.net.httpstreaming.DefaultHTTPStreamingSwitchManager;
+	import org.osmf.traits.DynamicStreamTrait;
 
 	import org.osmf.net.metrics.MetricType;
 	import org.osmf.net.rules.BandwidthRule;
@@ -112,9 +119,36 @@ package com.kaltura.hls.m2ts
 			// Set up DVR state updating.
 			var resource:URLResource = loadTrait.resource as URLResource;
 			
+			if (HLSManifestParser.PREF_BITRATE != -1)
+			{
+				//Tests to see if a preferred bitrate is set
+				trace("Preferred bitrate set - attempting to disable autoswitching");
+				var autoSwitchTrait:DynamicStreamTrait = loadTrait.getTrait(MediaTraitType.DYNAMIC_STREAM) as DynamicStreamTrait;
+				
+				if (autoSwitchTrait != null)
+				{
+					//If the loadTrait already has a DYNAMIC_STREAM trait, it simply switches the autoSwitch bool to false
+					autoSwitchTrait.autoSwitch = false;
+					trace("loadTrait already possesses a DYNAMIC_STREAM trait, disabling autoswitching on existing trait");
+				}
+				else
+				{
+					//If the loadTrait does not have a DYNAMIC_STREAM trait, it creates one and switches the autoSwitch bool to false
+					autoSwitchTrait = new NetStreamDynamicStreamTrait(loadTrait.netStream, 
+																	  loadTrait.switchManager, 
+																	  loadTrait.resource as DynamicStreamingResource);
+
+					autoSwitchTrait.autoSwitch = false;
+
+					loadTrait.setTrait(autoSwitchTrait);
+					trace("loadTrait does not possess a DYNAMIC_STREAM trait, adding a new trait with autoswitching diabled");
+				}
+			}
+
 			if (!dvrMetadataPresent(resource))
 			{
 				updateLoadTrait(loadTrait, LoadState.READY);
+
 				return;
 			}
 			
