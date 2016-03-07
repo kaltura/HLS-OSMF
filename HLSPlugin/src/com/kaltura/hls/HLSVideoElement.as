@@ -30,8 +30,10 @@ package com.kaltura.hls
 	import org.osmf.elements.VideoElement;
 	import flash.geom.Point;
 	import flash.display.Stage;
+	import flash.display.DisplayObject;
 	import flash.utils.Timer;
     import flash.events.TimerEvent;
+    import com.kaltura.hls.manifest.HLSManifestParser;
 
 	CONFIG::FLASH_10_1
 	{
@@ -61,10 +63,15 @@ package com.kaltura.hls
 		protected function onCropHackTimer(te:TimerEvent):void
 		{
 			// Sweet hax to adjust the zoom of the stage video.
+			var containerDO:DisplayObject = container as DisplayObject;
+			if(!containerDO)
+				return;
+
+			var stage:Stage = containerDO.stage;
 			if(stage.stageVideos.length > 0)
 			{
 				stage.stageVideos[0].zoom = new Point(HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_X, HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_Y);
-				stage.stageVideos[0].pan = new Point(HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_X, FORCE_CROP_WORKAROUND_PAN_Y);
+				stage.stageVideos[0].pan = new Point(HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_X, HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_Y);
 			}
 		}
 
