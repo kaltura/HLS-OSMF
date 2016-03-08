@@ -18,10 +18,9 @@ package
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.media.PluginInfo;
 	import org.osmf.media.PluginInfoResource;
-	import org.puremvc.as3.interfaces.IFacade;
-	
-	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
 	import org.osmf.net.httpstreaming.HLSHTTPStreamDownloader;
+	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
+	import org.puremvc.as3.interfaces.IFacade;
     
 	public class KalturaHLSPlugin extends Sprite implements IPluginFactory, IPlugin
 	{
@@ -37,6 +36,9 @@ package
 		private var _minBitrate:int = -1; // minimum bitrate allowed for ABR while the video is playing (will be passed by JS at initial state)
 		private var _maxBitrate:int = -1; // maximum bitrate allowed for ABR while the video is playing (will be passed by JS at initial state)
 		private var _prefBitrate:int = -1; // prefared bitrate - the video will start playing on this bitrate and stay fixed on it (will be passed by JS at initial state)
+		
+		private var _forceCrop_Y:Number = 0.0; // force crop workaround for Chrome - a pan factor. Goes from -1 to 1. See StageVideo zoom/pan for details.
+		private var _forceCrop_zoom_Y:Number = 1.0; // force crop workaround for Chrome - a zoom factor. Goes from 1.0 to 8.0. See StageVideo zoom/pan for details.
 		
 		private var _sendLogs:Boolean = false;
         
@@ -108,6 +110,22 @@ package
 			_prefBitrate = value;
 		}
 		
+		public function get forceCrop_Y():Number{
+			return _forceCrop_Y;
+		}
+		
+		public function set forceCrop_Y(value:Number):void{
+			_forceCrop_Y = value;
+		}
+		
+		public function get forceCrop_zoom_Y():Number{
+			return _forceCrop_zoom_Y;
+		}
+		
+		public function set forceCrop_zoom_Y(value:Number):void{
+			_forceCrop_zoom_Y = value;
+		}
+		
 		public function get sendLogs():Boolean{
 			return _sendLogs;
 		}
@@ -165,6 +183,14 @@ package
 				}
 				if (prefBitrate != -1){
 					HLSManifestParser.PREF_BITRATE = prefBitrate; // prefared bitrate - the video will start playing on this bitrate and stay fixed on it
+				}
+				
+				if (forceCrop_Y != 0.0){
+					HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_Y = forceCrop_Y; // force crop workaround for Chrome - a pan factor
+				}
+				
+				if (forceCrop_zoom_Y != 1.0){
+					HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_Y = forceCrop_zoom_Y; // force crop workaround for Chrome - a zoom factor
 				}
 								
 				if (sendLogs){
