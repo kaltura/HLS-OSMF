@@ -33,9 +33,13 @@ package com.kaltura.hls.m2ts
 	import org.osmf.net.httpstreaming.DefaultHTTPStreamingSwitchManager;
 	import org.osmf.traits.DynamicStreamTrait;
 
-	import org.osmf.net.metrics.MetricType;
-	import org.osmf.net.rules.BandwidthRule;
-	
+	import org.osmf.net.metrics.*;
+	import org.osmf.net.rules.*;
+	import org.osmf.net.qos.*;
+	import org.osmf.net.*;
+
+	import com.kaltura.hls.DebugSwitchManager;
+
 	CONFIG::LOGGING
 	{
 		import org.osmf.logging.Logger;
@@ -70,9 +74,65 @@ package com.kaltura.hls.m2ts
 			var httpNetStream:HLSHTTPNetStream = new HLSHTTPNetStream(connection, factory, resource);
 			return httpNetStream;
 		}
+
+		protected function createDebugSwitchManager(connection:NetConnection, netStream:NetStream, dsResource:DynamicStreamingResource):NetStreamSwitchManagerBase
+		{
+			// Create a QoSInfoHistory, to hold a history of QoSInfo provided by the NetStream
+			var netStreamQoSInfoHistory:QoSInfoHistory = createNetStreamQoSInfoHistory(netStream);
+			
+			// Create a MetricFactory, to be used by the metric repository for instantiating metrics
+			var metricFactory:MetricFactory = createMetricFactory(netStreamQoSInfoHistory);
+			
+			// Create the MetricRepository, which caches metrics
+			var metricRepository:MetricRepository = new MetricRepository(metricFactory);
+			
+			// Create the emergency rules
+			var emergencyRules:Vector.<RuleBase> = new Vector.<RuleBase>();
+			
+			emergencyRules.push(new DroppedFPSRule(metricRepository, 10, 0.1));
+			
+			emergencyRules.push
+				( new EmptyBufferRule
+				  ( metricRepository
+				  , EMPTY_BUFFER_RULE_SCALE_DOWN_FACTOR
+				  )
+				);
+			
+			emergencyRules.push
+				( new AfterUpSwitchBufferBandwidthRule
+				  ( metricRepository
+					, AFTER_UP_SWITCH_BANDWIDTH_BUFFER_RULE_BUFFER_FRAGMENTS_THRESHOLD
+					, AFTER_UP_SWITCH_BANDWIDTH_BUFFER_RULE_MIN_RATIO
+				  )
+				);
+			
+			// Create a NetStreamSwitcher, which will handle the low-level details of NetStream
+			// stream switching
+			var nsSwitcher:NetStreamSwitcher = new NetStreamSwitcher(netStream, dsResource);
+			
+			// Finally, return an instance of the DefaultSwitchManager, passing it
+			// the objects we instatiated above
+			return new DebugSwitchManager
+				( netStream
+				, nsSwitcher
+				, metricRepository
+				, emergencyRules
+				, true
+				);			
+		}
 		
 		override protected function createNetStreamSwitchManager(connection:NetConnection, netStream:NetStream, dsResource:DynamicStreamingResource):NetStreamSwitchManagerBase
 		{
+			// Enable to use debug switch manager.
+			if(false)
+			{
+				CONFIG::LOGGING
+				{
+					logger.info("Using debug switch manager.");
+					return createDebugSwitchManager(connection, netStream, dsResource);
+				}
+			}
+
 			var switcher:DefaultHTTPStreamingSwitchManager = super.createNetStreamSwitchManager(connection, netStream, dsResource) as DefaultHTTPStreamingSwitchManager;
 			
 			// Since our segments are large, switch rapidly.
