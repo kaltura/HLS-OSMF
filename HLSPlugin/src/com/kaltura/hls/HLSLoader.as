@@ -170,7 +170,7 @@ package com.kaltura.hls
 				for(var k:int=0; k<items.length; k++)
 				{
 					var curItem:DynamicStreamingItem = items[k];
-					var curDist:Number = items[k].bitrate - HLSManifestParser.PREF_BITRATE;
+					var curDist:Number = Math.abs(items[k].bitrate - HLSManifestParser.PREF_BITRATE);
 
 					/// Reject too low or not improved items.
 					if(curDist < 0 || curDist >= preferredDistance)
