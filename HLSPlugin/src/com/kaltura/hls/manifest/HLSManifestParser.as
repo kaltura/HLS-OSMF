@@ -124,6 +124,9 @@ package com.kaltura.hls.manifest
 		public static var FORCE_CROP_WORKAROUND_PAN_X:Number = 0.0;
 		public static var FORCE_CROP_WORKAROUND_PAN_Y:Number = 0.0;
 
+		public static var FORCE_CROP_WORKAROUND_STAGEVIDEO:Boolean = false;
+		public static var FORCE_CROP_WORKAROUND_DISPLAYOBJECT:Boolean = true;
+
  		/**
 		 * Used to control the minimum, maximum, and preferred starting bitrates.
 		 * -1 indicates there is no filtering. Non-zero values are intepreted as

@@ -68,18 +68,21 @@ package com.kaltura.hls
 				return;
 
 			var stage:Stage = containerDO.stage;
-			if(stage.stageVideos.length > 0)
+			if(stage.stageVideos.length > 0 && HLSManifestParser.FORCE_CROP_WORKAROUND_STAGEVIDEO)
 			{
 				stage.stageVideos[0].zoom = new Point(HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_X, HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_Y);
 				stage.stageVideos[0].pan = new Point(HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_X, HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_Y);
 			}
-			else
+
+			// Also apply to DO.
+			if(HLSManifestParser.FORCE_CROP_WORKAROUND_DISPLAYOBJECT)
 			{
 				containerDO.scaleX = HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_X;
 				containerDO.scaleY = HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_Y;
 				containerDO.x = HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_X * containerDO.width;
-				containerDO.x = HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_Y * containerDO.height;
+				containerDO.y = HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_Y * containerDO.height;				
 			}
+
 		}
 
 	    /**
