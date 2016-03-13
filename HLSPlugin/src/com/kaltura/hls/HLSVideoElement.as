@@ -27,10 +27,15 @@ package com.kaltura.hls
 	import org.osmf.net.NetLoader;
 	import org.osmf.net.rtmpstreaming.RTMPDynamicStreamingNetLoader;
 	import org.osmf.traits.LoaderBase;
+	import org.osmf.traits.DisplayObjectTrait;
+	import org.osmf.traits.MediaTraitType;
 	import org.osmf.elements.VideoElement;
 	import flash.geom.Point;
 	import flash.display.Stage;
+	import flash.display.Sprite;
+	import flash.media.Video;
 	import flash.display.DisplayObject;
+	import flash.display.DisplayObjectContainer;
 	import flash.utils.Timer;
     import flash.events.TimerEvent;
     import com.kaltura.hls.manifest.HLSManifestParser;
@@ -55,42 +60,38 @@ package com.kaltura.hls
 		{
 			super(resource, loader);
 
-			cropHackTimer = new Timer(250, 0);
-			cropHackTimer.addEventListener(TimerEvent.TIMER, onCropHackTimer);
-			cropHackTimer.start();
+			if(HLSManifestParser.FORCE_CROP_WORKAROUND_BOTTOM_PERCENT > 0.0)
+			{
+				cropHackTimer = new Timer(10, 0);
+				cropHackTimer.addEventListener(TimerEvent.TIMER, onCropHackTimer);
+				cropHackTimer.start();				
+			}
 		}
+
+		public static var lowerBlocker:Sprite = new Sprite();
 
 		protected function onCropHackTimer(te:TimerEvent):void
 		{
 			// Sweet hax to adjust the zoom of the stage video.
 			var containerDO:DisplayObject = container as DisplayObject;
+
+			var displayObjectTrait:DisplayObjectTrait = getTrait(MediaTraitType.DISPLAY_OBJECT) as DisplayObjectTrait;
+			if(displayObjectTrait)
+				containerDO = displayObjectTrait.displayObject;
+
 			if(!containerDO)
 				return;
 
 			var stage:Stage = containerDO.stage;
-			if(stage.stageVideos.length > 0 && HLSManifestParser.FORCE_CROP_WORKAROUND_STAGEVIDEO)
-			{
-				stage.stageVideos[0].zoom = new Point(HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_X, HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_Y);
-				stage.stageVideos[0].pan = new Point(HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_X, HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_Y);
-			}
 
-			// Also apply to DO.
-			if(HLSManifestParser.FORCE_CROP_WORKAROUND_DISPLAYOBJECT)
+			if(stage)
 			{
-				containerDO.scaleX = HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_X;
-				containerDO.scaleY = HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_Y;
-				containerDO.x = HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_X * containerDO.width;
-				containerDO.y = HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_Y * containerDO.height;				
+				lowerBlocker.graphics.clear();
+				lowerBlocker.graphics.beginFill(0x0); // Useful to debug: 0xff, 0.5);
+				lowerBlocker.graphics.drawRect(0, containerDO.height * (1.0 - HLSManifestParser.FORCE_CROP_WORKAROUND_BOTTOM_PERCENT), 
+					containerDO.width, containerDO.height * HLSManifestParser.FORCE_CROP_WORKAROUND_BOTTOM_PERCENT);
+				(containerDO as DisplayObjectContainer).addChild(lowerBlocker);
 			}
-
 		}
-
-	    /**
-	     * @private
-		 */
-		override protected function processReadyState():void
-		{
-			super.processReadyState();
-		}		
 	}
 }
