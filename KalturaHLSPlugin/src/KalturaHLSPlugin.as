@@ -37,8 +37,7 @@ package
 		private var _maxBitrate:int = -1; // maximum bitrate allowed for ABR while the video is playing (will be passed by JS at initial state)
 		private var _prefBitrate:int = -1; // prefared bitrate - the video will start playing on this bitrate and stay fixed on it (will be passed by JS at initial state)
 		
-		private var _forceCropY:Number = 0.0; // force crop workaround for Chrome - a pan factor. Goes from -1 to 1. See StageVideo zoom/pan for details.
-		private var _forceCropZoomY:Number = 1.0; // force crop workaround for Chrome - a zoom factor. Goes from 1.0 to 8.0. See StageVideo zoom/pan for details.
+		private var _forceCropBottomPercent:Number = 0.0; // force crop workaround for Chrome - the value is a percentage of the hight that will be covered by black bunner. The range is between 0 and 1
 		
 		private var _sendLogs:Boolean = false;
         
@@ -110,20 +109,12 @@ package
 			_prefBitrate = value;
 		}
 		
-		public function get forceCropY():Number{
-			return _forceCropY;
+		public function get forceCropBottomPercent():Number{
+			return _forceCropBottomPercent;
 		}
 		
-		public function set forceCropY(value:Number):void{
-			_forceCropY = value;
-		}
-		
-		public function get forceCropZoomY():Number{
-			return _forceCropZoomY;
-		}
-		
-		public function set forceCropZoomY(value:Number):void{
-			_forceCropZoomY = value;
+		public function set forceCropBottomPercent(value:Number):void{
+			_forceCropBottomPercent = value;
 		}
 		
 		public function get sendLogs():Boolean{
@@ -184,15 +175,10 @@ package
 				if (prefBitrate != -1){
 					HLSManifestParser.PREF_BITRATE = prefBitrate; // prefared bitrate - the video will start playing on this bitrate and stay fixed on it
 				}
-				/*
-				if (forceCropY != 0.0){
-					HLSManifestParser.FORCE_CROP_WORKAROUND_PAN_Y = forceCropY; // force crop workaround for Chrome - a pan factor
+			
+				if (forceCropBottomPercent > 0.0){
+					HLSManifestParser.FORCE_CROP_WORKAROUND_BOTTOM_PERCENT = forceCropBottomPercent; // force crop workaround for Chrome
 				}
-				
-				if (forceCropZoomY != 1.0){
-					HLSManifestParser.FORCE_CROP_WORKAROUND_ZOOM_Y = forceCropZoomY; // force crop workaround for Chrome - a zoom factor
-				}
-				*/
 								
 				if (sendLogs){
 					M2TSFileHandler.SEND_LOGS = true;
