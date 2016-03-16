@@ -130,6 +130,11 @@ package com.kaltura.hls.manifest
 		public static var MAX_BITRATE:int = -1;
 		public static var PREF_BITRATE:int = -1;
 
+		/**
+		 * Multiplier used to determine the segment timeout timer
+		 * -1 is off, default is 2 for 2x targetSegmentDuration
+		 */
+		public static var SEGMENT_TIMEOUT_MULTIPLIER:Number = 2;
 
 		public var type:String = DEFAULT;
 		public var version:int;

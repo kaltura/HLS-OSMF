@@ -40,6 +40,8 @@ package org.osmf.net.httpstreaming
 	import org.osmf.net.httpstreaming.flv.FLVTagScriptDataMode;
 	import org.osmf.utils.OSMFSettings;
 
+	import com.kaltura.hls.manifest.HLSManifestParser;
+
 	CONFIG::LOGGING
 	{
 		import org.osmf.logging.Logger;
@@ -192,6 +194,30 @@ package org.osmf.net.httpstreaming
 			// Dispatch an event so any listeners can get a reference to us.
 			_dispatcher.dispatchEvent(new HTTPStreamingEvent("dispatcherStart", false, false, 0, null, "", request.url.toString(), 0, "", this));
 		}
+
+		/**
+		 * Takes an extra parameter for the target segment duration to setup the _segmentTimeoutTimer, then calls open()
+		 */
+		public function openWithSegmentTimeout(request:URLRequest, dispatcher:IEventDispatcher, 
+												timeout:Number, targetSegmentDuration:Number):void
+		{
+
+			if (_segmentTimeoutTimer == null && targetSegmentDuration != -1)
+			{
+				// Sets the timer to targetSegmentDuration * multiplier specified - default is 2
+				_segmentTimeoutTimer = new Timer(targetSegmentDuration 
+												 * 1000 // convert to ms for timer
+												 * HLSManifestParser.SEGMENT_TIMEOUT_MULTIPLIER, 1)
+				_segmentTimeoutTimer.addEventListener(TimerEvent.TIMER_COMPLETE, onSegmentTimeout);
+			}
+			if (_segmentTimeoutTimer != null)
+			{
+				_segmentTimeoutTimer.reset();
+				_segmentTimeoutTimer.start();
+			}
+
+			open(request, dispatcher, timeout);
+		}
 		
 		/**
 		 * Closes the HTTP stream source. It closes any open connection
@@ -230,6 +256,15 @@ package org.osmf.net.httpstreaming
 				{
 					_timeoutTimer.removeEventListener(TimerEvent.TIMER_COMPLETE, onTimeout);
 					_timeoutTimer = null;
+				}
+			}
+			if (_segmentTimeoutTimer != null)
+			{
+				_segmentTimeoutTimer.stop();
+				if (dispose)
+				{
+					_segmentTimeoutTimer.removeEventListener(TimerEvent.TIMER_COMPLETE, onSegmentTimeout);
+					_segmentTimeoutTimer = null;
 				}
 			}
 
@@ -407,6 +442,10 @@ package org.osmf.net.httpstreaming
 			
 			_downloadEndDate = new Date();
 
+			if (_segmentTimeoutTimer != null)
+			{
+				_segmentTimeoutTimer.stop();
+			}
 			// We inexplicably see reversal of times in some cases. So maybe just cap to be positive duration.
 			_downloadDuration = Math.abs(_downloadEndDate.valueOf() - _downloadBeginDate.valueOf())/1000.0;
 			
@@ -449,6 +488,12 @@ package org.osmf.net.httpstreaming
 				_downloadBeginDate = new Date();
 				_localStartTime = getTimer();
 				_currentDownloadRate = NaN;
+				if (_segmentTimeoutTimer != null) 
+				{
+					// checks if the _segmentTimeoutTimer exists, and restarts it at the beginning of a new download
+					_segmentTimeoutTimer.reset();
+					_segmentTimeoutTimer.start();
+				}
 			}
 			
 			if (_downloadBytesCount == 0)
@@ -608,6 +653,16 @@ package org.osmf.net.httpstreaming
 				onError(new Event(Event.CANCEL));
 			}
 		}
+
+		/**
+		 * Triggered when the _segmentTimeoutTimer alerts it - closes the stream and triggers the SEGMENT_TIMEOUT event
+		 */
+		private function onSegmentTimeout(event:TimerEvent):void
+		{
+			trace("segmentTimeout has been triggered - closing the stream and dispatching the SEGMENT_TIMEOUT event");
+			close();
+			_dispatcher.dispatchEvent(new Event(SEGMENT_TIMEOUT, false, false));
+		}
 		
 		/// Internals
 		private var _isOpen:Boolean = false;
@@ -627,7 +682,10 @@ package org.osmf.net.httpstreaming
 		private var _timeoutTimer:Timer = null;
 		private var _timeoutInterval:Number = 1000;
 		private var _currentRetry:Number = 0;
+		private var _segmentTimeoutTimer:Timer = null;
 		
+		public static const SEGMENT_TIMEOUT:String = "segment.timeout"; // event for when a segment times out
+
 		CONFIG::LOGGING
 		{
 			private static const logger:org.osmf.logging.Logger = org.osmf.logging.Log.getLogger("org.osmf.net.httpstreaming.HLSHTTPStreamDownloader");
