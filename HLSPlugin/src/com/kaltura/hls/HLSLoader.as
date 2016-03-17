@@ -156,26 +156,37 @@ package com.kaltura.hls
 
 			var preferredIndex:int;
 
-			//If there is only one stream quality (or less) sets default to first stream
+			// If there is only one stream quality (or less) sets default to first stream
 			if (items.length <= 1)
 			{
 				preferredIndex = 0;
 			}
 			else if (HLSManifestParser.PREF_BITRATE != -1)
 			{
-				//If there is a preferred bitrate set by kaltura, tests all streams to find highest bitrate below the preferred
+				// If there is a preferred bitrate set by kaltura, tests all streams to find highest bitrate below the preferred
 				preferredIndex = 0;
-				var preferredDistance:Number = Number.MAX_VALUE;
+				var preferredDistance:int = int.MAX_VALUE;
 
 				for(var k:int=0; k<items.length; k++)
 				{
-					var curItem:DynamicStreamingItem = items[k];
-					var curDist:Number = Math.abs(items[k].bitrate - HLSManifestParser.PREF_BITRATE);
+					var curDist:int = Math.round(Math.abs(items[k].bitrate - HLSManifestParser.PREF_BITRATE));
 
-					/// Reject too low or not improved items.
-					if(curDist < 0 || curDist >= preferredDistance)
+					if(curDist > preferredDistance)
+					{
+						/// Reject too low or not improved items.
 						continue;
+					}
+					else if (curDist == preferredDistance)
+					{
+						// If we have two bitrates the same distance from preferred, check them
+						if (items[k].bitrate < items[preferredIndex].bitrate)
+						{
+							// If the current item bitrate is less than the preferredIndex, keep preferredIndex
+							continue;
+						}
+					}
 
+					// If all checks fail and the current item is superior, make the current item the preferredIndex.
 					preferredIndex = k;
 					preferredDistance = curDist;
 				}
