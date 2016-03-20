@@ -48,7 +48,7 @@ package com.kaltura.hls.manifest
 		/**
 		 * When true, we seek to live edge when we experience a buffering event.
 		 *
-		 * Seeking will occur if we are buffering for longer than 2x target
+		 * Seeking will occur if we are buffering for longer than 1.5x target
 		 * duration of the current manifest.
 		 */
 		public static var ALWAYS_SEEK_TO_LIVE_EDGE_ON_BUFFER:Boolean = false;
@@ -345,8 +345,10 @@ package com.kaltura.hls.manifest
 						break;
 					
 					case "EXT-X-STREAM-INF":
-						streams.push(HLSManifestStream.fromString(tagParams));
-						lastHint = streams[streams.length-1];
+						var substream:HLSManifestStream = HLSManifestStream.fromString(tagParams);
+						lastHint = substream;
+						if(lastHint.isProbablyVideo)
+							streams.push(substream);
 						break;
 					
 					case "EXTINF":

@@ -32,6 +32,7 @@ package org.osmf.net.httpstreaming
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	import flash.utils.Timer;
+	import flash.utils.getTimer;
 	import flash.external.ExternalInterface;
 	
 	import org.osmf.events.HTTPStreamingEvent;
@@ -71,6 +72,11 @@ package org.osmf.net.httpstreaming
 		{
 		}
 		
+		public function get currentDownloadSpeedInBytesPerSecond():Number
+		{
+			return _currentDownloadRate;
+		}
+
 		/**
 		 * Returns true if the HTTP stream source is open and false otherwise.
 		 **/
@@ -400,7 +406,9 @@ package org.osmf.net.httpstreaming
 			}
 			
 			_downloadEndDate = new Date();
-			_downloadDuration = (_downloadEndDate.valueOf() - _downloadBeginDate.valueOf())/1000.0;
+
+			// We inexplicably see reversal of times in some cases. So maybe just cap to be positive duration.
+			_downloadDuration = Math.abs(_downloadEndDate.valueOf() - _downloadBeginDate.valueOf())/1000.0;
 			
 			_isComplete = true;
 			_hasErrors = false;
@@ -427,6 +435,9 @@ package org.osmf.net.httpstreaming
 			}
 		}
 		
+		private var _localStartTime:int = 0;
+		private var _currentDownloadRate:Number = NaN;
+
 		/**
 		 * @private
 		 * Called when additional data has been received.
@@ -436,6 +447,8 @@ package org.osmf.net.httpstreaming
 			if (_downloadBeginDate == null)
 			{
 				_downloadBeginDate = new Date();
+				_localStartTime = getTimer();
+				_currentDownloadRate = NaN;
 			}
 			
 			if (_downloadBytesCount == 0)
@@ -448,9 +461,18 @@ package org.osmf.net.httpstreaming
 			}
 
 			_downloadBytesCount = event.bytesTotal;
+
+			// Calculate speed so far.
+			var currentDuration:Number = (getTimer() - _localStartTime) / 1000;
+			if(currentDuration > 1.0 || event.bytesLoaded > event.bytesTotal * 0.25)
+			{
+				// Only update once we've gone for a little while or made some progress to avoid singularities.
+				_currentDownloadRate = (event.bytesLoaded / currentDuration);
+			}
+
 			CONFIG::LOGGING
 			{
-				logger.debug("Loaded " + event.bytesLoaded + " bytes from " + _downloadBytesCount + " bytes.");
+				logger.debug("Loaded " + event.bytesLoaded + " bytes from " + _downloadBytesCount + " bytes @ " + _currentDownloadRate + " bytes/sec");
 			}
 
 			_hasData = true;			

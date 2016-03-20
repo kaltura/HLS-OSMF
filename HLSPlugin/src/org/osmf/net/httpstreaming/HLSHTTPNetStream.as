@@ -367,10 +367,20 @@ package org.osmf.net.httpstreaming
 			{
 				_enhancedSeekTarget = _seekTarget = convertWindowTimeToAbsoluteTime(offset);
 
+				if(isNaN(_seekTarget))
+				{
+					CONFIG::LOGGING
+					{
+						logger.info("Preserving seek offset due to NaN.");
+					}
+
+					_enhancedSeekTarget = _seekTarget = offset;
+				}
+
 				CONFIG::LOGGING
 				{
 					logger.info("Setting seek (B) to " + _seekTarget + " based on passed value " + offset);
-				}				
+				}
 				
 				setState(HTTPStreamingState.SEEK);
 				
@@ -471,6 +481,8 @@ package org.osmf.net.httpstreaming
 		// Used to suppress repopulating time cache spam.
 		private static var _timeCache_logLatch:Boolean = false;
 
+		public static var enableTimeVerboseLog:Boolean = false;
+
 		/**
 		 * @inheritDoc
 		 */
@@ -514,17 +526,21 @@ package org.osmf.net.httpstreaming
 								_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
 							else
 								_timeCache_liveEdgeMinusWindowDuration = 0;
-							//trace("   o Perceived live stream (" + _timeCache_liveEdge + ", " + _timeCache_liveEdgeMinusWindowDuration + ")");						
+
+							if(enableTimeVerboseLog)
+								trace("   o Perceived live stream (" + _timeCache_liveEdge + ", " + _timeCache_liveEdgeMinusWindowDuration + ")");						
 							didValidUpdate = true;
 						}
 						else
 						{
-							//trace("   o Failed to perceive live stream, will retry later.");
+							if(enableTimeVerboseLog)
+								trace("   o Failed to perceive live stream, will retry later.");
 						}
 					}
 					else
 					{
-						//trace("   o Perceived VOD stream.");
+						if(enableTimeVerboseLog)
+							trace("   o Perceived VOD stream.");
 						_timeCache_liveEdge = 0;
 						_timeCache_liveEdgeMinusWindowDuration = 0;
 						didValidUpdate = true;
@@ -540,7 +556,11 @@ package org.osmf.net.httpstreaming
 				else
 				{
 					// Failed to cache so can't return a real value.
-					//trace("Failed to updated time cache so aborting.");
+					if(enableTimeVerboseLog)
+					{
+						trace("Failed to updated time cache so aborting.");
+						trace("A " + _lastValidTimeTime);
+					}
 					return _lastValidTimeTime;
 				}
 			}
@@ -548,7 +568,8 @@ package org.osmf.net.httpstreaming
 			// First determine our absolute time.
 			var potentialNewTime:Number = super.time + _initialTime;
 
-			//trace(" super.time (" + super.time + ") + " + _initialTime + " = " + potentialNewTime);
+			if(enableTimeVerboseLog)
+				trace(" super.time (" + super.time + ") + " + _initialTime + " = " + potentialNewTime);
 
 			// If we are VOD, then offset time so 0 seconds is the start of the stream.
 			if(indexHandler)
@@ -563,7 +584,8 @@ package org.osmf.net.httpstreaming
 			// of N seconds in length).
 			if(_timeCache_liveEdge != Number.MAX_VALUE)
 			{
-				//trace(" minus " + _timeCache_liveEdgeMinusWindowDuration);
+				if(enableTimeVerboseLog)
+					trace(" minus " + _timeCache_liveEdgeMinusWindowDuration);
 				potentialNewTime -= _timeCache_liveEdgeMinusWindowDuration;
 			}
 
@@ -580,6 +602,11 @@ package org.osmf.net.httpstreaming
 				_lastValidTimeTime = potentialNewTime;
 			}
 
+			if(_lastValidTimeTime > lastWrittenTime)
+				return 0;
+
+			if(enableTimeVerboseLog)
+				trace("B " + _lastValidTimeTime);
 			return _lastValidTimeTime;
 		}
 
@@ -593,6 +620,9 @@ package org.osmf.net.httpstreaming
 				else
 					pubTime += indexHandler.streamStartAbsoluteTime;
 			}
+
+			// Round to nearest millisecond to match timestamp resolution.
+			pubTime = Math.floor(pubTime * 1000) / 1000;
 
 			return pubTime;
 		}
@@ -826,19 +856,48 @@ package org.osmf.net.httpstreaming
 				var audioResource:MediaResourceBase = createAudioResource(_resource, _desiredAudioStreamName);
 				if (audioResource != null)
 				{
+					CONFIG::LOGGING
+					{
+						logger.debug("   o Opened alternate audio resource for [" + _desiredAudioStreamName + "]");
+					}
+
 					// audio handler is not dispatching events on the NetStream
 					_mixer.audio = new HLSHTTPStreamSource(_factory, audioResource, _mixer);
 					_mixer.audio.open(_desiredAudioStreamName);
+
+					// Seek to current time.
+					if(!isNaN(_enhancedSeekTarget) && _enhancedSeekTarget > time)
+					{
+						CONFIG::LOGGING
+						{
+							logger.debug("Resetting to enhanced seek target @ " + _enhancedSeekTarget);
+						}
+						seek(_enhancedSeekTarget);
+					}
+					else
+					{
+						CONFIG::LOGGING
+						{
+							logger.debug("Resetting to current time @ " + time);
+						}
+						seek(time);
+					}
+
 				}
 				else
 				{
+					CONFIG::LOGGING
+					{
+						logger.debug("   o Failed generating audio resource for [" + _desiredAudioStreamName + "]");
+					}
+
 					_mixer.audio = null;
 				}
 				
 				_audioStreamNeedsChanging = false;
 				_desiredAudioStreamName = null;
 			}
-			
+
 			_notifyPlayUnpublishPending = false;
 		}
 		
@@ -870,9 +929,35 @@ package org.osmf.net.httpstreaming
 		{
 			CONFIG::LOGGING
 			{
+				logger.debug("onJumpToLiveEdgeTimer - timed out!");
+			}
+
+			// Only do this for live streams.
+			if((indexHandler as HLSIndexHandler) && (indexHandler as HLSIndexHandler).isLive == false)
+			{
+				CONFIG::LOGGING
+				{
+					logger.debug("onJumpToLiveEdgeTimer - skipping as it is not live.");
+				}
+				return;
+			}
+
+			// Don't jump unless we are exceeding realtime download speeds.
+			if((_videoHandler as HLSHTTPStreamSource) && (_videoHandler as HLSHTTPStreamSource).isDownloadingAtRealtimeOrFaster == false)
+			{
+				CONFIG::LOGGING
+				{
+					logger.debug("onJumpToLiveEdgeTimer - skipping live seek due to too-slow download rate.");
+					return;
+				}
+			}
+
+			// If fast enough, go for it!
+			CONFIG::LOGGING
+			{
 				logger.debug("onJumpToLiveEdgeTimer - firing live edge seek.");
 			}
-			
+
 			seek(Number.MAX_VALUE);
 		}
 
@@ -886,8 +971,10 @@ package org.osmf.net.httpstreaming
 			CONFIG::LOGGING
 			{
 				logger.debug("NetStatus event:" + event.info.code);
+				trace("" + (new Error()).getStackTrace());
+				trace("end time is " + indexHandler.getStreamEndTime() + " duration = " + indexHandler.getStreamDuration() + " time= " + time);
 			}
-			
+
 			switch(event.info.code)
 			{
 				case NetStreamCodes.NETSTREAM_BUFFER_EMPTY:					
@@ -917,8 +1004,8 @@ package org.osmf.net.httpstreaming
 						}
 						else
 						{
-							// Wait until we've been buffering for more than 2 segments to jump ahead.
-							jumpToLiveEdgeTimer = new Timer(indexHandler.getTargetSegmentDuration() * 2000);
+							// Wait until we've been buffering for more than 1.5 segments to jump ahead.
+							jumpToLiveEdgeTimer = new Timer(indexHandler.getTargetSegmentDuration() * 1500, 1);
 							jumpToLiveEdgeTimer.addEventListener(TimerEvent.TIMER, onJumpToLiveEdgeTimer);
 						}
 					}
@@ -1219,15 +1306,20 @@ package org.osmf.net.httpstreaming
 						
 						flushPendingTags();
 
+						// Disabled to reduce black screen during seek.
 						CONFIG::FLASH_10_1
 						{
-							CONFIG::LOGGING
+							if(_nextSeekShouldClearScreen)
 							{
-								logger.debug("Emitting RESET_SEEK due to initializing seek.");
-							}
+								CONFIG::LOGGING
+								{
+									logger.debug("Emitting RESET_SEEK due to initializing seek.");
+								}
 
-							appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
-							
+								appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+
+								_nextSeekShouldClearScreen = false;								
+							}
 						}
 
 						_initialTime = NaN;
@@ -2194,10 +2286,10 @@ package org.osmf.net.httpstreaming
 						// We do this dance to get the NetStream into a clean state. If we don't
 						// do this, then we can get failed resume in some scenarios - ie, audio
 						// but no picture.
-						super.close();
-						super.play(null);
-						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
 
+						// Dance truncated (was close/play(null)); now just a reset_seek.
+						appendBytesAction(NetStreamAppendBytesAction.RESET_SEEK);
+						
 						// Preserve pause state.
 						if(_isPaused)
 							super.pause();
@@ -2217,7 +2309,8 @@ package org.osmf.net.httpstreaming
 							{
 								var vTagVideo:FLVTagVideo = vTag as FLVTagVideo;
 								
-								if (vTagVideo.codecID == FLVTagVideo.CODEC_ID_AVC && vTagVideo.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU)
+								if (vTagVideo.codecID == FLVTagVideo.CODEC_ID_AVC 
+									&& vTagVideo.avcPacketType == FLVTagVideo.AVC_PACKET_TYPE_NALU)
 								{
 									// for H.264 we need to move the timestamp forward but the composition time offset backwards to compensate
 									var adjustment:int = wrapTagTimestampToFLVTimestamp(tag.timestamp) - wrapTagTimestampToFLVTimestamp(vTagVideo.timestamp); // how far we are adjusting
@@ -2245,7 +2338,11 @@ package org.osmf.net.httpstreaming
 						// Emit end of client seek tag if we started client seek.
 						if (haveSeenVideoTag)
 						{
-							trace("Writing end-of-seek tag");
+							CONFIG::LOGGING
+							{
+								logger.debug("Writing end-of-seek tag");
+							}
+
 							var _unmuteTag:FLVTagVideo = new FLVTagVideo();
 							_unmuteTag.timestamp = tag.timestamp;  // may get overwritten, ok
 							_unmuteTag.codecID = codecID;
@@ -2344,6 +2441,10 @@ package org.osmf.net.httpstreaming
 		 */
 		private function onActionNeeded(event:HTTPStreamingEvent):void
 		{
+			// Only trigger this behavior if it's the alternate audio track being changed.
+			if(HLSHTTPStreamMixer.oldHTTPStreamingEventTargetIsAudio == false)
+				return;
+
 			// [FM-1387] we are appending this action only when we are 
 			// dealing with late-binding audio streams.
 
@@ -2355,6 +2456,9 @@ package org.osmf.net.httpstreaming
 				CONFIG::LOGGING
 				{
 					logger.debug("onActionNeeded - " + event);
+					var tempError:Error = new Error();
+					var stackTrace:String = tempError.getStackTrace();
+					logger.debug("Saw at  " + stackTrace);
 				}
 
 				if(!isNaN(_enhancedSeekTarget) && _enhancedSeekTarget > time)
@@ -2466,6 +2570,8 @@ package org.osmf.net.httpstreaming
 			return pickedTag;
 		}
 	
+		static private var suppressKeepBufferFedLog:Number = NaN;
+
 		/**
 		 * Write the next few tags to keep the required amount of data in the
 		 * Flash decoder buffer. This pulls from pendingTags.
@@ -2479,13 +2585,19 @@ package org.osmf.net.httpstreaming
 			{
 				if(bufferLength < _desiredBufferTime_Min)
 				{
-					CONFIG::LOGGING
+					if(suppressKeepBufferFedLog != bufferLength)
 					{
-						logger.debug("keepBufferFed - waiting until " + bufferLength + " >= " + _desiredBufferTime_Min + " to resume writing tags.");
+						CONFIG::LOGGING
+						{
+							logger.debug("keepBufferFed - waiting until " + bufferLength + " >= " + _desiredBufferTime_Min + " to resume writing tags.");
+						}
+						suppressKeepBufferFedLog = bufferLength;						
 					}
 					return;
 				}
 			}
+
+			suppressKeepBufferFedLog = NaN;
 
 			// Check the actual amount of content present.
 			if(super.bufferLength >= bufferFeedMin && !_wasBufferEmptied)
@@ -2612,6 +2724,17 @@ package org.osmf.net.httpstreaming
 					logger.debug("FIRING STREAM END");
 				}
 
+				// Forcibly fire a duration event that will end with the last tag we wrote.
+				// This ensures that we will properly terminate and trigger rewind logic in
+				// kdp/OSMF. If you come up short and end then it restarts erroneously.
+				var metadata:Object = new Object();
+				metadata.duration = (lastWrittenTime - indexHandler.getStreamStartTime()) - 0.5;
+				var durationTag:FLVTagScriptDataObject = new FLVTagScriptDataObject();
+				durationTag.objects = ["onMetaData", metadata];
+				dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.SCRIPT_DATA, false, false, 0, durationTag, FLVTagScriptDataMode.IMMEDIATE));
+				trace("Fired artificial duration of " + metadata.duration);
+
+
 				// For us, ending means ending the sequence, firing an onPlayStatus event,
 				// and then really ending.	
 				appendBytesAction(NetStreamAppendBytesAction.END_SEQUENCE);
@@ -2623,7 +2746,7 @@ package org.osmf.net.httpstreaming
 				
 				var playCompleteInfoSDOTag:FLVTagScriptDataObject = new FLVTagScriptDataObject();
 				playCompleteInfoSDOTag.objects = ["onPlayStatus", playCompleteInfo];
-				
+				trace("Writing final play complete event at " + playCompleteInfoSDOTag.timestamp);
 				var tagBytes:ByteArray = new ByteArray();
 				playCompleteInfoSDOTag.write(tagBytes);
 				appendBytes(tagBytes);
@@ -2635,6 +2758,8 @@ package org.osmf.net.httpstreaming
 
 				// Also flush our other state.
 				flushPendingTags();
+
+				_nextSeekShouldClearScreen = true;
 			}
 		}
 
@@ -3228,7 +3353,8 @@ package org.osmf.net.httpstreaming
 		private var recoveryBufferMin:Number = 2;// how low the bufferTime can get in seconds before we start trying to recover a stream by seeking
 		private var recoveryDelayTimer:Timer = new Timer(0); // timer that will be set to the required delay of reload attempts in the case of a URL error
 		private var gotBytes:Boolean = false;// If we got bytes- marks a stream that we should attempt to recover
-		
+		private var _nextSeekShouldClearScreen:Boolean = false; // When true, we trigger screen clearing behavior on seek.
+
 		private var streamTooSlowTimer:Timer;
 		
 		public static var currentStream:HLSManifestStream;// this is the manifest we are currently using. Used to determine how much to seek forward after a URL error
@@ -3242,6 +3368,6 @@ package org.osmf.net.httpstreaming
 		
 		private static const HIGH_PRIORITY:int = int.MAX_VALUE;
 
-		private var jumpToLiveEdgeTimer:Timer;
+		private var jumpToLiveEdgeTimer:Timer = null;
 	}
 }

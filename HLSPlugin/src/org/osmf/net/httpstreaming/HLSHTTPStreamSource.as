@@ -142,6 +142,24 @@ package org.osmf.net.httpstreaming
 		}
 		
 		/**
+		 * True when we're able to download content in realtime or faster.
+		 */
+		public function get isDownloadingAtRealtimeOrFaster():Boolean
+		{
+			if(_downloader && (_indexHandler as HLSIndexHandler) != null)
+			{
+				// We want to complete the segment in faster than the target duration.
+				var expectedCompletionTime:Number = _downloader.downloadBytesCount / _downloader.currentDownloadSpeedInBytesPerSecond;
+				CONFIG::LOGGING
+				{
+					logger.debug(" isDownloadingAtRealtimeOrFaster - " + expectedCompletionTime + " < " + (_indexHandler as HLSIndexHandler).getTargetSegmentDuration());
+				}
+				return expectedCompletionTime < (_indexHandler as HLSIndexHandler).getTargetSegmentDuration();
+			}
+			return false;
+		}
+
+		/**
 		 * @inheritDoc
 		 */
 		public function get source():IHTTPStreamSource
@@ -406,6 +424,27 @@ package org.osmf.net.httpstreaming
 					else
 					{
 						_request = _indexHandler.getNextFile(_qualityLevel);
+					}
+
+					// Count best effort fetches in a row.
+					if(_request.kind == HTTPStreamRequestKind.BEST_EFFORT_DOWNLOAD)
+					{
+						_bestEffortFetchRunCount++;
+
+						CONFIG::LOGGING
+						{
+							logger.debug("Encountered " + _bestEffortFetchRunCount + " best effort fetch in a row.");
+						}
+					}
+					else if(_request.kind == HTTPStreamRequestKind.DOWNLOAD)
+					{
+						CONFIG::LOGGING
+						{
+							if(_bestEffortFetchRunCount > 0)
+								logger.debug("Got normal request after " + _bestEffortFetchRunCount + " best effort fetches in a row.");
+						}							
+
+						_bestEffortFetchRunCount = 0;
 					}
 
 					// Log the request.
@@ -1051,6 +1090,8 @@ package org.osmf.net.httpstreaming
 		
 		private var _isLiveStalled:Boolean = false;
 		
+		private var _bestEffortFetchRunCount:int = 0;
+
 		CONFIG::LOGGING
 		{
 			private static const logger:Logger = Log.getLogger("org.osmf.net.httpstreaming.HLSHTTPStreamSource");
