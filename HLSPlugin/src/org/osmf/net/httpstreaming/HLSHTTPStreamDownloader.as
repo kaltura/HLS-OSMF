@@ -551,6 +551,12 @@ package org.osmf.net.httpstreaming
 			{
 				stopTimeoutMonitor();
 			}
+
+			if (_segmentTimeoutTimer != null)
+			{
+				_segmentTimeoutTimer.stop();
+				_segmentTimeoutTimer.reset();
+			}
 			
 			if (_downloadBeginDate == null)
 			{

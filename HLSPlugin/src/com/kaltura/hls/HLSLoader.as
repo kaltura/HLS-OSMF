@@ -193,8 +193,15 @@ package com.kaltura.hls
 			}
 			else
 			{
-				//Sets the preferred index to the middle (or higher of the 2 middle) bitrate streams
-				preferredIndex = items.length / 2;
+				//Sets the preferred starting index to 0
+				preferredIndex = 0;
+
+				/*****disabled this version as starting at a higher index than 0 could cause immediate buffering issues until
+				******auto-MBR could take over and drop the streaming quality level to a more appropriate level
+				*
+				*Sets the preferred index to the middle (or higher of the 2 middle) bitrate streams
+				*preferredIndex = items.length / 2;
+				*/
 			}
 			stream.initialIndex = preferredIndex;			
 			
