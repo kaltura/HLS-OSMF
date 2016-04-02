@@ -445,6 +445,7 @@ package com.kaltura.hls.m2ts
 		{
 			if (key)
 			{
+			// If we are working with encrypted data, don't try to unpad because we haven't finished the segment
 				key.usePadding = false;
 			}
 			return basicProcessFileSegment(input, false);
