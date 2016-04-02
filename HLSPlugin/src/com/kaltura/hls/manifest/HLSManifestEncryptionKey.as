@@ -178,18 +178,25 @@ package com.kaltura.hls.manifest
 			}
 
 			const paddingValue:int = bytesToUnpad[bytesToUnpad.length - 1];
+			trace("paddingValue: " + paddingValue);
 			var doUnpad:Boolean = true;
 			for (var i:int = 0; i<paddingValue; i++) {
 				var readValue:int = bytesToUnpad[bytesToUnpad.length - (1 + i)];
-				if (paddingValue != readValue) {
+				trace("readvalue " + i + ": " + readValue);
+				if (paddingValue != readValue) 
+				{
 					//throw new Error("PKCS#5:unpad: Invalid padding value. expected [" + paddingValue + "], found [" + readValue + "]");
 					//break;
 					doUnpad = false;
+					break;
 				}
 			}
 
 			if(doUnpad)
-				bytesToUnpad.length -= paddingValue;
+			{
+				trace("Unpadding decrypted byteArray");
+				bytesToUnpad.length -= paddingValue + 1;
+			}
 
 			return bytesToUnpad;
 		}

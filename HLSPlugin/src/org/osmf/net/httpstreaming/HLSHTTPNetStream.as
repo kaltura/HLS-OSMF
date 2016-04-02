@@ -521,11 +521,7 @@ package org.osmf.net.httpstreaming
 						if(indexHandler.isLiveEdgeValid)
 						{
 							_timeCache_liveEdge = indexHandler.liveEdge;
-							var potentialWindowDuration:Number = indexHandler.windowDuration;
-							if(_timeCache_liveEdge > potentialWindowDuration)
-								_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
-							else
-								_timeCache_liveEdgeMinusWindowDuration = 0;
+							_timeCache_liveEdgeMinusWindowDuration = indexHandler.streamStartAbsoluteTime
 
 							if(enableTimeVerboseLog)
 								trace("   o Perceived live stream (" + _timeCache_liveEdge + ", " + _timeCache_liveEdgeMinusWindowDuration + ")");						
@@ -602,8 +598,12 @@ package org.osmf.net.httpstreaming
 				_lastValidTimeTime = potentialNewTime;
 			}
 
-			if(_lastValidTimeTime > lastWrittenTime)
+			if(_lastValidTimeTime > lastWrittenTime - _timeCache_liveEdgeMinusWindowDuration)
+			{
+				if(enableTimeVerboseLog)
+					trace("Suppressing future time " + _lastValidTimeTime + " > " + (lastWrittenTime - _timeCache_liveEdgeMinusWindowDuration));
 				return 0;
+			}
 
 			if(enableTimeVerboseLog)
 				trace("B " + _lastValidTimeTime);

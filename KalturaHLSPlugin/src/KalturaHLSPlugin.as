@@ -18,10 +18,9 @@ package
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.media.PluginInfo;
 	import org.osmf.media.PluginInfoResource;
-	import org.puremvc.as3.interfaces.IFacade;
-	
-	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
 	import org.osmf.net.httpstreaming.HLSHTTPStreamDownloader;
+	import org.osmf.net.httpstreaming.HLSHTTPStreamSource;
+	import org.puremvc.as3.interfaces.IFacade;
     
 	public class KalturaHLSPlugin extends Sprite implements IPluginFactory, IPlugin
 	{
@@ -33,6 +32,13 @@ package
 		private var _initialBufferTime:int = -1; // initial buffer length till the moment the video starts playing
 		private var _expandedBufferTime:int = -1; // acctual buffer length while the video is playing
 		private var _maxBufferTime:int = -1; // maximum buffer length while the video is playing
+		
+		private var _minBitrate:int = -1; // minimum bitrate allowed for ABR while the video is playing (will be passed by JS at initial state)
+		private var _maxBitrate:int = -1; // maximum bitrate allowed for ABR while the video is playing (will be passed by JS at initial state)
+		private var _prefBitrate:int = -1; // prefared bitrate - the video will start playing on this bitrate and stay fixed on it (will be passed by JS at initial state)
+		
+		private var _forceCropBottomPercent:Number = 0.0; // force crop workaround for Chrome - the value is a percentage of the hight that will be covered by black bunner. The range is between 0 and 1
+		
 		private var _sendLogs:Boolean = false;
         
         public function KalturaHLSPlugin()
@@ -77,6 +83,38 @@ package
 				
 		public function set maxBufferTime(value:int):void{
 			_maxBufferTime = value;
+		}
+		
+		public function get minBitrate():int{
+			return _minBitrate;
+		}
+		
+		public function set minBitrate(value:int):void{
+			_minBitrate = value;
+		}
+		
+		public function get maxBitrate():int{
+			return _maxBitrate;
+		}
+		
+		public function set maxBitrate(value:int):void{
+			_maxBitrate = value;
+		}
+		
+		public function get prefBitrate():int{
+			return _prefBitrate;
+		}
+		
+		public function set prefBitrate(value:int):void{
+			_prefBitrate = value;
+		}
+		
+		public function get forceCropBottomPercent():Number{
+			return _forceCropBottomPercent;
+		}
+		
+		public function set forceCropBottomPercent(value:Number):void{
+			_forceCropBottomPercent = value;
 		}
 		
 		public function get sendLogs():Boolean{
@@ -128,6 +166,20 @@ package
 				if (maxBufferTime != -1){
 					HLSManifestParser.MAX_BUFFER_AMOUNT = maxBufferTime; //How many seconds of video data should we keep in the buffer before giving up on downloading for a while
 				}
+				if (minBitrate != -1){
+					HLSManifestParser.MIN_BITRATE = minBitrate; // minimum bitrate allowed for ABR while the video is playing 
+				}
+				if (maxBitrate != -1){
+					HLSManifestParser.MAX_BITRATE = maxBitrate; // maximum bitrate allowed for ABR while the video is playing 
+				}
+				if (prefBitrate != -1){
+					HLSManifestParser.PREF_BITRATE = prefBitrate; // prefared bitrate - the video will start playing on this bitrate and stay fixed on it
+				}
+			
+				if (forceCropBottomPercent > 0.0){
+					HLSManifestParser.FORCE_CROP_WORKAROUND_BOTTOM_PERCENT = forceCropBottomPercent; // force crop workaround for Chrome
+				}
+								
 				if (sendLogs){
 					M2TSFileHandler.SEND_LOGS = true;
 					HLSManifestParser.SEND_LOGS = true;
