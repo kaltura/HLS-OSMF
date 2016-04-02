@@ -249,16 +249,23 @@ package com.kaltura.hls.m2ts
 				logger.debug("READING " + amountToRead + " OF " + input.bytesAvailable);
 			}
 
+
+			//Check to see if we have 16 bytes saved from the end of the last pass
 			if (_lastSixteenBytes.length > 0)
 			{
+				//Feeds the in at the beginning of the temp buffer
 				_lastSixteenBytes.readBytes(tmpBuffer)
 				_lastSixteenBytes.length = 0;
 				_lastSixteenBytes.position = 0;
 			}
 
+			
 			if(amountToRead > 0)
 				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
 
+			//If we aren't flushing at the end of a segment, save the last 16 bytes off the end in case they are padding
+			//Subtle bug - If we don't save the bytes off the end and control when it tries to unpad, it can unpad data that
+			//is valid but happens to look like padding.
 			if (!_flush)
 			{
 				tmpBuffer.position = tmpBuffer.length - 16;
@@ -268,6 +275,7 @@ package com.kaltura.hls.m2ts
 			}
 			else
 			{
+			//If we are flushing, reset the ByteArray so no leftover data is around for the first pass on the next segment
 				_lastSixteenBytes.length = 0;
 				_lastSixteenBytes.position = 0;
 			}
@@ -284,8 +292,6 @@ package com.kaltura.hls.m2ts
 					logger.debug("Decrypting " + tmpBuffer.length + " bytes of encrypted data.");
 				}
 				
-				//key.usePadding = false;
-				
 				if ( leftoverBytes > 0 )
 				{
 					// Place any bytes left over (not divisible by 16) into our encrypted buffer
@@ -298,13 +304,6 @@ package com.kaltura.hls.m2ts
 					{
 						logger.debug("Storing " + _encryptedDataBuffer.length + " bytes of encrypted data.");
 					}
-				}
-				else// if (amountToRead == input.bytesAvailable)
-				{
-					// Attempt to unpad if our buffer is equally divisible by 16.
-					// It could mean that we've reached the end of the file segment.
-
-					//key.usePadding = true;
 				}
 				
 				// Store our current IV so we can use it do decrypt
