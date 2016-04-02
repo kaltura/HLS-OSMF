@@ -59,6 +59,7 @@ package com.kaltura.hls.m2ts
 		private var _extendedIndexHandler:IExtraIndexHandlerState;
 		private var _injectingSubtitles:Boolean = false;
 		private var _lastInjectedSubtitleTime:Number = 0;
+		private var _lastSixteenBytes:ByteArray;
 		
 		private var _decryptionIV:ByteArray;
 		
@@ -72,6 +73,7 @@ package com.kaltura.hls.m2ts
 			super();
 			
 			_encryptedDataBuffer = new ByteArray();
+			_lastSixteenBytes = new ByteArray();
 
 			_parser = new TSPacketParser();
 			_parser.callback = handleFLVMessage;
@@ -238,7 +240,7 @@ package com.kaltura.hls.m2ts
 
 			if(!input)
 				input = new ByteArray();
-			
+
 			var amountToRead:int = input.bytesAvailable;
 			if(amountToRead > 1024*128) amountToRead = 1024*128;
 
@@ -247,8 +249,28 @@ package com.kaltura.hls.m2ts
 				logger.debug("READING " + amountToRead + " OF " + input.bytesAvailable);
 			}
 
+			if (_lastSixteenBytes.length > 0)
+			{
+				_lastSixteenBytes.readBytes(tmpBuffer)
+				_lastSixteenBytes.length = 0;
+				_lastSixteenBytes.position = 0;
+			}
+
 			if(amountToRead > 0)
 				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
+
+			if (!_flush)
+			{
+				tmpBuffer.position = tmpBuffer.length - 16;
+				tmpBuffer.readBytes(_lastSixteenBytes, 0, 16);
+				tmpBuffer.length -= 16;
+				tmpBuffer.position = 0;
+			}
+			else
+			{
+				_lastSixteenBytes.length = 0;
+				_lastSixteenBytes.position = 0;
+			}
 
 			if ( key )
 			{
@@ -262,7 +284,7 @@ package com.kaltura.hls.m2ts
 					logger.debug("Decrypting " + tmpBuffer.length + " bytes of encrypted data.");
 				}
 				
-				key.usePadding = false;
+				//key.usePadding = false;
 				
 				if ( leftoverBytes > 0 )
 				{
@@ -277,11 +299,12 @@ package com.kaltura.hls.m2ts
 						logger.debug("Storing " + _encryptedDataBuffer.length + " bytes of encrypted data.");
 					}
 				}
-				else
+				else// if (amountToRead == input.bytesAvailable)
 				{
 					// Attempt to unpad if our buffer is equally divisible by 16.
 					// It could mean that we've reached the end of the file segment.
-					key.usePadding = true;
+
+					//key.usePadding = true;
 				}
 				
 				// Store our current IV so we can use it do decrypt
@@ -421,6 +444,10 @@ package com.kaltura.hls.m2ts
 
 		public override function processFileSegment(input:IDataInput):ByteArray
 		{
+			if (key)
+			{
+				key.usePadding = false;
+			}
 			return basicProcessFileSegment(input, false);
 		}
 		
