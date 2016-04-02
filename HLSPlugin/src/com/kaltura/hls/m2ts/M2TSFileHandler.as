@@ -264,8 +264,9 @@ package com.kaltura.hls.m2ts
 				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
 
 			//If we aren't flushing at the end of a segment, save the last 16 bytes off the end in case they are padding
-			//Subtle bug - If we don't save the bytes off the end and control when it tries to unpad, it can unpad data that
-			//is valid but happens to look like padding.
+			//If we don't save the data and then attempt unpadding at the end, it may try unpadding in the middle of 
+			//a segment. If it does this and the data happens to look like padding, it will truncate good bytes and
+			//cause pixelation
 			if (!_flush)
 			{
 				tmpBuffer.position = tmpBuffer.length - 16;
@@ -275,7 +276,7 @@ package com.kaltura.hls.m2ts
 			}
 			else
 			{
-			//If we are flushing, reset the ByteArray so no leftover data is around for the first pass on the next segment
+				//If we are flushing, reset the ByteArray so no leftover data is around for the first pass on the next segment
 				_lastSixteenBytes.length = 0;
 				_lastSixteenBytes.position = 0;
 			}
