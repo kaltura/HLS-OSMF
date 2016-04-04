@@ -178,6 +178,10 @@ package com.kaltura.hls.manifest
 			}
 
 			const paddingValue:int = bytesToUnpad[bytesToUnpad.length - 1];
+			if (paddingValue > 15)
+			{
+				return bytesToUnpad;
+			}
 			var doUnpad:Boolean = true;
 			for (var i:int = 0; i<paddingValue; i++) {
 				var readValue:int = bytesToUnpad[bytesToUnpad.length - (1 + i)];
