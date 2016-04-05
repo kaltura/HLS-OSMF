@@ -87,11 +87,22 @@ package com.kaltura.hls.manifest
 
 		/**
 		 * After we have stalled once, we switch to using this as the minimum 
-		 * buffer period to allow playback.
+		 * buffer period to allow playback. Only used for VOD's
 		 *
 		 * Playback will not begin until at least this much data is buffered.
 		 */
 		public static var NORMAL_BUFFER_THRESHOLD:Number = 21.0;
+
+		/**
+		 * This multiplier is used to hard limit the buffer threshold for live
+		 * streams - the threshold is calculated by the segment target duration
+		 * multiplied by this multiplier. 
+		 *
+		 * This keeps a live stream player from getting too out-of-sync with 
+		 * a live stream to the point where the segments are no longer in
+		 * the server cache.
+		 */
+		public static var LIVE_STREAM_BUFFER_THRESHOLD_MULTIPLIER:Number = 3.0;
 		
 		/**
 		 * How many seconds of video data should we keep in the buffer before 
