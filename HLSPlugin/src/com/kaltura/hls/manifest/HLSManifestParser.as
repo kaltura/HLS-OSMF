@@ -100,8 +100,8 @@ package com.kaltura.hls.manifest
 		 * multiplied by this multiplier. 
 		 *
 		 * This keeps a live stream player from getting too out-of-sync with 
-		 * a live stream to the point where the segments are no longer in
-		 * the server cache.
+		 * a live stream to the point where the segments are no longer available
+		 * from the server.
 		 */
 		public static var LIVE_STREAM_BUFFER_THRESHOLD_MULTIPLIER:Number = 3.0;
 		
