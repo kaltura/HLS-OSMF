@@ -87,11 +87,22 @@ package com.kaltura.hls.manifest
 
 		/**
 		 * After we have stalled once, we switch to using this as the minimum 
-		 * buffer period to allow playback.
+		 * buffer period to allow playback. Only used for VOD's
 		 *
 		 * Playback will not begin until at least this much data is buffered.
 		 */
 		public static var NORMAL_BUFFER_THRESHOLD:Number = 21.0;
+
+		/**
+		 * This multiplier is used to hard limit the buffer threshold for live
+		 * streams - the threshold is calculated by the segment target duration
+		 * multiplied by this multiplier. 
+		 *
+		 * This keeps a live stream player from getting too out-of-sync with 
+		 * a live stream to the point where the segments are no longer in
+		 * the server cache.
+		 */
+		public static var LIVE_STREAM_BUFFER_THRESHOLD_MULTIPLIER:Number = 3.0;
 		
 		/**
 		 * How many seconds of video data should we keep in the buffer before 
@@ -114,6 +125,27 @@ package com.kaltura.hls.manifest
 		 */
 		public static var BUFFER_EMPTY_MAX_INCREASE:Number = 30.0;
 
+		/**
+		 * We can draw a black banner to hide cropping issues in Pepper API Chrome.
+		 *
+		 * This is a percent value of the video to hide from bottom.
+		 */
+		public static var FORCE_CROP_WORKAROUND_BOTTOM_PERCENT:Number = 0.0;
+
+ 		/**
+		 * Used to control the minimum, maximum, and preferred starting bitrates.
+		 * -1 indicates there is no filtering. Non-zero values are intepreted as
+		 * bits per second.
+		 */
+		public static var MIN_BITRATE:int = -1;
+		public static var MAX_BITRATE:int = -1;
+		public static var PREF_BITRATE:int = -1;
+
+		/**
+		 * Multiplier used to determine the segment timeout timer
+		 * -1 is off, default is 2 for 2x targetSegmentDuration
+		 */
+		public static var SEGMENT_TIMEOUT_MULTIPLIER:Number = 2;
 
 		public var type:String = DEFAULT;
 		public var version:int;

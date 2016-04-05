@@ -428,8 +428,28 @@ package org.osmf.net.httpstreaming
 			if(neverBuffered)
 				return HLSManifestParser.INITIAL_BUFFER_THRESHOLD;
 
-			// Ok - in normal buffering. Calculate initial value.
-			return HLSManifestParser.NORMAL_BUFFER_THRESHOLD + bufferBias;
+			if ((indexHandler as HLSIndexHandler).isLive == false)
+			{
+				//Ok - in normal buffering. Calculate initial value.
+				return HLSManifestParser.NORMAL_BUFFER_THRESHOLD + bufferBias;
+			}
+			else
+			{
+				// Get the buffer threshold with buffer bias
+				var tempBufferBias:Number = HLSManifestParser.NORMAL_BUFFER_THRESHOLD + bufferBias;
+				// Get the maximum value allowed for a live stream
+				var tempBufferThreshold:Number = indexHandler.getTargetSegmentDuration() * HLSManifestParser.LIVE_STREAM_BUFFER_THRESHOLD_MULTIPLIER;
+
+				// Return the tempBufferBias if it is below the maximum value allowed
+				if (tempBufferBias < tempBufferThreshold)
+				{
+					return tempBufferBias;
+				}
+				else
+				{
+					return tempBufferThreshold;
+				}
+			}
 		}
 
 		/**
@@ -521,11 +541,7 @@ package org.osmf.net.httpstreaming
 						if(indexHandler.isLiveEdgeValid)
 						{
 							_timeCache_liveEdge = indexHandler.liveEdge;
-							var potentialWindowDuration:Number = indexHandler.windowDuration;
-							if(_timeCache_liveEdge > potentialWindowDuration)
-								_timeCache_liveEdgeMinusWindowDuration = _timeCache_liveEdge - indexHandler.windowDuration;
-							else
-								_timeCache_liveEdgeMinusWindowDuration = 0;
+							_timeCache_liveEdgeMinusWindowDuration = indexHandler.streamStartAbsoluteTime
 
 							if(enableTimeVerboseLog)
 								trace("   o Perceived live stream (" + _timeCache_liveEdge + ", " + _timeCache_liveEdgeMinusWindowDuration + ")");						
@@ -602,8 +618,12 @@ package org.osmf.net.httpstreaming
 				_lastValidTimeTime = potentialNewTime;
 			}
 
-			if(_lastValidTimeTime > lastWrittenTime)
+			if(_lastValidTimeTime > lastWrittenTime - _timeCache_liveEdgeMinusWindowDuration)
+			{
+				if(enableTimeVerboseLog)
+					trace("Suppressing future time " + _lastValidTimeTime + " > " + (lastWrittenTime - _timeCache_liveEdgeMinusWindowDuration));
 				return 0;
+			}
 
 			if(enableTimeVerboseLog)
 				trace("B " + _lastValidTimeTime);

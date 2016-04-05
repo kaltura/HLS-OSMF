@@ -24,8 +24,8 @@ package com.kaltura.hls.m2ts
             private static const logger:Logger = Log.getLogger("com.kaltura.hls.m2ts.NALUProcessor");
         }
 
-        private var ppsList:Vector.<ByteArray> = new Vector.<ByteArray>;
-        private var spsList:Vector.<ByteArray> = new Vector.<ByteArray>;
+        public var ppsList:Vector.<ByteArray> = new Vector.<ByteArray>;
+        public var spsList:Vector.<ByteArray> = new Vector.<ByteArray>;
         
         private static function sortSPS(a:ByteArray, b:ByteArray):int
         {
