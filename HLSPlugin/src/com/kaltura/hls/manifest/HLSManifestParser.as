@@ -87,7 +87,8 @@ package com.kaltura.hls.manifest
 
 		/**
 		 * After we have stalled once, we switch to using this as the minimum 
-		 * buffer period to allow playback. Only used for VOD's
+		 * buffer period to allow playback. Only used for VODs. Live streams 
+		 * have other logic (see LIVE_STREAM_BUFFER_THRESHOLD_MULTIPLIER).
 		 *
 		 * Playback will not begin until at least this much data is buffered.
 		 */
