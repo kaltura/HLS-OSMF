@@ -258,7 +258,7 @@ package com.kaltura.hls.m2ts
 			{
 				logger.debug("READING " + amountToRead + " OF " + input.bytesAvailable);
 			}
-
+			
 			if(amountToRead > 0)
 				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
 
@@ -291,8 +291,6 @@ package com.kaltura.hls.m2ts
 				{
 					logger.debug("Decrypting " + tmpBuffer.length + " bytes of encrypted data.");
 				}
-				
-				//key.usePadding = false;
 				
 				if ( leftoverBytes > 0 )
 				{
