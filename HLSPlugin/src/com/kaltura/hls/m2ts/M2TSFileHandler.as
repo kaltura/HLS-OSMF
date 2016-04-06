@@ -268,7 +268,7 @@ package com.kaltura.hls.m2ts
 				//in case they are padding. If we don't save the data and then attempt unpadding at the end, it may try 
 				//unpadding in the middle of a segment. If it does this and the data happens to look like padding, it will 
 				//truncate good bytes and cause pixelation
-				if (!_flush && tmpBuffer.length >= 16);
+				if (!_flush && tmpBuffer.length >= 16)
 				{
 					tmpBuffer.position = tmpBuffer.length - 16;
 					tmpBuffer.readBytes(_lastSixteenBytes, 0, 16);
