@@ -182,7 +182,7 @@ package com.kaltura.hls.manifest
 			if (paddingValue > 15)
 			{
 				//Return early, since any values bigger than 15 aren't actually padding.
-				return bytesTounpad;
+				return bytesToUnpad;
 			}
 			var doUnpad:Boolean = true;
 			for (var i:int = 0; i<paddingValue; i++) 
