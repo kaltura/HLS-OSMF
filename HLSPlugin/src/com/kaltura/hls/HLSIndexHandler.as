@@ -1602,9 +1602,9 @@ package com.kaltura.hls
 			
 			if ( (reloadingManifest || !manifest.streamEnds) && segments.length > 0)
 			{
-				trace("Stalling -- requested segment " + newSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream");
+				trace("Stalling -- requested segment " + newSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream - stalling for: " + (getManifestForQuality(origQuality).targetDuration/2) + " ms");
 				
-				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, segments[segments.length-1].duration / 2);
+				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, getManifestForQuality(origQuality).targetDuration/2);
 			}
 			
 			trace("Ending stream playback");
