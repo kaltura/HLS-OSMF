@@ -238,6 +238,16 @@ package com.kaltura.hls.m2ts
 				_encryptedDataBuffer.clear();
 			}
 
+			//Check to see if we have 16 bytes saved from the end of the last pass
+			if (_lastSixteenBytes.length > 0)
+			{
+				//Feeds them in at the beginning of the temp buffer, after any encryptedData
+				_lastSixteenBytes.position = 0;
+				_lastSixteenBytes.readBytes(tmpBuffer, tmpBuffer.length);
+				_lastSixteenBytes.length = 0;
+				_lastSixteenBytes.position = 0;
+			}
+
 			if(!input)
 				input = new ByteArray();
 
@@ -249,40 +259,29 @@ package com.kaltura.hls.m2ts
 				logger.debug("READING " + amountToRead + " OF " + input.bytesAvailable);
 			}
 
-
-			//Check to see if we have 16 bytes saved from the end of the last pass
-			if (_lastSixteenBytes.length > 0)
-			{
-				//Feeds the in at the beginning of the temp buffer
-				_lastSixteenBytes.readBytes(tmpBuffer)
-				_lastSixteenBytes.length = 0;
-				_lastSixteenBytes.position = 0;
-			}
-
-			
 			if(amountToRead > 0)
 				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
 
-			//If we aren't flushing at the end of a segment, save the last 16 bytes off the end in case they are padding
-			//If we don't save the data and then attempt unpadding at the end, it may try unpadding in the middle of 
-			//a segment. If it does this and the data happens to look like padding, it will truncate good bytes and
-			//cause pixelation
-			if (!_flush)
-			{
-				tmpBuffer.position = tmpBuffer.length - 16;
-				tmpBuffer.readBytes(_lastSixteenBytes, 0, 16);
-				tmpBuffer.length -= 16;
-				tmpBuffer.position = 0;
-			}
-			else
-			{
-				//If we are flushing, reset the ByteArray so no leftover data is around for the first pass on the next segment
-				_lastSixteenBytes.length = 0;
-				_lastSixteenBytes.position = 0;
-			}
-
 			if ( key )
 			{
+				//If we aren't flushing at the end of a segment and we have 16 bytes, save the last 16 bytes off the end 
+				//in case they are padding. If we don't save the data and then attempt unpadding at the end, it may try 
+				//unpadding in the middle of a segment. If it does this and the data happens to look like padding, it will 
+				//truncate good bytes and cause pixelation
+				if (!_flush && tmpBuffer.length >= 16);
+				{
+					tmpBuffer.position = tmpBuffer.length - 16;
+					tmpBuffer.readBytes(_lastSixteenBytes, 0, 16);
+					tmpBuffer.length -= 16;
+					tmpBuffer.position = 0;
+				}
+				else
+				{
+					//If we are flushing, reset the ByteArray so no leftover data is around for the first pass on the next segment
+					_lastSixteenBytes.length = 0;
+					_lastSixteenBytes.position = 0;
+				}
+
 				// We need to decrypt available data.
 				var bytesToRead:uint = tmpBuffer.length;
 				var leftoverBytes:uint = bytesToRead % 16;
@@ -292,6 +291,8 @@ package com.kaltura.hls.m2ts
 				{
 					logger.debug("Decrypting " + tmpBuffer.length + " bytes of encrypted data.");
 				}
+				
+				//key.usePadding = false;
 				
 				if ( leftoverBytes > 0 )
 				{
