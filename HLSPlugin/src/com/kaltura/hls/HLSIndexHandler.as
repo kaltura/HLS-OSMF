@@ -114,7 +114,8 @@ package com.kaltura.hls
 		private var targetedBackupStream:HLSManifestStream = null;
 		private var timeoutStreams:Dictionary;
 		private var liveStreamEmergencyStall:Boolean = false;
-
+		private var manifestReloadDelay:Number;
+		
 		// _bestEffortState values
 		private static const BEST_EFFORT_STATE_OFF:String = "off"; 											// not performing best effort fetch
 		private static const BEST_EFFORT_STATE_PLAY:String = "play"; 										// doing best effort for liveness or dropout
@@ -520,10 +521,21 @@ package com.kaltura.hls
 			
 			// Reload the manifest we were given, if we were given a manifest
 			var manToReload:HLSManifestParser = manifest ? manifest : getManifestForQuality(reloadingQuality);
-			if(getTimer() - manToReload.timestamp < (manToReload.targetDuration * 500))
+
+			updateManifestReloadDelay(manToReload);
+
+			if(getTimer() - manToReload.timestamp < manifestReloadDelay)
 			{
-				trace("Aborting, don't reload faster than " + (manToReload.targetDuration * 500) + "ms");
-				reloadingQuality > -1 ? lastQuality = reloadingQuality : lastQuality = 0;
+				if (reloadingQuality <= -1)
+				{
+					lastQuality = 0;
+				}
+				else
+				{
+					lastQuality = reloadingQuality;
+				}
+				trace("Aborting, don't reload faster than " + manifestReloadDelay + "ms");
+
 				dispatchDVRStreamInfo();
 				updateTotalDuration();
 				reloadingManifest = null; // don't want to hang on to it
@@ -1350,6 +1362,32 @@ package com.kaltura.hls
 			}
 			return null;
 		}
+
+		// Updates the manifest reloading delay according to HLSManifestParser.LIVE_STREAM_MINIMUM_MANIFEST_RELOAD
+		// protocol, outlined on the variable in HLSManifestParser
+		private function updateManifestReloadDelay(updatedManifest:HLSManifestParser):void
+		{
+			if (isNaN(manifestReloadDelay) || !HLSManifestParser.LIVE_STREAM_MINIMUM_MANIFEST_RELOAD)
+			{	
+				//Sets default manifest reloading delay to 1/2 target segment duration
+				manifestReloadDelay = updatedManifest.targetDuration * 1000 / 2;
+				trace ("updateManifestReloadDelay setting manifestReloadDelay to: " + manifestReloadDelay);
+				return;
+			}
+
+			var segments:Vector.<HLSManifestSegment> = getSegmentsForQuality(targetQuality);
+			if (segments.length > 0)
+			{
+				//Checks is the last segment length is greater than 1 second, and sets the manifestReloadDelay appropriately
+				//To 1/2 the last segment length OR 1/2 second, whichever is greater.
+				var lastSegmentLength:Number = segments[segments.length - 1].duration;
+				manifestReloadDelay = lastSegmentLength > 1 ? lastSegmentLength * 500 : 500;
+				trace ("updateManifestReloadDelay setting manifestReloadDelay to: " + manifestReloadDelay);
+				return
+			}
+
+			trace("updateManifestReloadDelay - no change to the manifestReload delay, currently: " + manifestReloadDelay);
+		}
 		
 		private function issueManifestReloadIfNeeded(quality:int):HTTPStreamRequest
 		{
@@ -1367,6 +1405,9 @@ package com.kaltura.hls
 				trace("issueManifestReloadIfNeeded - stream is in recovering state, returning without reload.");
 				return null;
 			}
+
+			// Get updated manifest reloading delay if delay is based on segment length
+			updateManifestReloadDelay(manToReload);
 			
 			if(HLSManifestParser.STREAM_DEAD)
 			{
@@ -1380,9 +1421,9 @@ package com.kaltura.hls
 				trace("issueManifestReloadIfNeeded - VODs do not need to reload, returning.");
 				return null;
 			}
-			
+
 			var curTime:uint = getTimer();
-			if(curTime - manToReload.timestamp < manToReload.targetDuration * 500)
+			if(curTime - manToReload.timestamp < manifestReloadDelay)
 			{
 				// Don't need to reload.
 				trace("issueManifestReloadIfNeeded - Do not need to reload yet.");
@@ -1391,7 +1432,7 @@ package com.kaltura.hls
 			
 			if(reloadingManifest 
 				&& reloadingManifest.quality == quality 
-				&& curTime - reloadingManifest.lastReloadRequestTime < manToReload.targetDuration * 500 
+				&& curTime - reloadingManifest.lastReloadRequestTime < manifestReloadDelay
 				&& reloadingManifest.timestamp < reloadingManifest.lastReloadRequestTime)
 			{
 				// Waiting on a reload already.
@@ -1602,9 +1643,12 @@ package com.kaltura.hls
 			
 			if ( (reloadingManifest || !manifest.streamEnds) && segments.length > 0)
 			{
-				trace("Stalling -- requested segment " + newSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream - stalling for: " + (getManifestForQuality(origQuality).targetDuration/2) + " ms");
+				// Get updated manifest reload delay if based on last segment duration
+				updateManifestReloadDelay(reloadingManifest?reloadingManifest:getManifestForQuality(targetQuality));
+
+				trace("Stalling -- requested segment " + newSequence + " past the end " + segments[segments.length-1].id + " and we're in a live stream - stalling for: " + (manifestReloadDelay / 1000) + " seconds");
 				
-				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, getManifestForQuality(origQuality).targetDuration/2);
+				return new HTTPStreamRequest(HTTPStreamRequestKind.LIVE_STALL, null, manifestReloadDelay / 1000);
 			}
 			
 			trace("Ending stream playback");
