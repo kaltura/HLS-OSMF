@@ -114,13 +114,13 @@ package com.kaltura.hls.subtitles
 							{
 								// Split right half by comma.
 								var mappings:Array = halves[1].split(",");
-								for(i=0; i<mappings.length; i++)
+								for(var j:int = 0; j < mappings.length; j++)
 								{
 									var pairs:Array = [];
 
-									var splitPoint:int = mappings[i].indexOf(":");
-									pairs[0] = mappings[i].substring(0, splitPoint);
-									pairs[1] = mappings[i].substring(splitPoint + 1, 0xFFFFF);
+									var splitPoint:int = mappings[j].indexOf(":");
+									pairs[0] = mappings[j].substring(0, splitPoint);
+									pairs[1] = mappings[j].substring(splitPoint + 1, 0xFFFFF);
 
 									trace("Saw " + pairs[0] + " | " + pairs[1]);
 
