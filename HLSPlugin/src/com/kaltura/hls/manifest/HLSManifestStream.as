@@ -22,6 +22,8 @@ package com.kaltura.hls.manifest
 		public var backupStream:HLSManifestStream;
 		public var dynamicStream:DynamicStreamingItem;
 		public var numBackups:int = 0;
+		public var failedManifest:Boolean = false;
+		public var failedTime:Date = null;
 		
 
 		public function get isProbablyVideo():Boolean

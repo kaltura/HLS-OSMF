@@ -1747,8 +1747,16 @@ package org.osmf.net.httpstreaming
 			
 			// Reset the empty buffer interruption flag
 			emptyBufferInterruptionSinceLastQoSUpdate = false;
+
+			if(HLSIndexHandler.isRecoveringFromEmergencyStall)
+			{
+				HLSIndexHandler.isRecoveringFromEmergencyStall = false;
+			}
+			else
+			{
+				dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.RUN_ALGORITHM));
+			}
 			
-			dispatchEvent(new HTTPStreamingEvent(HTTPStreamingEvent.RUN_ALGORITHM));
 			
 			_lastSegmentEnd = indexHandler ? indexHandler.getCurrentSegmentEnd() : 0.0;
 		}

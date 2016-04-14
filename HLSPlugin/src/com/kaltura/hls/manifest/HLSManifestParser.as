@@ -136,6 +136,15 @@ package com.kaltura.hls.manifest
 		 */
 		public static var SEGMENT_TIMEOUT_MULTIPLIER:Number = 2;
 
+		/**
+		 * Used to manage timeout of a live stream quality level and backup manifests
+		 * Only used for live streams, measured in seconds
+		 */
+		public static var LIVE_STREAM_QUALITYLEVEL_TIMEOUT:Number = 30;
+		public static var BACKUP_MANIFEST_TIMEOUT:Number = 30;
+		public static var LIVE_STREAM_EMERGENCY_STALL_TIMEOUT:Number = 5;
+
+
 		public var type:String = DEFAULT;
 		public var version:int;
 		public var baseUrl:String;
@@ -640,13 +649,13 @@ package com.kaltura.hls.manifest
 		{
 			CONFIG::LOGGING
 			{
-				logger.debug("ERROR loading manifest " + e.toString());
+				logger.debug("ERROR reloading manifest " + e.toString());
 			}
 			
 			// parse the error and send up the manifest url
 			var event:IOErrorEvent = e as IOErrorEvent;
 			var url:String = event.text.substring(event.text.search("URL: ") + 5);
-			
+			e.currentTarget.close()
 			dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR, false, false, url));
 		}
 		
