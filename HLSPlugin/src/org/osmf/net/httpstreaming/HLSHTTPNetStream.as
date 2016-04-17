@@ -428,8 +428,28 @@ package org.osmf.net.httpstreaming
 			if(neverBuffered)
 				return HLSManifestParser.INITIAL_BUFFER_THRESHOLD;
 
-			// Ok - in normal buffering. Calculate initial value.
-			return HLSManifestParser.NORMAL_BUFFER_THRESHOLD + bufferBias;
+			if ((indexHandler as HLSIndexHandler).isLive == false)
+			{
+				//Ok - in normal buffering. Calculate initial value.
+				return HLSManifestParser.NORMAL_BUFFER_THRESHOLD + bufferBias;
+			}
+			else
+			{
+				// Get the buffer threshold with buffer bias
+				var tempBufferBias:Number = HLSManifestParser.NORMAL_BUFFER_THRESHOLD + bufferBias;
+				// Get the maximum value allowed for a live stream
+				var tempBufferThreshold:Number = indexHandler.getTargetSegmentDuration() * HLSManifestParser.LIVE_STREAM_BUFFER_THRESHOLD_MULTIPLIER;
+
+				// Return the tempBufferBias if it is below the maximum value allowed
+				if (tempBufferBias < tempBufferThreshold)
+				{
+					return tempBufferBias;
+				}
+				else
+				{
+					return tempBufferThreshold;
+				}
+			}
 		}
 
 		/**
