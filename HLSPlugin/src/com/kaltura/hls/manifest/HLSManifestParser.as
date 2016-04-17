@@ -156,6 +156,18 @@ package com.kaltura.hls.manifest
 		public static var BACKUP_MANIFEST_TIMEOUT:Number = 30;
 		public static var LIVE_STREAM_EMERGENCY_STALL_TIMEOUT:Number = 5;
 
+		/**
+		 * Toggles between using the target segment duration or using
+		 * the previous segment length to determine how long to wait
+		 * once an identical manifest has been reloaded. Default is 
+		 * false (target segment duration). True toggles to last segment length.
+		 * 
+		 * In live streams where the segments are regularly notably shorter than 
+		 * the target segment duration, it may be beneficial to toggle this to true.
+		 * Buffering issues have been observed in the case where it has to wait
+		 * too long to reload the manifest relative to the actual segment length. 
+		 */
+		public static var LIVE_STREAM_MINIMUM_MANIFEST_RELOAD:Boolean = false;
 
 		public var type:String = DEFAULT;
 		public var version:int;
