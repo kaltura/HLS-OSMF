@@ -300,6 +300,9 @@ package com.kaltura.hls.m2ts
 
             pesProcessor.clear(true);
 
+            _buffer.length = 0;
+            _buffer.position = 0;
+
             CONFIG::LOGGING
             {
                 logger.debug("FLUSHING COMPLETE");
