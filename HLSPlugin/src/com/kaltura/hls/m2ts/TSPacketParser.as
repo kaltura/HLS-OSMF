@@ -300,6 +300,11 @@ package com.kaltura.hls.m2ts
 
             pesProcessor.clear(true);
 
+            // Reset the buffer when we flush to remove any leftover packet parts
+            // Sometimes the wrong data here can cause an error processing the next segment
+            _buffer.length = 0;
+            _buffer.position = 0;
+
             CONFIG::LOGGING
             {
                 logger.debug("FLUSHING COMPLETE");
