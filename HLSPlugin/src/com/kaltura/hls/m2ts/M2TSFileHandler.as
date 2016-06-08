@@ -59,6 +59,7 @@ package com.kaltura.hls.m2ts
 		private var _extendedIndexHandler:IExtraIndexHandlerState;
 		private var _injectingSubtitles:Boolean = false;
 		private var _lastInjectedSubtitleTime:Number = 0;
+		private var _lastSixteenBytes:ByteArray;
 		
 		private var _decryptionIV:ByteArray;
 		
@@ -72,6 +73,7 @@ package com.kaltura.hls.m2ts
 			super();
 			
 			_encryptedDataBuffer = new ByteArray();
+			_lastSixteenBytes = new ByteArray();
 
 			_parser = new TSPacketParser();
 			_parser.callback = handleFLVMessage;
@@ -236,9 +238,19 @@ package com.kaltura.hls.m2ts
 				_encryptedDataBuffer.clear();
 			}
 
+			//Check to see if we have 16 bytes saved from the end of the last pass
+			if (_lastSixteenBytes.length > 0)
+			{
+				//Feeds them in at the beginning of the temp buffer, after any encryptedData
+				_lastSixteenBytes.position = 0;
+				_lastSixteenBytes.readBytes(tmpBuffer, tmpBuffer.length);
+				_lastSixteenBytes.length = 0;
+				_lastSixteenBytes.position = 0;
+			}
+
 			if(!input)
 				input = new ByteArray();
-			
+
 			var amountToRead:int = input.bytesAvailable;
 			if(amountToRead > 1024*128) amountToRead = 1024*128;
 
@@ -246,12 +258,30 @@ package com.kaltura.hls.m2ts
 			{
 				logger.debug("READING " + amountToRead + " OF " + input.bytesAvailable);
 			}
-
+			
 			if(amountToRead > 0)
 				input.readBytes( tmpBuffer, tmpBuffer.length, amountToRead);
 
 			if ( key )
 			{
+				//If we aren't flushing at the end of a segment and we have 16 bytes, save the last 16 bytes off the end 
+				//in case they are padding. If we don't save the data and then attempt unpadding at the end, it may try 
+				//unpadding in the middle of a segment. If it does this and the data happens to look like padding, it will 
+				//truncate good bytes and cause pixelation
+				if (!_flush && tmpBuffer.length >= 16)
+				{
+					tmpBuffer.position = tmpBuffer.length - 16;
+					tmpBuffer.readBytes(_lastSixteenBytes, 0, 16);
+					tmpBuffer.length -= 16;
+					tmpBuffer.position = 0;
+				}
+				else
+				{
+					//If we are flushing, reset the ByteArray so no leftover data is around for the first pass on the next segment
+					_lastSixteenBytes.length = 0;
+					_lastSixteenBytes.position = 0;
+				}
+
 				// We need to decrypt available data.
 				var bytesToRead:uint = tmpBuffer.length;
 				var leftoverBytes:uint = bytesToRead % 16;
@@ -261,8 +291,6 @@ package com.kaltura.hls.m2ts
 				{
 					logger.debug("Decrypting " + tmpBuffer.length + " bytes of encrypted data.");
 				}
-				
-				key.usePadding = false;
 				
 				if ( leftoverBytes > 0 )
 				{
@@ -276,12 +304,6 @@ package com.kaltura.hls.m2ts
 					{
 						logger.debug("Storing " + _encryptedDataBuffer.length + " bytes of encrypted data.");
 					}
-				}
-				else
-				{
-					// Attempt to unpad if our buffer is equally divisible by 16.
-					// It could mean that we've reached the end of the file segment.
-					key.usePadding = true;
 				}
 				
 				// Store our current IV so we can use it do decrypt
@@ -421,6 +443,11 @@ package com.kaltura.hls.m2ts
 
 		public override function processFileSegment(input:IDataInput):ByteArray
 		{
+			if (key)
+			{
+				// If we are working with encrypted data, don't try to unpad because we haven't finished the segment
+				key.usePadding = false;
+			}
 			return basicProcessFileSegment(input, false);
 		}
 		

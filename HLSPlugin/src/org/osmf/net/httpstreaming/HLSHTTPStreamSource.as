@@ -40,6 +40,7 @@ package org.osmf.net.httpstreaming
 
 	import com.kaltura.hls.HLSIndexHandler;
 	import com.kaltura.hls.m2ts.M2TSFileHandler;
+	import com.kaltura.hls.manifest.HLSManifestParser;
 	import flash.external.ExternalInterface;
 	
 	CONFIG::LOGGING
@@ -158,6 +159,28 @@ package org.osmf.net.httpstreaming
 			}
 			return false;
 		}
+
+		/**
+		 * Triggered by the DOWNLOAD_COMPLETE event, triggers a recheck of timeout streams
+		 * Only matters for live streams, not VODs
+ 		 */
+		private function checkBadStream(event:Event):void
+		{
+			var indexHandler:HLSIndexHandler = _indexHandler as HLSIndexHandler;
+			indexHandler.checkStreamTimeouts();
+		}
+
+		/**
+		 * Triggered by the SEGMENT_TIMEOUT event - forces the quality level to index 0
+ 		 */
+		public function forceDowngradeStreamQuality(event:Event):void
+ 		{ 
+			trace("SEGMENT_TIMEOUT event triggered the downgradeStreamQuality method");
+			var indexHandler:HLSIndexHandler = _indexHandler as HLSIndexHandler;
+			beginQualityLevelChange(0);
+			setState(HTTPStreamingState.LOAD);
+			doSomeProcessingAndGetBytes();
+ 		}
 
 		/**
 		 * @inheritDoc
@@ -418,12 +441,26 @@ package org.osmf.net.httpstreaming
 					var wasSeek:Boolean = false;
 					if(!_didBeginSeek) // we are in seeking mode
 					{
-						_request = _indexHandler.getFileForTime(_seekTarget, _qualityLevel);
+						if (_isLive)
+						{
+							_request = _indexHandler.getFileForTime(_seekTarget, _qualityLevel);
+						}
+						else
+						{
+							_request = _indexHandler.getFileForTime(_seekTarget, _qualityLevel);
+						}
 						wasSeek = true;
 					}
 					else
 					{
-						_request = _indexHandler.getNextFile(_qualityLevel);
+						if (_isLive)
+						{
+							_request = _indexHandler.getNextFile(_qualityLevel);
+						}
+						else
+						{
+							_request = _indexHandler.getNextFile(_qualityLevel);
+						}
 					}
 
 					// Count best effort fetches in a row.
@@ -490,7 +527,42 @@ package org.osmf.net.httpstreaming
 							{			
 								logger.debug("downloader.open "+_request.url);
 							}
-							_downloader.open(_request.urlRequest, downloaderMonitor, OSMFSettings.hdsFragmentDownloadTimeout);
+							if (_isLive)
+							{
+								downloaderMonitor.addEventListener(HTTPStreamingEvent.DOWNLOAD_COMPLETE, checkBadStream);
+							}
+
+							if (HLSManifestParser.SEGMENT_TIMEOUT_MULTIPLIER != -1)
+							{
+								// If there is a multiplier set, passes in segment timeout data
+								// Casts the _indexHandler to an HLSIndexHandler to get target segment duration
+								var hlsIndexHandler:HLSIndexHandler = _indexHandler as HLSIndexHandler;
+								var targetSegmentDuration:Number;
+								if (hlsIndexHandler)
+								{
+									targetSegmentDuration = hlsIndexHandler.getTargetSegmentDuration();
+								}
+								else
+								{
+									targetSegmentDuration = -1;
+								}
+								// Adds the event listener to the downloaderMonitor that will be passed into the downloader 
+								// This occurs here because it may be one of two dispatchers
+								downloaderMonitor.addEventListener(HLSHTTPStreamDownloader.SEGMENT_TIMEOUT, forceDowngradeStreamQuality);
+								//downloaderMonitor.addEventListener(HLSHTTPStreamDownloader.SEGMENT_404, manageUnavailableStream);
+								_downloader.openWithSegmentTimeout(_request.urlRequest, 
+																   downloaderMonitor, 
+																   OSMFSettings.hdsFragmentDownloadTimeout, 
+																   targetSegmentDuration);
+							}
+							else
+							{
+								// If the multiplier is disabled (-1), does not pass in segment timeout data
+								_downloader.open(_request.urlRequest, 
+												 downloaderMonitor, 
+												 OSMFSettings.hdsFragmentDownloadTimeout);
+							}
+
 							setState(HTTPStreamingState.BEGIN_FRAGMENT);
 							break;
 						case HTTPStreamRequestKind.RETRY:

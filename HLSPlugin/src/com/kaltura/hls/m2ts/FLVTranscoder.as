@@ -200,6 +200,31 @@ package com.kaltura.hls.m2ts
             if(naluType == 7 || naluType == 8)
                 return;
 
+            // Attempt to emit SPS/PPS more aggressively to work around Chrome Windows
+            // specific issues; however this ended up not changing anything and issue
+            // now appears more intractable.
+            if(keyFrame && false)
+            {
+                // Emit SPS/PPS NALUs prior to any keyframe.
+                for(var i:int=0; i<naluProcessor.spsList.length; i++)
+                {
+                    var curSps:ByteArray = naluProcessor.spsList[i];
+                    flvGenerationBuffer.writeUnsignedInt(curSps.length); // + 1);
+                    //flvGenerationBuffer.writeByte(0x67); // binary 01100111 = SPS NALU header byte.
+                    flvGenerationBuffer.writeBytes(curSps, 0, curSps.length)
+                    totalAppended += curSps.length; // + 1;
+                }
+
+                for(i=0; i<naluProcessor.ppsList.length; i++)
+                {
+                    var curPps:ByteArray = naluProcessor.ppsList[i];
+                    flvGenerationBuffer.writeUnsignedInt(curPps.length); // + 1);
+                    //flvGenerationBuffer.writeByte(0x68); // binary 01101000 = PPS NALU header byte.
+                    flvGenerationBuffer.writeBytes(curPps, 0, curPps.length)
+                    totalAppended += curPps.length; // + 1;
+                }
+            }
+
             // Append.
             flvGenerationBuffer.writeUnsignedInt(length);
             flvGenerationBuffer.writeBytes(bytes, cursor, length);

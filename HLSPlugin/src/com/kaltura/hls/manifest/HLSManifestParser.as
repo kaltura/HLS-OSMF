@@ -87,11 +87,23 @@ package com.kaltura.hls.manifest
 
 		/**
 		 * After we have stalled once, we switch to using this as the minimum 
-		 * buffer period to allow playback.
+		 * buffer period to allow playback. Only used for VODs. Live streams 
+		 * have other logic (see LIVE_STREAM_BUFFER_THRESHOLD_MULTIPLIER).
 		 *
 		 * Playback will not begin until at least this much data is buffered.
 		 */
 		public static var NORMAL_BUFFER_THRESHOLD:Number = 21.0;
+
+		/**
+		 * This multiplier is used to hard limit the buffer threshold for live
+		 * streams - the threshold is calculated by the segment target duration
+		 * multiplied by this multiplier. 
+		 *
+		 * This keeps a live stream player from getting too out-of-sync with 
+		 * a live stream to the point where the segments are no longer available
+		 * from the server.
+		 */
+		public static var LIVE_STREAM_BUFFER_THRESHOLD_MULTIPLIER:Number = 3.0;
 		
 		/**
 		 * How many seconds of video data should we keep in the buffer before 
@@ -114,6 +126,48 @@ package com.kaltura.hls.manifest
 		 */
 		public static var BUFFER_EMPTY_MAX_INCREASE:Number = 30.0;
 
+		/**
+		 * We can draw a black banner to hide cropping issues in Pepper API Chrome.
+		 *
+		 * This is a percent value of the video to hide from bottom.
+		 */
+		public static var FORCE_CROP_WORKAROUND_BOTTOM_PERCENT:Number = 0.0;
+
+ 		/**
+		 * Used to control the minimum, maximum, and preferred starting bitrates.
+		 * -1 indicates there is no filtering. Non-zero values are intepreted as
+		 * bits per second.
+		 */
+		public static var MIN_BITRATE:int = -1;
+		public static var MAX_BITRATE:int = -1;
+		public static var PREF_BITRATE:int = -1;
+
+		/**
+		 * Multiplier used to determine the segment timeout timer
+		 * -1 is off, default is 2 for 2x targetSegmentDuration
+		 */
+		public static var SEGMENT_TIMEOUT_MULTIPLIER:Number = 2;
+
+		/**
+		 * Used to manage timeout of a live stream quality level and backup manifests
+		 * Only used for live streams, measured in seconds
+		 */
+		public static var LIVE_STREAM_QUALITYLEVEL_TIMEOUT:Number = 30;
+		public static var BACKUP_MANIFEST_TIMEOUT:Number = 30;
+		public static var LIVE_STREAM_EMERGENCY_STALL_TIMEOUT:Number = 5;
+
+		/**
+		 * Toggles between using the target segment duration or using
+		 * the previous segment length to determine how long to wait
+		 * once an identical manifest has been reloaded. Default is 
+		 * false (target segment duration). True toggles to last segment length.
+		 * 
+		 * In live streams where the segments are regularly notably shorter than 
+		 * the target segment duration, it may be beneficial to toggle this to true.
+		 * Buffering issues have been observed in the case where it has to wait
+		 * too long to reload the manifest relative to the actual segment length. 
+		 */
+		public static var LIVE_STREAM_MINIMUM_MANIFEST_RELOAD:Boolean = false;
 
 		public var type:String = DEFAULT;
 		public var version:int;
@@ -619,13 +673,13 @@ package com.kaltura.hls.manifest
 		{
 			CONFIG::LOGGING
 			{
-				logger.debug("ERROR loading manifest " + e.toString());
+				logger.debug("ERROR reloading manifest " + e.toString());
 			}
 			
 			// parse the error and send up the manifest url
 			var event:IOErrorEvent = e as IOErrorEvent;
 			var url:String = event.text.substring(event.text.search("URL: ") + 5);
-			
+			e.currentTarget.close()
 			dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR, false, false, url));
 		}
 		

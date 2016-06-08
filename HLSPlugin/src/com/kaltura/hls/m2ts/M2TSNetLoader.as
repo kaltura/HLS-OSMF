@@ -3,6 +3,7 @@ package com.kaltura.hls.m2ts
 	import com.kaltura.hls.HLSDVRTimeTrait;
 	import com.kaltura.hls.HLSDVRTrait;
 	import com.kaltura.hls.HLSMetadataNamespaces;
+	import com.kaltura.hls.manifest.HLSManifestParser;
 	
 	import flash.net.NetConnection;
 	import flash.net.NetStream;
@@ -19,16 +20,26 @@ package com.kaltura.hls.m2ts
 	import org.osmf.net.httpstreaming.HTTPStreamingFactory;
 	import org.osmf.net.httpstreaming.HTTPStreamingNetLoader;
 	import org.osmf.net.httpstreaming.dvr.DVRInfo;
+
 	import org.osmf.traits.LoadState;
+	import org.osmf.traits.MediaTraitType;
+	import org.osmf.traits.MediaTraitBase;
+	import org.osmf.net.NetStreamDynamicStreamTrait;
+	import org.osmf.net.NetStreamLoadTrait;
 
 	import org.osmf.net.NetStreamSwitchManagerBase
 	import org.osmf.net.metrics.BandwidthMetric;
 	import org.osmf.net.DynamicStreamingResource;
 	import org.osmf.net.httpstreaming.DefaultHTTPStreamingSwitchManager;
+	import org.osmf.traits.DynamicStreamTrait;
 
-	import org.osmf.net.metrics.MetricType;
-	import org.osmf.net.rules.BandwidthRule;
-	
+	import org.osmf.net.metrics.*;
+	import org.osmf.net.rules.*;
+	import org.osmf.net.qos.*;
+	import org.osmf.net.*;
+
+	import com.kaltura.hls.DebugSwitchManager;
+
 	CONFIG::LOGGING
 	{
 		import org.osmf.logging.Logger;
@@ -63,9 +74,65 @@ package com.kaltura.hls.m2ts
 			var httpNetStream:HLSHTTPNetStream = new HLSHTTPNetStream(connection, factory, resource);
 			return httpNetStream;
 		}
+
+		protected function createDebugSwitchManager(connection:NetConnection, netStream:NetStream, dsResource:DynamicStreamingResource):NetStreamSwitchManagerBase
+		{
+			// Create a QoSInfoHistory, to hold a history of QoSInfo provided by the NetStream
+			var netStreamQoSInfoHistory:QoSInfoHistory = createNetStreamQoSInfoHistory(netStream);
+			
+			// Create a MetricFactory, to be used by the metric repository for instantiating metrics
+			var metricFactory:MetricFactory = createMetricFactory(netStreamQoSInfoHistory);
+			
+			// Create the MetricRepository, which caches metrics
+			var metricRepository:MetricRepository = new MetricRepository(metricFactory);
+			
+			// Create the emergency rules
+			var emergencyRules:Vector.<RuleBase> = new Vector.<RuleBase>();
+			
+			emergencyRules.push(new DroppedFPSRule(metricRepository, 10, 0.1));
+			
+			emergencyRules.push
+				( new EmptyBufferRule
+				  ( metricRepository
+				  , EMPTY_BUFFER_RULE_SCALE_DOWN_FACTOR
+				  )
+				);
+			
+			emergencyRules.push
+				( new AfterUpSwitchBufferBandwidthRule
+				  ( metricRepository
+					, AFTER_UP_SWITCH_BANDWIDTH_BUFFER_RULE_BUFFER_FRAGMENTS_THRESHOLD
+					, AFTER_UP_SWITCH_BANDWIDTH_BUFFER_RULE_MIN_RATIO
+				  )
+				);
+			
+			// Create a NetStreamSwitcher, which will handle the low-level details of NetStream
+			// stream switching
+			var nsSwitcher:NetStreamSwitcher = new NetStreamSwitcher(netStream, dsResource);
+			
+			// Finally, return an instance of the DefaultSwitchManager, passing it
+			// the objects we instatiated above
+			return new DebugSwitchManager
+				( netStream
+				, nsSwitcher
+				, metricRepository
+				, emergencyRules
+				, true
+				);			
+		}
 		
 		override protected function createNetStreamSwitchManager(connection:NetConnection, netStream:NetStream, dsResource:DynamicStreamingResource):NetStreamSwitchManagerBase
 		{
+			// Enable to use debug switch manager.
+			if(false)
+			{
+				CONFIG::LOGGING
+				{
+					logger.info("Using debug switch manager.");
+					return createDebugSwitchManager(connection, netStream, dsResource);
+				}
+			}
+
 			var switcher:DefaultHTTPStreamingSwitchManager = super.createNetStreamSwitchManager(connection, netStream, dsResource) as DefaultHTTPStreamingSwitchManager;
 			
 			// Since our segments are large, switch rapidly.
@@ -112,9 +179,36 @@ package com.kaltura.hls.m2ts
 			// Set up DVR state updating.
 			var resource:URLResource = loadTrait.resource as URLResource;
 			
+			if (HLSManifestParser.PREF_BITRATE != -1)
+			{
+				//Tests to see if a preferred bitrate is set
+				trace("Preferred bitrate set - attempting to disable autoswitching");
+				var autoSwitchTrait:DynamicStreamTrait = loadTrait.getTrait(MediaTraitType.DYNAMIC_STREAM) as DynamicStreamTrait;
+				
+				if (autoSwitchTrait != null)
+				{
+					//If the loadTrait already has a DYNAMIC_STREAM trait, it simply switches the autoSwitch bool to false
+					autoSwitchTrait.autoSwitch = false;
+					trace("loadTrait already possesses a DYNAMIC_STREAM trait, disabling autoswitching on existing trait");
+				}
+				else
+				{
+					//If the loadTrait does not have a DYNAMIC_STREAM trait, it creates one and switches the autoSwitch bool to false
+					autoSwitchTrait = new NetStreamDynamicStreamTrait(loadTrait.netStream, 
+																	  loadTrait.switchManager, 
+																	  loadTrait.resource as DynamicStreamingResource);
+
+					autoSwitchTrait.autoSwitch = false;
+
+					loadTrait.setTrait(autoSwitchTrait);
+					trace("loadTrait does not possess a DYNAMIC_STREAM trait, adding a new trait with autoswitching diabled");
+				}
+			}
+
 			if (!dvrMetadataPresent(resource))
 			{
 				updateLoadTrait(loadTrait, LoadState.READY);
+
 				return;
 			}
 			
