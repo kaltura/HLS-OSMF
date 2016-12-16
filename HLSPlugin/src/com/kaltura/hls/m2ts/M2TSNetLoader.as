@@ -167,9 +167,9 @@ package com.kaltura.hls.m2ts
 			}
 
 			// Third, adjust the switch logic to be less restrictive.
-			switcher.maxReliabilityRecordSize = 3;
-			switcher.maxUpSwitchLimit = -1;
-			switcher.maxDownSwitchLimit = -1;
+			switcher.maxReliabilityRecordSize = 5;
+			switcher.maxUpSwitchLimit = 1;
+			switcher.maxDownSwitchLimit = 1;
 
 			return switcher;
 		}
