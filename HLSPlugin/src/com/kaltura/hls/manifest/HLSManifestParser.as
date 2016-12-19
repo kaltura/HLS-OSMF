@@ -252,7 +252,7 @@ package com.kaltura.hls.manifest
 			// Post it out.
 			if(SEND_LOGS)
 			{
-				ExternalInterface.call( "onManifest", JSON.encode(jsonData) ); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
+				//ExternalInterface.call( "onManifest", JSON.encode(jsonData) ); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
 			}
 		}
 

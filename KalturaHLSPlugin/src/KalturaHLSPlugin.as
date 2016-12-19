@@ -2,6 +2,7 @@ package
 {
 	import com.kaltura.hls.HLSPluginInfo;
 	import com.kaltura.hls.m2ts.M2TSFileHandler;
+	import com.kaltura.hls.m2ts.M2TSNetLoader;
 	import com.kaltura.hls.manifest.HLSManifestParser;
 	import com.kaltura.kdpfl.model.MediaProxy;
 	import com.kaltura.kdpfl.plugin.IPlugin;
@@ -40,6 +41,10 @@ package
 		private var _forceCropBottomPercent:Number = 0.0; // force crop workaround for Chrome - the value is a percentage of the hight that will be covered by black bunner. The range is between 0 and 1
 		
 		private var _sendLogs:Boolean = false;
+		
+		public var maxReliabilityRecordSize:uint = 5;
+		public var maxUpSwitchLimit:int = 1;
+		public var maxDownSwitchLimit:int = 1;
         
         public function KalturaHLSPlugin()
         {
@@ -152,6 +157,17 @@ package
          */		
         protected function onOSMFPluginLoaded (e : MediaFactoryEvent) : void
         {
+			if(this.maxReliabilityRecordSize){
+				M2TSNetLoader.MAX_DOWNSWITCH_LIMIT = this.maxReliabilityRecordSize;
+			}
+			if(this.maxUpSwitchLimit){
+				M2TSNetLoader.MAX_UPSWITCH_LIMIT = this.maxUpSwitchLimit;
+			}
+			if(this.maxDownSwitchLimit){
+				M2TSNetLoader.MAX_DOWNSWITCH_LIMIT = this.maxDownSwitchLimit;
+			}
+			
+			
 			if ( e.resource && e.resource == _pluginResource ) {
 				e.target.removeEventListener(MediaFactoryEvent.PLUGIN_LOAD, onOSMFPluginLoaded);
 				if (liveSegmentBuffer != -1){ 
@@ -179,7 +195,7 @@ package
 				if (forceCropBottomPercent > 0.0){
 					HLSManifestParser.FORCE_CROP_WORKAROUND_BOTTOM_PERCENT = forceCropBottomPercent; // force crop workaround for Chrome
 				}
-								
+		
 				if (sendLogs){
 					M2TSFileHandler.SEND_LOGS = true;
 					HLSManifestParser.SEND_LOGS = true;
