@@ -54,6 +54,7 @@ package com.kaltura.hls.m2ts
 
 		
 		static public var MAX_RELIABILITY_RECORD_SIZE:uint = 5;
+		static public var MIN_RELIABILITY:Number = 0.85;
 		static public var MAX_UPSWITCH_LIMIT:int = 1 ;
 		static public var MAX_DOWNSWITCH_LIMIT:int = 1 ;
 		
@@ -135,6 +136,9 @@ package com.kaltura.hls.m2ts
 			}
 
 			var switcher:DefaultHTTPStreamingSwitchManager = super.createNetStreamSwitchManager(connection, netStream, dsResource) as DefaultHTTPStreamingSwitchManager;
+			
+			//override threshhold 
+			switcher.minReliability = MIN_RELIABILITY;
 			
 			// Since our segments are large, switch rapidly.
 

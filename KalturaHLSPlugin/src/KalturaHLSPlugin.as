@@ -43,6 +43,7 @@ package
 		private var _sendLogs:Boolean = false;
 		
 		public var maxReliabilityRecordSize:uint = 5;
+		public var minReliability:Number = 0.85;
 		public var maxUpSwitchLimit:int = 1;
 		public var maxDownSwitchLimit:int = 1;
         
@@ -165,6 +166,9 @@ package
 			}
 			if(this.maxDownSwitchLimit){
 				M2TSNetLoader.MAX_DOWNSWITCH_LIMIT = this.maxDownSwitchLimit;
+			}
+			if(this.minReliability){
+				M2TSNetLoader.MIN_RELIABILITY = this.minReliability;
 			}
 			
 			
