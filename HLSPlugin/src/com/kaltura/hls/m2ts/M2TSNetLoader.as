@@ -1,44 +1,39 @@
 package com.kaltura.hls.m2ts
 {
+	import com.kaltura.hls.DebugSwitchManager;
 	import com.kaltura.hls.HLSDVRTimeTrait;
 	import com.kaltura.hls.HLSDVRTrait;
 	import com.kaltura.hls.HLSMetadataNamespaces;
 	import com.kaltura.hls.manifest.HLSManifestParser;
 	
+	import flash.events.NetStatusEvent;
 	import flash.net.NetConnection;
 	import flash.net.NetStream;
-	import flash.events.NetStatusEvent;
 	
 	import org.osmf.events.DVRStreamInfoEvent;
 	import org.osmf.media.MediaResourceBase;
 	import org.osmf.media.URLResource;
 	import org.osmf.metadata.Metadata;
 	import org.osmf.metadata.MetadataNamespaces;
-	import org.osmf.net.NetStreamLoadTrait;
+	import org.osmf.net.*;
+	import org.osmf.net.DynamicStreamingResource;
 	import org.osmf.net.NetStreamCodes;
+	import org.osmf.net.NetStreamDynamicStreamTrait;
+	import org.osmf.net.NetStreamLoadTrait;
+	import org.osmf.net.NetStreamSwitchManagerBase;
+	import org.osmf.net.httpstreaming.DefaultHTTPStreamingSwitchManager;
 	import org.osmf.net.httpstreaming.HLSHTTPNetStream;
 	import org.osmf.net.httpstreaming.HTTPStreamingFactory;
 	import org.osmf.net.httpstreaming.HTTPStreamingNetLoader;
 	import org.osmf.net.httpstreaming.dvr.DVRInfo;
-
-	import org.osmf.traits.LoadState;
-	import org.osmf.traits.MediaTraitType;
-	import org.osmf.traits.MediaTraitBase;
-	import org.osmf.net.NetStreamDynamicStreamTrait;
-	import org.osmf.net.NetStreamLoadTrait;
-
-	import org.osmf.net.NetStreamSwitchManagerBase
-	import org.osmf.net.metrics.BandwidthMetric;
-	import org.osmf.net.DynamicStreamingResource;
-	import org.osmf.net.httpstreaming.DefaultHTTPStreamingSwitchManager;
-	import org.osmf.traits.DynamicStreamTrait;
-
 	import org.osmf.net.metrics.*;
-	import org.osmf.net.rules.*;
+	import org.osmf.net.metrics.BandwidthMetric;
 	import org.osmf.net.qos.*;
-	import org.osmf.net.*;
-
-	import com.kaltura.hls.DebugSwitchManager;
+	import org.osmf.net.rules.*;
+	import org.osmf.traits.DynamicStreamTrait;
+	import org.osmf.traits.LoadState;
+	import org.osmf.traits.MediaTraitBase;
+	import org.osmf.traits.MediaTraitType;
 
 	CONFIG::LOGGING
 	{
@@ -51,11 +46,18 @@ package com.kaltura.hls.m2ts
 	 */
 	public class M2TSNetLoader extends HTTPStreamingNetLoader
 	{
+		
         CONFIG::LOGGING
         {
             private static const logger:Logger = Log.getLogger("com.kaltura.hls.m2ts.M2TSNetLoader");
         }
 
+		
+		static public var MAX_RELIABILITY_RECORD_SIZE:uint = 5;
+		static public var MIN_RELIABILITY:Number = 0.85;
+		static public var MAX_UPSWITCH_LIMIT:int = 1 ;
+		static public var MAX_DOWNSWITCH_LIMIT:int = 1 ;
+		
 		private var netStream:HLSHTTPNetStream;
 
 		override public function canHandleResource( resource:MediaResourceBase ):Boolean
@@ -135,6 +137,9 @@ package com.kaltura.hls.m2ts
 
 			var switcher:DefaultHTTPStreamingSwitchManager = super.createNetStreamSwitchManager(connection, netStream, dsResource) as DefaultHTTPStreamingSwitchManager;
 			
+			//override threshhold 
+			switcher.minReliability = MIN_RELIABILITY;
+			
 			// Since our segments are large, switch rapidly.
 
 			// First, try to bias the bandwidth metric itself.
@@ -167,9 +172,18 @@ package com.kaltura.hls.m2ts
 			}
 
 			// Third, adjust the switch logic to be less restrictive.
-			switcher.maxReliabilityRecordSize = 3;
-			switcher.maxUpSwitchLimit = -1;
-			switcher.maxDownSwitchLimit = -1;
+			
+			//applying vlaues 
+			switcher.maxReliabilityRecordSize = MAX_RELIABILITY_RECORD_SIZE;
+			switcher.maxUpSwitchLimit = MAX_UPSWITCH_LIMIT;
+			switcher.maxDownSwitchLimit = MAX_DOWNSWITCH_LIMIT;
+			
+			CONFIG::LOGGING
+			{
+				logger.debug("maxReliabilityRecordSize "+switcher.localMaxReliabilityRecordSize);
+				logger.debug("maxUpSwitchLimit "+switcher.localMaxUpSwitchLimit);
+				logger.debug("maxDownSwitchLimit "+switcher.localMaxDownSwitchLimit);
+			}
 
 			return switcher;
 		}

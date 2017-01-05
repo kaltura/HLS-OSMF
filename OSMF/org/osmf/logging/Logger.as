@@ -86,6 +86,7 @@ package org.osmf.logging
 		 */
 		public function debug(message:String, ... rest):void
 		{
+			trace(message,rest);
 		}
 		
 		/**
@@ -110,6 +111,7 @@ package org.osmf.logging
 		 */
 		public function info(message:String, ... rest):void
 		{
+			trace(message,rest);
 		}
 		
 		/**
@@ -134,6 +136,7 @@ package org.osmf.logging
 		 */
 		public function warn(message:String, ... rest):void
 		{
+			trace(message,rest);
 		}
 		
 		/**
@@ -158,6 +161,7 @@ package org.osmf.logging
 		 */
 		public function error(message:String, ... rest):void
 		{
+			trace(message,rest);
 		}
 		
 		/**
@@ -182,6 +186,7 @@ package org.osmf.logging
 		 */
 		public function fatal(message:String, ... rest):void
 		{
+			trace(message,rest);
 		}
 		
 		private var _category:String;

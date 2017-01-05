@@ -25,6 +25,8 @@
     <classEntry path="json.JSONTokenizer"/>
     <classEntry path="org.osmf.net.httpstreaming.HLSHTTPStreamDownloader"/>
   </includeClasses>
-  <includeResources/>
+  <includeResources>
+    <resourceEntry destPath="com/hurlant/util/LICENSE.md" sourcePath="com/hurlant/util/LICENSE.md"/>
+  </includeResources>
   <namespaceManifests/>
 </flexLibProperties>

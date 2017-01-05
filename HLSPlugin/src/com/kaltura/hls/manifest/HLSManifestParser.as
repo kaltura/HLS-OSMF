@@ -2,13 +2,11 @@ package com.kaltura.hls.manifest
 {
 	import com.kaltura.hls.subtitles.SubTitleParser;
 	
-	import flash.external.ExternalInterface;
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
 	import flash.external.ExternalInterface;
-	import com.adobe.serialization.json.JSON;
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
 	import flash.utils.getTimer;
@@ -217,16 +215,31 @@ package com.kaltura.hls.manifest
 		
 		public static function getNormalizedUrl( baseUrl:String, uri:String ):String
 		{
-			if(uri.substr(0, 1) == "/")
-			{
-				// Take the host from base and append the uri.
-				var thirdSlash:int = 0;
-				for(var i:int=0; i<3; i++)
-					thirdSlash = baseUrl.indexOf("/", thirdSlash + 1);
-				return baseUrl.substring(0, thirdSlash) + uri;
+			
+			if(uri.indexOf("http")>-1){
+				//keep old logic			
+				if(uri.substr(0, 1) == "/")
+				{
+					// Take the host from base and append the uri.
+					var thirdSlash:int = 0;
+					for(var i:int=0; i<3; i++)
+						thirdSlash = baseUrl.indexOf("/", thirdSlash + 1);
+					
+					return baseUrl.substring(0, thirdSlash) + uri;
+				}
+				
+				return ( uri.substr(0, 5) == "http:" || uri.substr(0, 6) == "https:" || uri.substr(0, 5) == "file:" ) ? uri : baseUrl + uri;
+			}else{
+				// find m3u8, remove from last / till .m3u8 and concatenate uri
+				var withoutM3u8:String = baseUrl.split(".m3u8")[0];
+				withoutM3u8 = withoutM3u8.split("//").join("~~~");
+				var slashes:Array = withoutM3u8.split("/");
+				slashes.pop();
+				withoutM3u8 = slashes.join("/");
+				withoutM3u8 = withoutM3u8.split("~~~").join("//");
+				return withoutM3u8+"/"+uri; 
 			}
-
-			return ( uri.substr(0, 5) == "http:" || uri.substr(0, 6) == "https:" || uri.substr(0, 5) == "file:" ) ? uri : baseUrl + uri;
+			
 		}
 
 		public function postToJS():void
@@ -252,7 +265,7 @@ package com.kaltura.hls.manifest
 			// Post it out.
 			if(SEND_LOGS)
 			{
-				ExternalInterface.call( "onManifest", JSON.encode(jsonData) ); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
+				//ExternalInterface.call( "onManifest", JSON.encode(jsonData)); // JSON.stringify is not supported in 4.5.1 sdk, so stringify method will have to move to the JS side
 			}
 		}
 
